@@ -1,0 +1,174 @@
+<app-page-header
+  title="Contacts"
+  description="Everyone you can reach on WhatsApp, with opt-in status and engagement history."
+  [breadcrumbs]="[{ label: 'Home', route: '/dashboard' }, { label: 'Contacts', route: null }]"
+>
+  <button appButton variant="outline" size="md" (click)="announcePending('Export')">
+    <app-icon name="download" [size]="16" />
+    Export
+  </button>
+  <button appButton size="md" (click)="announcePending('Import')">
+    <app-icon name="plus" [size]="16" />
+    Import contacts
+  </button>
+</app-page-header>
+
+<!-- Bulk action bar: appears only when rows are selected -->
+@if (selectedCount() > 0) {
+  <div
+    class="mt-5 flex flex-wrap items-center gap-3 rounded-xl bg-brand-50 px-4 py-3 ring-1 ring-brand-200 animate-rise"
+    role="region"
+    aria-label="Bulk actions"
+  >
+    <p class="text-sm font-medium text-brand-800">
+      {{ selectedCount() }} selected
+    </p>
+    <div class="ml-auto flex flex-wrap items-center gap-2">
+      <button appButton variant="outline" size="sm" (click)="announcePending('Add tag')">
+        <app-icon name="tag" [size]="15" />
+        Add tag
+      </button>
+      <button appButton variant="outline" size="sm" (click)="announcePending('Assign group')">
+        <app-icon name="userGroup" [size]="15" />
+        Assign group
+      </button>
+      <button appButton variant="danger" size="sm" (click)="announcePending('Delete')">
+        <app-icon name="close" [size]="15" />
+        Delete
+      </button>
+      <button appButton variant="ghost" size="sm" (click)="clearSelection()">Clear</button>
+    </div>
+  </div>
+}
+
+<app-data-table
+  class="mt-5 block"
+  [columns]="columns"
+  [rows]="contacts()"
+  [state]="state()"
+  [page]="page()"
+  [pageSize]="pageSize"
+  [totalItems]="totalItems()"
+  emptyTitle="No contacts match those filters"
+  emptyDescription="Try a different search term, or clear the filters to see everyone."
+  (pageChange)="onPageChange($event)"
+  (retry)="load()"
+>
+  <!-- Toolbar -->
+  <div tableToolbar class="flex w-full flex-wrap items-center gap-2.5">
+    <div class="relative min-w-0 flex-1 sm:max-w-xs">
+      <label for="contact-search" class="sr-only">Search contacts</label>
+      <app-icon
+        name="search"
+        [size]="16"
+        class="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-ink-muted"
+      />
+      <input
+        id="contact-search"
+        type="search"
+        placeholder="Search name, phone or email"
+        [value]="search()"
+        (input)="onSearch($event)"
+        class="h-9 w-full rounded-lg border-0 bg-surface-sunken py-2 pr-3 pl-9 text-sm text-ink ring-1 ring-line ring-inset transition-all placeholder:text-ink-muted focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none"
+      />
+    </div>
+
+    <label for="status-filter" class="sr-only">Filter by status</label>
+    <select
+      id="status-filter"
+      [value]="status()"
+      (change)="onStatusChange($event)"
+      class="h-9 rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink-soft ring-1 ring-line ring-inset transition-all focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none"
+    >
+      <option value="all">All statuses</option>
+      <option value="subscribed">Subscribed</option>
+      <option value="unsubscribed">Unsubscribed</option>
+      <option value="blocked">Blocked</option>
+    </select>
+
+    <label for="group-filter" class="sr-only">Filter by group</label>
+    <select
+      id="group-filter"
+      [value]="groupId()"
+      (change)="onGroupChange($event)"
+      class="h-9 rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink-soft ring-1 ring-line ring-inset transition-all focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none"
+    >
+      <option value="all">All groups</option>
+      @for (group of groups(); track group.id) {
+        <option [value]="group.id">{{ group.name }}</option>
+      }
+    </select>
+
+    @if (hasFilters()) {
+      <button appButton variant="ghost" size="sm" (click)="clearFilters()">
+        <app-icon name="close" [size]="14" />
+        Clear
+      </button>
+    }
+
+    <p class="ml-auto hidden text-xs text-ink-muted sm:block">
+      {{ totalItems() | number }} contacts
+    </p>
+  </div>
+
+  <button tableEmptyAction appButton variant="outline" size="sm" (click)="clearFilters()">
+    Clear filters
+  </button>
+
+  <!-- Rows -->
+  <ng-template [appTableRow]="contacts()" let-contact>
+    <td class="px-4 py-3">
+      <input
+        type="checkbox"
+        [checked]="isSelected(contact.id)"
+        (change)="toggleRow(contact.id)"
+        [attr.aria-label]="'Select ' + contact.fullName"
+        class="h-4 w-4 rounded border-line-strong text-brand-600 focus:ring-2 focus:ring-brand-500"
+      />
+    </td>
+
+    <td class="px-4 py-3">
+      <div class="flex items-center gap-3">
+        <app-avatar [name]="contact.fullName" [initials]="contact.initials" size="sm" />
+        <div class="min-w-0">
+          <p class="truncate text-sm font-medium text-ink">{{ contact.fullName }}</p>
+          <p class="truncate text-xs text-ink-muted">{{ contact.email ?? contact.phoneNumber }}</p>
+        </div>
+      </div>
+    </td>
+
+    <td class="hidden px-4 py-3 text-sm whitespace-nowrap text-ink-soft tabular-nums md:table-cell">
+      {{ contact.phoneNumber }}
+    </td>
+
+    <td class="hidden px-4 py-3 text-sm whitespace-nowrap text-ink-soft md:table-cell">
+      {{ contact.country }}
+    </td>
+
+    <td class="hidden px-4 py-3 md:table-cell">
+      <div class="flex flex-wrap gap-1">
+        @for (tagId of contact.tagIds.slice(0, 2); track tagId) {
+          @if (tagFor(tagId); as tag) {
+            <app-badge [tone]="tag.color">{{ tag.name }}</app-badge>
+          }
+        }
+        @if (contact.tagIds.length > 2) {
+          <app-badge tone="neutral">+{{ contact.tagIds.length - 2 }}</app-badge>
+        }
+        @if (contact.tagIds.length === 0) {
+          <span class="text-xs text-ink-muted">—</span>
+        }
+      </div>
+    </td>
+
+    <td class="px-4 py-3">
+      <app-badge [tone]="statusTone[contact.status]" [dot]="true">{{ contact.status }}</app-badge>
+    </td>
+
+    <td
+      class="hidden px-4 py-3 text-right text-sm whitespace-nowrap text-ink-muted md:table-cell"
+    >
+      {{ contact.lastMessagedAt | timeAgo }}
+    </td>
+  </ng-template>
+</app-data-table>

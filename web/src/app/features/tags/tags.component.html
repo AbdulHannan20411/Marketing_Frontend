@@ -1,0 +1,55 @@
+<app-page-header
+  title="Tags"
+  description="Lightweight labels for building dynamic audiences without maintaining lists by hand."
+  [breadcrumbs]="[{ label: 'Home', route: '/dashboard' }, { label: 'Tags', route: null }]"
+>
+  <button appButton size="md">
+    <app-icon name="plus" [size]="16" />
+    New tag
+  </button>
+</app-page-header>
+
+@if (state() === 'loading') {
+  <div class="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    @for (item of skeletons; track item) {
+      <div class="rounded-xl bg-white p-5 ring-1 ring-line shadow-card">
+        <app-skeleton width="50%" height="1.25rem" />
+        <div class="mt-4"><app-skeleton width="35%" height="1.5rem" /></div>
+        <div class="mt-4"><app-skeleton height="0.375rem" /></div>
+      </div>
+    }
+  </div>
+} @else if (state() === 'error') {
+  <app-card class="mt-6 block" [padded]="false">
+    <app-error-state (retry)="load()" />
+  </app-card>
+} @else {
+  <div class="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    @for (tag of tags(); track tag.id) {
+      <app-card [interactive]="true">
+        <div class="flex items-start justify-between gap-3">
+          <app-badge [tone]="tag.color" [dot]="true">{{ tag.name }}</app-badge>
+          <button
+            type="button"
+            class="rounded-lg p-1 text-ink-muted transition-colors hover:bg-surface-sunken hover:text-ink"
+            [attr.aria-label]="'Actions for ' + tag.name"
+          >
+            <app-icon name="ellipsis" [size]="16" />
+          </button>
+        </div>
+
+        <p class="mt-4 text-2xl font-semibold text-ink tabular-nums">
+          {{ tag.contactCount | number }}
+        </p>
+        <p class="text-xs text-ink-muted">tagged contacts</p>
+
+        <div class="mt-4 h-1.5 overflow-hidden rounded-full bg-surface-sunken">
+          <div
+            class="h-full rounded-full bg-brand-500 transition-all duration-500"
+            [style.width]="barWidth(tag)"
+          ></div>
+        </div>
+      </app-card>
+    }
+  </div>
+}

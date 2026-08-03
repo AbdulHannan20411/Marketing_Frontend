@@ -1,0 +1,240 @@
+<app-page-header [title]="greeting()" description="Here's how your messaging performed over the last 30 days.">
+  <a appButton variant="outline" size="md" routerLink="/reports">
+    <app-icon name="chartBar" [size]="16" />
+    View reports
+  </a>
+  <a appButton size="md" routerLink="/campaigns">
+    <app-icon name="plus" [size]="16" />
+    New campaign
+  </a>
+</app-page-header>
+
+@if (state() === 'error') {
+  <div class="mt-6 rounded-xl bg-white p-14 text-center ring-1 ring-line shadow-card" role="alert">
+    <div class="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-red-50 text-danger">
+      <app-icon name="warning" [size]="26" />
+    </div>
+    <h2 class="mt-4 text-sm font-semibold text-ink">We couldn't load your dashboard</h2>
+    <p class="mt-1.5 text-sm text-ink-muted">Something went wrong fetching your metrics.</p>
+    <button appButton variant="outline" size="sm" class="mt-5" (click)="load()">
+      <app-icon name="refresh" [size]="16" />
+      Try again
+    </button>
+  </div>
+} @else {
+  <!-- KPI row -->
+  <section class="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-5" aria-label="Key metrics">
+    <app-stat-card
+      label="Messages sent"
+      icon="send"
+      [value]="kpis()?.messagesSent ?? 0"
+      [delta]="kpis()?.messagesSentDelta ?? null"
+      [loading]="state() === 'loading'"
+    />
+    <app-stat-card
+      label="Delivered"
+      icon="checkCircle"
+      [value]="kpis()?.delivered ?? 0"
+      [delta]="kpis()?.deliveredDelta ?? null"
+      [loading]="state() === 'loading'"
+    />
+    <app-stat-card
+      label="Read"
+      icon="eye"
+      [value]="kpis()?.read ?? 0"
+      [delta]="kpis()?.readDelta ?? null"
+      [loading]="state() === 'loading'"
+    />
+    <app-stat-card
+      label="Failed"
+      icon="xCircle"
+      [value]="kpis()?.failed ?? 0"
+      [delta]="kpis()?.failedDelta ?? null"
+      [inverted]="true"
+      [loading]="state() === 'loading'"
+    />
+    <app-stat-card
+      label="Click-through"
+      icon="trendingUp"
+      suffix="%"
+      format="1.1-1"
+      [value]="kpis()?.clickThroughRate ?? 0"
+      [delta]="kpis()?.clickThroughRateDelta ?? null"
+      [loading]="state() === 'loading'"
+    />
+  </section>
+
+  <!-- Charts -->
+  <section class="mt-5 grid gap-4 lg:grid-cols-3" aria-label="Performance charts">
+    <app-card
+      class="lg:col-span-2"
+      title="Campaign trend"
+      subtitle="Daily sent, delivered and read volume"
+    >
+      @if (state() === 'loading') {
+        <app-skeleton height="18.75rem" />
+      } @else {
+        <app-chart [options]="trendOptions()" />
+      }
+    </app-card>
+
+    <app-card title="Delivery breakdown" subtitle="Share of all messages sent">
+      @if (state() === 'loading') {
+        <app-skeleton height="17.5rem" />
+      } @else {
+        <app-chart [options]="donutOptions()" />
+      }
+    </app-card>
+  </section>
+
+  <section class="mt-4 grid gap-4 lg:grid-cols-3">
+    <app-card class="lg:col-span-2" title="Message funnel" subtitle="Sent through to clicked">
+      @if (state() === 'loading') {
+        <app-skeleton height="18.75rem" />
+      } @else {
+        <app-chart [options]="funnelOptions()" />
+      }
+    </app-card>
+
+    <!-- Quick actions -->
+    <app-card title="Quick actions" subtitle="Common tasks">
+      <div class="grid gap-2">
+        <a
+          routerLink="/campaigns"
+          class="group flex items-center gap-3 rounded-lg p-2.5 ring-1 ring-line transition-all hover:bg-surface-muted hover:ring-brand-200"
+        >
+          <span class="grid h-9 w-9 place-items-center rounded-lg bg-brand-50 text-brand-600">
+            <app-icon name="megaphone" [size]="18" />
+          </span>
+          <span class="min-w-0">
+            <span class="block text-sm font-medium text-ink">Create a campaign</span>
+            <span class="block text-xs text-ink-muted">Pick a template and audience</span>
+          </span>
+          <app-icon name="chevronRight" [size]="15" class="ml-auto text-ink-muted" />
+        </a>
+
+        <a
+          routerLink="/contacts"
+          class="group flex items-center gap-3 rounded-lg p-2.5 ring-1 ring-line transition-all hover:bg-surface-muted hover:ring-brand-200"
+        >
+          <span class="grid h-9 w-9 place-items-center rounded-lg bg-brand-50 text-brand-600">
+            <app-icon name="users" [size]="18" />
+          </span>
+          <span class="min-w-0">
+            <span class="block text-sm font-medium text-ink">Import contacts</span>
+            <span class="block text-xs text-ink-muted">Upload a CSV and map fields</span>
+          </span>
+          <app-icon name="chevronRight" [size]="15" class="ml-auto text-ink-muted" />
+        </a>
+
+        <a
+          routerLink="/templates"
+          class="group flex items-center gap-3 rounded-lg p-2.5 ring-1 ring-line transition-all hover:bg-surface-muted hover:ring-brand-200"
+        >
+          <span class="grid h-9 w-9 place-items-center rounded-lg bg-brand-50 text-brand-600">
+            <app-icon name="document" [size]="18" />
+          </span>
+          <span class="min-w-0">
+            <span class="block text-sm font-medium text-ink">Sync templates</span>
+            <span class="block text-xs text-ink-muted">Pull the latest from Meta</span>
+          </span>
+          <app-icon name="chevronRight" [size]="15" class="ml-auto text-ink-muted" />
+        </a>
+      </div>
+    </app-card>
+  </section>
+
+  <!-- Campaigns + activity -->
+  <section class="mt-4 grid gap-4 lg:grid-cols-3">
+    <app-card class="lg:col-span-2" title="Recent campaigns" subtitle="Latest sends" [padded]="false">
+      <a cardActions appButton variant="ghost" size="sm" routerLink="/campaigns">View all</a>
+
+      @if (state() === 'loading') {
+        <div class="space-y-3 p-5">
+          @for (row of [1, 2, 3, 4]; track row) {
+            <app-skeleton height="2.5rem" />
+          }
+        </div>
+      } @else {
+        <ul class="divide-y divide-line">
+          @for (campaign of recentCampaigns(); track campaign.id) {
+            <li
+              class="flex flex-wrap items-center gap-3 px-5 py-3.5 transition-colors hover:bg-surface-muted"
+            >
+              <div class="min-w-0 flex-1">
+                <p class="truncate text-sm font-medium text-ink">{{ campaign.name }}</p>
+                <p class="mt-0.5 truncate text-xs text-ink-muted">
+                  {{ campaign.audienceLabel }} · {{ campaign.metrics.sent | number }} sent
+                </p>
+              </div>
+
+              <div class="hidden text-right sm:block">
+                <p class="text-sm font-semibold text-ink tabular-nums">{{ readRate(campaign) }}%</p>
+                <p class="text-xs text-ink-muted">read rate</p>
+              </div>
+
+              <app-badge [tone]="statusTone[campaign.status]" [dot]="true">
+                {{ statusLabel[campaign.status] }}
+              </app-badge>
+            </li>
+          } @empty {
+            <li class="px-5 py-10 text-center text-sm text-ink-muted">No campaigns sent yet.</li>
+          }
+        </ul>
+      }
+    </app-card>
+
+    <app-card title="Recent activity" subtitle="Across your workspace" [padded]="false">
+      @if (state() === 'loading') {
+        <div class="space-y-3 p-5">
+          @for (row of [1, 2, 3, 4, 5]; track row) {
+            <app-skeleton height="2rem" />
+          }
+        </div>
+      } @else {
+        <ul class="divide-y divide-line">
+          @for (entry of activity().slice(0, 6); track entry.id) {
+            <li class="flex items-start gap-3 px-5 py-3">
+              <app-avatar [name]="entry.actor" [initials]="entry.actorInitials" size="sm" />
+              <div class="min-w-0 flex-1">
+                <p class="text-sm leading-snug text-ink-soft">
+                  <span class="font-medium text-ink">{{ entry.actor }}</span>
+                  {{ entry.action }}
+                  <span class="font-medium text-ink">{{ entry.subject }}</span>
+                </p>
+                <p class="mt-0.5 text-xs text-ink-muted">{{ entry.occurredAt | timeAgo }}</p>
+              </div>
+            </li>
+          }
+        </ul>
+      }
+    </app-card>
+  </section>
+
+  <!-- Upcoming -->
+  @if (state() === 'ready' && upcomingCampaigns().length > 0) {
+    <section class="mt-4">
+      <app-card title="Upcoming campaigns" subtitle="Scheduled to send" [padded]="false">
+        <ul class="divide-y divide-line">
+          @for (campaign of upcomingCampaigns(); track campaign.id) {
+            <li class="flex flex-wrap items-center gap-3 px-5 py-3.5">
+              <span class="grid h-9 w-9 place-items-center rounded-lg bg-emerald-50 text-info">
+                <app-icon name="clock" [size]="18" />
+              </span>
+              <div class="min-w-0 flex-1">
+                <p class="truncate text-sm font-medium text-ink">{{ campaign.name }}</p>
+                <p class="mt-0.5 truncate text-xs text-ink-muted">
+                  {{ campaign.audienceLabel }} · {{ campaign.metrics.audienceSize | number }}
+                  recipients
+                </p>
+              </div>
+              <span class="text-xs font-medium text-ink-soft">
+                {{ campaign.scheduledAt | timeAgo }}
+              </span>
+            </li>
+          }
+        </ul>
+      </app-card>
+    </section>
+  }
+}

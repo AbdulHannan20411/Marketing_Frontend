@@ -1,0 +1,123 @@
+<app-page-header
+  title="Monitoring"
+  description="Service health, throughput and platform quota consumption."
+  [breadcrumbs]="[{ label: 'Platform', route: null }, { label: 'Monitoring', route: null }]"
+>
+  <button appButton variant="outline" size="md" (click)="load()">
+    <app-icon name="refresh" [size]="16" />
+    Refresh
+  </button>
+</app-page-header>
+
+@if (state() === 'loading') {
+  <div class="mt-6 space-y-4">
+    <div class="rounded-xl bg-white p-5 ring-1 ring-line shadow-card">
+      <app-skeleton width="30%" height="1.25rem" />
+      <div class="mt-4 space-y-3">
+        @for (item of skeletons; track item) {
+          <app-skeleton height="2.5rem" />
+        }
+      </div>
+    </div>
+  </div>
+} @else if (state() === 'error') {
+  <app-card class="mt-6 block" [padded]="false">
+    <app-error-state (retry)="load()" />
+  </app-card>
+} @else {
+  <!-- Overall status banner -->
+  <div
+    class="mt-6 flex flex-wrap items-center gap-3 rounded-xl px-5 py-4 ring-1 animate-rise"
+    [class]="
+      allOperational()
+        ? 'bg-brand-50 ring-brand-200'
+        : 'bg-amber-50 ring-amber-200'
+    "
+    role="status"
+  >
+    <span
+      class="grid h-10 w-10 place-items-center rounded-xl"
+      [class]="allOperational() ? 'bg-brand-600 text-white' : 'bg-warning text-white'"
+    >
+      <app-icon [name]="allOperational() ? 'checkCircle' : 'warning'" [size]="20" />
+    </span>
+    <div class="min-w-0">
+      <p class="text-sm font-semibold" [class]="allOperational() ? 'text-brand-800' : 'text-amber-800'">
+        {{ allOperational() ? 'All systems operational' : 'Partial service degradation' }}
+      </p>
+      <p class="mt-0.5 text-xs" [class]="allOperational() ? 'text-brand-700' : 'text-amber-700'">
+        {{ services().length }} services monitored · updated moments ago
+      </p>
+    </div>
+  </div>
+
+  <section class="mt-4 grid gap-4 lg:grid-cols-3">
+    <!-- Services -->
+    <app-card class="lg:col-span-2" title="Service health" subtitle="Uptime over the last 30 days" [padded]="false">
+      <ul class="divide-y divide-line">
+        @for (service of services(); track service.name) {
+          <li class="flex flex-wrap items-center gap-3 px-5 py-3.5">
+            <div class="min-w-0 flex-1">
+              <p class="truncate text-sm font-medium text-ink">{{ service.name }}</p>
+              <p class="mt-0.5 text-xs text-ink-muted">
+                {{ service.latencyMs }} ms median latency
+              </p>
+            </div>
+
+            <div class="text-right">
+              <p class="text-sm font-semibold text-ink tabular-nums">
+                {{ service.uptimePercent }}%
+              </p>
+              <p class="text-xs text-ink-muted">uptime</p>
+            </div>
+
+            <app-badge [tone]="serviceTone[service.status]" [dot]="true">
+              {{ service.status }}
+            </app-badge>
+          </li>
+        }
+      </ul>
+    </app-card>
+
+    <!-- Quotas -->
+    <app-card title="Platform quotas" subtitle="Current billing period">
+      <ul class="space-y-4">
+        @for (quota of quotas(); track quota.label) {
+          <li>
+            <div class="flex items-center justify-between gap-3">
+              <p class="truncate text-sm text-ink-soft">{{ quota.label }}</p>
+              <p class="shrink-0 text-xs font-semibold text-ink tabular-nums">
+                {{ quotaPercent(quota) }}%
+              </p>
+            </div>
+
+            <div
+              class="mt-1.5 h-2 overflow-hidden rounded-full bg-surface-sunken"
+              role="progressbar"
+              [attr.aria-valuenow]="quotaPercent(quota)"
+              aria-valuemin="0"
+              aria-valuemax="100"
+              [attr.aria-label]="quota.label"
+            >
+              <div
+                class="h-full rounded-full transition-all duration-700"
+                [class]="quotaBarClass(quota)"
+                [style.width.%]="quotaPercent(quota)"
+              ></div>
+            </div>
+
+            <p class="mt-1 text-xs text-ink-muted tabular-nums">
+              {{ quota.used | number }} of {{ quota.limit | number }} {{ quota.unit }}
+            </p>
+          </li>
+        }
+      </ul>
+    </app-card>
+  </section>
+
+  <section class="mt-4">
+    <app-card title="Request throughput" subtitle="Requests per minute over the last 24 hours">
+      <app-chart [options]="throughputOptions()" />
+    </app-card>
+  </section>
+}

@@ -1,0 +1,40 @@
+import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { RouterOutlet } from '@angular/router';
+
+import { LayoutService } from '@core/services/layout.service';
+import { SidebarComponent } from '@layout/sidebar/sidebar.component';
+import { TopbarComponent } from '@layout/topbar/topbar.component';
+
+@Component({
+  selector: 'app-shell',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [RouterOutlet, SidebarComponent, TopbarComponent],
+  host: { class: 'block min-h-dvh bg-surface-muted' },
+  template: `
+    <a
+      href="#main-content"
+      class="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-100 focus:rounded-lg focus:bg-brand-600 focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-white"
+    >
+      Skip to content
+    </a>
+
+    <app-sidebar />
+
+    <div class="flex min-h-dvh flex-col transition-[padding] duration-300 ease-out" [class]="offset()">
+      <app-topbar />
+      <main id="main-content" tabindex="-1" class="flex-1 px-4 py-6 sm:px-6 lg:px-8">
+        <div class="mx-auto w-full max-w-[88rem]">
+          <router-outlet />
+        </div>
+      </main>
+    </div>
+  `,
+})
+export class ShellComponent {
+  private readonly layout = inject(LayoutService);
+
+  /** Sidebar is fixed-position, so the content column reserves its width on lg+. */
+  protected readonly offset = computed(() =>
+    this.layout.sidebarCollapsed() ? 'lg:pl-[4.75rem]' : 'lg:pl-64',
+  );
+}

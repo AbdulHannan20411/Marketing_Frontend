@@ -1,0 +1,150 @@
+<app-page-header
+  title="Reports"
+  description="Delivery, engagement and failure analytics across the last 30 days."
+  [breadcrumbs]="[{ label: 'Home', route: '/dashboard' }, { label: 'Reports', route: null }]"
+>
+  <button appButton variant="outline" size="md" (click)="exportCsv()">
+    <app-icon name="download" [size]="16" />
+    Export CSV
+  </button>
+</app-page-header>
+
+<section class="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Headline rates">
+  <app-stat-card
+    label="Delivery rate"
+    icon="checkCircle"
+    suffix="%"
+    format="1.1-1"
+    [value]="deliveryRate()"
+    [delta]="kpis()?.deliveredDelta ?? null"
+    [loading]="state() === 'loading'"
+  />
+  <app-stat-card
+    label="Read rate"
+    icon="eye"
+    suffix="%"
+    format="1.1-1"
+    [value]="readRate()"
+    [delta]="kpis()?.readDelta ?? null"
+    [loading]="state() === 'loading'"
+  />
+  <app-stat-card
+    label="Click-through"
+    icon="trendingUp"
+    suffix="%"
+    format="1.1-1"
+    [value]="kpis()?.clickThroughRate ?? 0"
+    [delta]="kpis()?.clickThroughRateDelta ?? null"
+    [loading]="state() === 'loading'"
+  />
+  <app-stat-card
+    label="Failure rate"
+    icon="warning"
+    suffix="%"
+    format="1.2-2"
+    [value]="failureRate()"
+    [delta]="kpis()?.failedDelta ?? null"
+    [inverted]="true"
+    [loading]="state() === 'loading'"
+  />
+</section>
+
+<section class="mt-5 grid gap-4 lg:grid-cols-3">
+  <app-card class="lg:col-span-2" title="Volume over time" subtitle="Sent, delivered and read">
+    @if (state() === 'loading') {
+      <app-skeleton height="18.75rem" />
+    } @else {
+      <app-chart [options]="trendOptions()" />
+    }
+  </app-card>
+
+  <app-card title="Engagement funnel" subtitle="Drop-off at each stage">
+    @if (state() === 'loading') {
+      <app-skeleton height="18.75rem" />
+    } @else {
+      <app-chart [options]="funnelOptions()" />
+    }
+  </app-card>
+</section>
+
+<section class="mt-4 grid gap-4 lg:grid-cols-3">
+  <app-card title="Why messages failed" subtitle="Ranked by frequency">
+    @if (failureState() === 'loading') {
+      <div class="space-y-4">
+        @for (row of [1, 2, 3, 4]; track row) {
+          <app-skeleton height="2rem" />
+        }
+      </div>
+    } @else {
+      <ul class="space-y-3.5">
+        @for (item of failureBreakdown(); track item.reason) {
+          <li>
+            <div class="flex items-center justify-between gap-3">
+              <p class="truncate text-sm text-ink-soft">{{ item.reason }}</p>
+              <p class="shrink-0 text-sm font-semibold text-ink tabular-nums">{{ item.count }}</p>
+            </div>
+            <div class="mt-1.5 h-1.5 overflow-hidden rounded-full bg-surface-sunken">
+              <div
+                class="h-full rounded-full bg-danger/70 transition-all duration-500"
+                [style.width.%]="item.percent"
+              ></div>
+            </div>
+          </li>
+        } @empty {
+          <li class="py-8 text-center text-sm text-ink-muted">No failures in this period.</li>
+        }
+      </ul>
+    }
+  </app-card>
+
+  <div class="lg:col-span-2">
+    <app-data-table
+      [columns]="columns"
+      [rows]="failures()"
+      [state]="failureState()"
+      [page]="failurePage()"
+      [pageSize]="pageSize"
+      [totalItems]="failureTotal()"
+      emptyTitle="No delivery failures"
+      emptyDescription="Every message in this period reached its recipient."
+      (pageChange)="onFailurePageChange($event)"
+      (retry)="load()"
+    >
+      <div tableToolbar class="flex w-full items-center justify-between gap-3">
+        <div>
+          <h2 class="text-sm font-semibold text-ink">Failure log</h2>
+          <p class="mt-0.5 text-xs text-ink-muted">Individual undelivered messages</p>
+        </div>
+        <button appButton variant="outline" size="sm" (click)="exportCsv()">
+          <app-icon name="download" [size]="14" />
+          Export
+        </button>
+      </div>
+
+      <ng-template [appTableRow]="failures()" let-failure>
+        <td class="px-4 py-3">
+          <p class="text-sm font-medium text-ink">{{ failure.contactName }}</p>
+          <p class="mt-0.5 text-xs text-ink-muted tabular-nums">{{ failure.phoneNumber }}</p>
+        </td>
+
+        <td class="hidden max-w-48 truncate px-4 py-3 text-sm text-ink-soft md:table-cell">
+          {{ failure.campaignName }}
+        </td>
+
+        <td class="px-4 py-3">
+          <app-badge tone="danger">{{ failure.reason }}</app-badge>
+        </td>
+
+        <td
+          class="hidden px-4 py-3 text-right font-mono text-xs text-ink-muted tabular-nums md:table-cell"
+        >
+          {{ failure.errorCode }}
+        </td>
+
+        <td class="hidden px-4 py-3 text-right text-sm whitespace-nowrap text-ink-muted md:table-cell">
+          {{ failure.occurredAt | timeAgo }}
+        </td>
+      </ng-template>
+    </app-data-table>
+  </div>
+</section>

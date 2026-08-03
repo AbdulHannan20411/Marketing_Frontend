@@ -1,0 +1,99 @@
+<!-- Scrim: mobile only, closes the drawer on tap -->
+@if (mobileOpen()) {
+  <div
+    class="fixed inset-0 z-40 bg-slate-900/20 backdrop-blur-xs animate-fade-in lg:hidden"
+    aria-hidden="true"
+    (click)="closeMobile()"
+  ></div>
+}
+
+<aside
+  class="fixed inset-y-0 left-0 z-50 flex flex-col border-r border-line bg-white transition-[width,transform] duration-300 ease-out lg:translate-x-0"
+  [class]="widthClass()"
+  [class.translate-x-0]="mobileOpen()"
+  [class.-translate-x-full]="!mobileOpen()"
+  aria-label="Main navigation"
+>
+  <!-- Brand -->
+  <div class="flex h-16 shrink-0 items-center gap-2.5 border-b border-line px-4">
+    <a
+      routerLink="/dashboard"
+      class="flex items-center gap-2.5 overflow-hidden rounded-lg"
+      (click)="closeMobile()"
+    >
+      <span
+        class="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-brand-600 text-white shadow-xs"
+      >
+        <app-icon name="chat" [size]="19" [strokeWidth]="1.9" />
+      </span>
+      @if (!collapsed()) {
+        <span class="truncate text-[15px] font-semibold tracking-tight text-ink">{{ appName }}</span>
+      }
+    </a>
+  </div>
+
+  <!-- Sections -->
+  <nav class="app-scrollbar flex-1 space-y-6 overflow-y-auto px-3 py-5">
+    @for (section of sections(); track section.title ?? $index) {
+      <div>
+        @if (section.title !== null && !collapsed()) {
+          <h2 class="mb-1.5 px-3 text-[11px] font-semibold tracking-wider text-ink-muted uppercase">
+            {{ section.title }}
+          </h2>
+        }
+        @if (section.title !== null && collapsed()) {
+          <div class="mx-3 mb-2 h-px bg-line" aria-hidden="true"></div>
+        }
+
+        <ul class="space-y-0.5">
+          @for (item of section.items; track item.route) {
+            <li>
+              <a
+                [routerLink]="item.route"
+                routerLinkActive="bg-brand-50 text-brand-700 font-semibold"
+                #active="routerLinkActive"
+                [attr.aria-current]="active.isActive ? 'page' : null"
+                [attr.title]="collapsed() ? item.label : null"
+                class="group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-ink-soft transition-colors duration-150 hover:bg-surface-muted hover:text-ink"
+                (click)="closeMobile()"
+              >
+                @if (active.isActive) {
+                  <span
+                    class="absolute inset-y-1.5 -left-3 w-1 rounded-r-full bg-brand-600"
+                    aria-hidden="true"
+                  ></span>
+                }
+                <app-icon [name]="item.icon" [size]="19" class="shrink-0" />
+                @if (!collapsed()) {
+                  <span class="truncate">{{ item.label }}</span>
+                }
+                @if (!collapsed() && item.badge) {
+                  <span
+                    class="ml-auto rounded-full bg-brand-100 px-1.5 py-0.5 text-[10px] font-semibold text-brand-700"
+                    >{{ item.badge }}</span
+                  >
+                }
+              </a>
+            </li>
+          }
+        </ul>
+      </div>
+    }
+  </nav>
+
+  <!-- Collapse toggle: desktop only -->
+  <div class="hidden shrink-0 border-t border-line p-3 lg:block">
+    <button
+      type="button"
+      class="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-ink-muted transition-colors hover:bg-surface-muted hover:text-ink"
+      [attr.aria-expanded]="!collapsed()"
+      [attr.aria-label]="collapsed() ? 'Expand sidebar' : 'Collapse sidebar'"
+      (click)="toggle()"
+    >
+      <app-icon [name]="collapsed() ? 'chevronRight' : 'chevronLeft'" [size]="18" />
+      @if (!collapsed()) {
+        <span>Collapse</span>
+      }
+    </button>
+  </div>
+</aside>

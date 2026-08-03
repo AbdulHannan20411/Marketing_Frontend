@@ -1,0 +1,111 @@
+<div class="overflow-hidden rounded-xl bg-white ring-1 ring-line shadow-card">
+  <!-- Toolbar: filters and actions supplied by the host page -->
+  <div class="flex flex-wrap items-center gap-3 border-b border-line px-4 py-3">
+    <ng-content select="[tableToolbar]" />
+  </div>
+
+  @if (state() === 'error') {
+    <div class="flex flex-col items-center px-6 py-14 text-center" role="alert">
+      <div class="grid h-14 w-14 place-items-center rounded-2xl bg-red-50 text-danger">
+        <app-icon name="warning" [size]="26" />
+      </div>
+      <h3 class="mt-4 text-sm font-semibold text-ink">We couldn't load this table</h3>
+      <p class="mt-1.5 max-w-sm text-sm text-ink-muted">
+        The request failed. Check your connection and try again.
+      </p>
+      <button appButton variant="outline" size="sm" class="mt-5" (click)="retry.emit()">
+        <app-icon name="refresh" [size]="16" />
+        Try again
+      </button>
+    </div>
+  } @else if (state() === 'empty') {
+    <div class="flex flex-col items-center px-6 py-14 text-center">
+      <div class="grid h-14 w-14 place-items-center rounded-2xl bg-brand-50 text-brand-600">
+        <app-icon name="inbox" [size]="26" />
+      </div>
+      <h3 class="mt-4 text-sm font-semibold text-ink">{{ emptyTitle() }}</h3>
+      <p class="mt-1.5 max-w-sm text-sm text-ink-muted">{{ emptyDescription() }}</p>
+      <div class="mt-5"><ng-content select="[tableEmptyAction]" /></div>
+    </div>
+  } @else {
+    <div class="app-scrollbar overflow-x-auto">
+      <table class="w-full border-collapse text-sm" [attr.aria-busy]="state() === 'loading'">
+        <thead>
+          <tr class="border-b border-line bg-surface-sunken/60">
+            @for (column of columns(); track column.key) {
+              <th
+                scope="col"
+                class="px-4 py-2.5 text-xs font-semibold tracking-wide text-ink-muted uppercase whitespace-nowrap"
+                [class]="alignClass(column) + ' ' + (column.widthClass ?? '')"
+                [class.hidden]="column.hideOnMobile"
+                [class.md:table-cell]="column.hideOnMobile"
+              >
+                {{ column.header }}
+              </th>
+            }
+          </tr>
+        </thead>
+
+        <tbody class="divide-y divide-line">
+          @if (state() === 'loading') {
+            @for (row of skeletonRows(); track row) {
+              <tr>
+                @for (column of columns(); track column.key) {
+                  <td
+                    class="px-4 py-3.5"
+                    [class.hidden]="column.hideOnMobile"
+                    [class.md:table-cell]="column.hideOnMobile"
+                  >
+                    <app-skeleton height="0.875rem" />
+                  </td>
+                }
+              </tr>
+            }
+          } @else {
+            @for (row of rows(); track $index) {
+              <tr class="transition-colors duration-100 hover:bg-surface-muted">
+                <ng-container [ngTemplateOutlet]="rowTemplate()" [ngTemplateOutletContext]="{ $implicit: row }" />
+              </tr>
+            }
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Pagination -->
+    @if (totalItems() > 0) {
+      <div
+        class="flex flex-wrap items-center justify-between gap-3 border-t border-line px-4 py-3"
+      >
+        <p class="text-xs text-ink-muted">
+          Showing <span class="font-medium text-ink-soft">{{ rangeStart() }}–{{ rangeEnd() }}</span>
+          of <span class="font-medium text-ink-soft">{{ totalItems() }}</span>
+        </p>
+
+        <nav class="flex items-center gap-1" aria-label="Pagination">
+          <button
+            type="button"
+            class="rounded-lg p-1.5 text-ink-soft transition-colors hover:bg-surface-muted disabled:pointer-events-none disabled:opacity-40"
+            aria-label="Previous page"
+            [disabled]="page() <= 1"
+            (click)="goToPage(page() - 1)"
+          >
+            <app-icon name="chevronLeft" [size]="17" />
+          </button>
+          <span class="px-2 text-xs font-medium text-ink-soft">
+            Page {{ page() }} of {{ totalPages() }}
+          </span>
+          <button
+            type="button"
+            class="rounded-lg p-1.5 text-ink-soft transition-colors hover:bg-surface-muted disabled:pointer-events-none disabled:opacity-40"
+            aria-label="Next page"
+            [disabled]="page() >= totalPages()"
+            (click)="goToPage(page() + 1)"
+          >
+            <app-icon name="chevronRight" [size]="17" />
+          </button>
+        </nav>
+      </div>
+    }
+  }
+</div>

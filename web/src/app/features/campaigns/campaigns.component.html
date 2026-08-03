@@ -1,0 +1,142 @@
+<app-page-header
+  title="Campaigns"
+  description="Plan, schedule and track every send across your audience."
+  [breadcrumbs]="[{ label: 'Home', route: '/dashboard' }, { label: 'Campaigns', route: null }]"
+>
+  <button appButton variant="outline" size="md">
+    <app-icon name="download" [size]="16" />
+    Export
+  </button>
+  <button appButton size="md">
+    <app-icon name="plus" [size]="16" />
+    New campaign
+  </button>
+</app-page-header>
+
+<section class="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Campaign totals">
+  <app-stat-card
+    label="Active campaigns"
+    icon="megaphone"
+    [value]="totals().active"
+    [loading]="state() === 'loading'"
+  />
+  <app-stat-card
+    label="Messages sent"
+    icon="send"
+    [value]="totals().sent"
+    [loading]="state() === 'loading'"
+  />
+  <app-stat-card
+    label="Delivery rate"
+    icon="checkCircle"
+    suffix="%"
+    format="1.1-1"
+    [value]="totals().deliveryRate"
+    [loading]="state() === 'loading'"
+  />
+  <app-stat-card
+    label="Read rate"
+    icon="eye"
+    suffix="%"
+    format="1.1-1"
+    [value]="totals().readRate"
+    [loading]="state() === 'loading'"
+  />
+</section>
+
+<app-data-table
+  class="mt-5 block"
+  [columns]="columns"
+  [rows]="visibleCampaigns()"
+  [state]="tableState()"
+  [page]="page()"
+  [pageSize]="pageSize"
+  [totalItems]="totalItems()"
+  emptyTitle="No campaigns match those filters"
+  emptyDescription="Try another status, or clear the search to see everything."
+  (pageChange)="page.set($event)"
+  (retry)="load()"
+>
+  <div tableToolbar class="flex w-full flex-wrap items-center gap-2.5">
+    <div class="relative min-w-0 flex-1 sm:max-w-xs">
+      <label for="campaign-search" class="sr-only">Search campaigns</label>
+      <app-icon
+        name="search"
+        [size]="16"
+        class="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-ink-muted"
+      />
+      <input
+        id="campaign-search"
+        type="search"
+        placeholder="Search campaign or template"
+        [value]="search()"
+        (input)="onSearch($event)"
+        class="h-9 w-full rounded-lg border-0 bg-surface-sunken py-2 pr-3 pl-9 text-sm text-ink ring-1 ring-line ring-inset transition-all placeholder:text-ink-muted focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none"
+      />
+    </div>
+
+    <div class="flex flex-wrap items-center gap-1.5">
+      @for (option of statuses; track option.value) {
+        <button
+          type="button"
+          [attr.aria-pressed]="statusFilter() === option.value"
+          class="rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all duration-150"
+          [class]="
+            statusFilter() === option.value
+              ? 'bg-brand-600 text-white'
+              : 'text-ink-soft hover:bg-surface-muted'
+          "
+          (click)="setStatus(option.value)"
+        >
+          {{ option.label }}
+        </button>
+      }
+    </div>
+  </div>
+
+  <button tableEmptyAction appButton variant="outline" size="sm" (click)="setStatus('all')">
+    Show all campaigns
+  </button>
+
+  <ng-template [appTableRow]="visibleCampaigns()" let-campaign>
+    <td class="px-4 py-3.5">
+      <p class="text-sm font-medium text-ink">{{ campaign.name }}</p>
+      <p class="mt-0.5 font-mono text-xs text-ink-muted">{{ campaign.templateName }}</p>
+    </td>
+
+    <td class="px-4 py-3.5">
+      <app-badge [tone]="statusTone[campaign.status]" [dot]="true">
+        {{ statusLabel[campaign.status] }}
+      </app-badge>
+    </td>
+
+    <td class="hidden px-4 py-3.5 text-right md:table-cell">
+      <p class="text-sm text-ink-soft tabular-nums">
+        {{ campaign.metrics.audienceSize.toLocaleString() }}
+      </p>
+      <p class="mt-0.5 text-xs text-ink-muted">{{ campaign.audienceLabel }}</p>
+    </td>
+
+    <td class="hidden px-4 py-3.5 text-right md:table-cell">
+      <p class="text-sm text-ink-soft tabular-nums">
+        {{ campaign.metrics.delivered.toLocaleString() }}
+      </p>
+      <p class="mt-0.5 text-xs text-ink-muted">{{ deliveredPercent(campaign) }}% of sent</p>
+    </td>
+
+    <td class="px-4 py-3.5">
+      <div class="flex items-center justify-end gap-2.5">
+        <div class="hidden h-1.5 w-16 overflow-hidden rounded-full bg-surface-sunken sm:block">
+          <div class="h-full rounded-full bg-brand-500" [style.width.%]="readRate(campaign)"></div>
+        </div>
+        <span class="w-9 text-right text-sm font-semibold text-ink tabular-nums">
+          {{ readRate(campaign) }}%
+        </span>
+      </div>
+    </td>
+
+    <td class="hidden px-4 py-3.5 text-right text-sm whitespace-nowrap text-ink-muted md:table-cell">
+      {{ timing(campaign) | timeAgo }}
+    </td>
+  </ng-template>
+</app-data-table>

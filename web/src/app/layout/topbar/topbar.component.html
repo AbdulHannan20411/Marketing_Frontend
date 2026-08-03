@@ -1,0 +1,120 @@
+<!-- Mobile nav trigger -->
+<button
+  type="button"
+  class="rounded-lg p-2 text-ink-soft transition-colors hover:bg-surface-muted hover:text-ink lg:hidden"
+  aria-label="Open navigation"
+  (click)="toggleMobileNav()"
+>
+  <app-icon name="menu" [size]="20" />
+</button>
+
+<!-- Global search -->
+<div class="relative min-w-0 flex-1 sm:max-w-md">
+  <label for="global-search" class="sr-only">Search contacts, campaigns and templates</label>
+  <app-icon
+    name="search"
+    [size]="17"
+    class="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-ink-muted"
+  />
+  <input
+    id="global-search"
+    type="search"
+    placeholder="Search contacts, campaigns…"
+    class="h-9.5 w-full rounded-lg border-0 bg-surface-sunken py-2 pr-3 pl-9.5 text-sm text-ink ring-1 ring-line ring-inset transition-all placeholder:text-ink-muted focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none"
+  />
+</div>
+
+<div class="ml-auto flex items-center gap-1">
+  <!-- Notifications -->
+  <div class="relative">
+    <button
+      type="button"
+      class="relative rounded-lg p-2 text-ink-soft transition-colors hover:bg-surface-muted hover:text-ink"
+      aria-label="Notifications"
+      [attr.aria-expanded]="notificationsOpen()"
+      aria-haspopup="menu"
+      (click)="toggleNotifications()"
+    >
+      <app-icon name="bell" [size]="19" />
+      <span
+        class="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-brand-500 ring-2 ring-white"
+        aria-hidden="true"
+      ></span>
+    </button>
+
+    @if (notificationsOpen()) {
+      <div
+        role="menu"
+        class="absolute right-0 mt-2 w-80 origin-top-right overflow-hidden rounded-xl bg-white ring-1 ring-line shadow-pop animate-rise"
+      >
+        <div class="flex items-center justify-between border-b border-line px-4 py-3">
+          <p class="text-sm font-semibold text-ink">Notifications</p>
+          <app-badge tone="brand">3 new</app-badge>
+        </div>
+        <div class="px-4 py-10 text-center">
+          <p class="text-sm text-ink-muted">Notification feed connects in a later milestone.</p>
+        </div>
+      </div>
+    }
+  </div>
+
+  <!-- Profile -->
+  <div class="relative">
+    <button
+      type="button"
+      class="flex items-center gap-2 rounded-lg p-1 pr-2 transition-colors hover:bg-surface-muted"
+      [attr.aria-expanded]="profileOpen()"
+      aria-haspopup="menu"
+      aria-label="Account menu"
+      (click)="toggleProfile()"
+    >
+      @if (user(); as currentUser) {
+        <app-avatar
+          [name]="currentUser.name"
+          [initials]="currentUser.initials"
+          [imageUrl]="currentUser.avatarUrl"
+          size="sm"
+        />
+        <span class="hidden text-sm font-medium text-ink sm:block">{{ currentUser.name }}</span>
+      }
+      <app-icon name="chevronDown" [size]="15" class="text-ink-muted" />
+    </button>
+
+    @if (profileOpen() && user(); as currentUser) {
+      <div
+        role="menu"
+        class="absolute right-0 mt-2 w-64 origin-top-right overflow-hidden rounded-xl bg-white ring-1 ring-line shadow-pop animate-rise"
+      >
+        <div class="border-b border-line bg-surface-muted px-4 py-3">
+          <p class="truncate text-sm font-semibold text-ink">{{ currentUser.name }}</p>
+          <p class="truncate text-xs text-ink-muted">{{ currentUser.email }}</p>
+          <div class="mt-2 flex items-center gap-1.5">
+            <app-badge tone="brand" [dot]="true">{{ currentUser.role }}</app-badge>
+            <span class="truncate text-[11px] text-ink-muted">{{ currentUser.workspaceName }}</span>
+          </div>
+        </div>
+
+        <div class="p-1.5">
+          <a
+            routerLink="/settings"
+            role="menuitem"
+            class="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-ink-soft transition-colors hover:bg-surface-muted hover:text-ink"
+            (click)="closeMenus()"
+          >
+            <app-icon name="cog" [size]="17" />
+            Workspace settings
+          </a>
+          <button
+            type="button"
+            role="menuitem"
+            class="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-danger transition-colors hover:bg-red-50"
+            (click)="logout()"
+          >
+            <app-icon name="logout" [size]="17" />
+            Sign out
+          </button>
+        </div>
+      </div>
+    }
+  </div>
+</div>

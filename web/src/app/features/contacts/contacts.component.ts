@@ -1,0 +1,207 @@
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { DecimalPipe } from '@angular/common';
+import { Subject, debounceTime, distinctUntilChanged } from 'rxjs';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+
+import type { LoadState } from '@core/models/api.model';
+import type {
+  Contact,
+  ContactGroup,
+  ContactStatus,
+  ContactTag,
+} from '@core/models/contact.model';
+import { ContactsService } from '@core/services/contacts.service';
+import { ToastService } from '@core/services/toast.service';
+import { TimeAgoPipe } from '@shared/pipes/time-ago.pipe';
+import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
+import { BadgeComponent, type BadgeTone } from '@shared/ui/badge/badge.component';
+import { ButtonDirective } from '@shared/ui/button/button.directive';
+import {
+  DataTableComponent,
+  type TableColumn,
+} from '@shared/ui/data-table/data-table.component';
+import { TableRowDirective } from '@shared/ui/data-table/table-row.directive';
+import { IconComponent } from '@shared/ui/icon/icon.component';
+import { PageHeaderComponent } from '@shared/ui/page-header/page-header.component';
+
+const STATUS_TONE: Readonly<Record<ContactStatus, BadgeTone>> = {
+  subscribed: 'success',
+  unsubscribed: 'neutral',
+  blocked: 'danger',
+};
+
+const PAGE_SIZE = 12;
+
+@Component({
+  selector: 'app-contacts',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    DecimalPipe,
+    TimeAgoPipe,
+    PageHeaderComponent,
+    DataTableComponent,
+    TableRowDirective,
+    AvatarComponent,
+    BadgeComponent,
+    ButtonDirective,
+    IconComponent,
+  ],
+  templateUrl: './contacts.component.html',
+})
+export class ContactsComponent {
+  private readonly contactsService = inject(ContactsService);
+  private readonly toast = inject(ToastService);
+  private readonly searchInput = new Subject<string>();
+
+  protected readonly state = signal<LoadState>('loading');
+  protected readonly contacts = signal<readonly Contact[]>([]);
+  protected readonly groups = signal<readonly ContactGroup[]>([]);
+  protected readonly tags = signal<readonly ContactTag[]>([]);
+  protected readonly totalItems = signal(0);
+  protected readonly page = signal(1);
+  protected readonly search = signal('');
+  protected readonly status = signal<ContactStatus | 'all'>('all');
+  protected readonly groupId = signal<string | 'all'>('all');
+  protected readonly selectedIds = signal<ReadonlySet<string>>(new Set());
+
+  protected readonly pageSize = PAGE_SIZE;
+  protected readonly statusTone = STATUS_TONE;
+
+  protected readonly columns: readonly TableColumn[] = [
+    { key: 'select', header: '', widthClass: 'w-10' },
+    { key: 'name', header: 'Contact' },
+    { key: 'phone', header: 'Phone', hideOnMobile: true },
+    { key: 'country', header: 'Country', hideOnMobile: true },
+    { key: 'tags', header: 'Tags', hideOnMobile: true },
+    { key: 'status', header: 'Status' },
+    { key: 'lastMessaged', header: 'Last messaged', align: 'right', hideOnMobile: true },
+  ];
+
+  protected readonly selectedCount = computed(() => this.selectedIds().size);
+
+  protected readonly allOnPageSelected = computed(() => {
+    const rows = this.contacts();
+    const selected = this.selectedIds();
+    return rows.length > 0 && rows.every((contact) => selected.has(contact.id));
+  });
+
+  protected readonly hasFilters = computed(
+    () => this.search() !== '' || this.status() !== 'all' || this.groupId() !== 'all',
+  );
+
+  private readonly tagNameById = computed(() => {
+    const lookup = new Map<string, ContactTag>();
+    for (const tag of this.tags()) {
+      lookup.set(tag.id, tag);
+    }
+    return lookup;
+  });
+
+  constructor() {
+    this.searchInput
+      .pipe(debounceTime(300), distinctUntilChanged(), takeUntilDestroyed())
+      .subscribe((term) => {
+        this.search.set(term);
+        this.page.set(1);
+        this.load();
+      });
+
+    this.contactsService.listGroups().subscribe({ next: (groups) => this.groups.set(groups) });
+    this.contactsService.listTags().subscribe({ next: (tags) => this.tags.set(tags) });
+    this.load();
+  }
+
+  protected load(): void {
+    this.state.set('loading');
+
+    this.contactsService
+      .list({
+        page: this.page(),
+        pageSize: PAGE_SIZE,
+        search: this.search(),
+        status: this.status(),
+        groupId: this.groupId(),
+      })
+      .subscribe({
+        next: (result) => {
+          this.contacts.set(result.items);
+          this.totalItems.set(result.totalItems);
+          this.state.set(result.totalItems === 0 ? 'empty' : 'ready');
+        },
+        error: () => this.state.set('error'),
+      });
+  }
+
+  protected onSearch(event: Event): void {
+    this.searchInput.next((event.target as HTMLInputElement).value);
+  }
+
+  protected onStatusChange(event: Event): void {
+    this.status.set((event.target as HTMLSelectElement).value as ContactStatus | 'all');
+    this.page.set(1);
+    this.load();
+  }
+
+  protected onGroupChange(event: Event): void {
+    this.groupId.set((event.target as HTMLSelectElement).value);
+    this.page.set(1);
+    this.load();
+  }
+
+  protected onPageChange(page: number): void {
+    this.page.set(page);
+    this.load();
+  }
+
+  protected clearFilters(): void {
+    this.search.set('');
+    this.status.set('all');
+    this.groupId.set('all');
+    this.page.set(1);
+    this.load();
+  }
+
+  protected toggleRow(id: string): void {
+    this.selectedIds.update((current) => {
+      const next = new Set(current);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }
+
+  protected toggleAllOnPage(): void {
+    const shouldClear = this.allOnPageSelected();
+    this.selectedIds.update((current) => {
+      const next = new Set(current);
+      for (const contact of this.contacts()) {
+        if (shouldClear) {
+          next.delete(contact.id);
+        } else {
+          next.add(contact.id);
+        }
+      }
+      return next;
+    });
+  }
+
+  protected clearSelection(): void {
+    this.selectedIds.set(new Set());
+  }
+
+  protected isSelected(id: string): boolean {
+    return this.selectedIds().has(id);
+  }
+
+  protected tagFor(tagId: string): ContactTag | undefined {
+    return this.tagNameById().get(tagId);
+  }
+
+  /** Bulk actions are wired to the UI now; the write endpoints land with the CRUD milestone. */
+  protected announcePending(action: string): void {
+    this.toast.info(`${action} queued`, `${this.selectedCount()} contacts selected.`);
+  }
+}
