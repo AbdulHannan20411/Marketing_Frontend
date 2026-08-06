@@ -5,13 +5,20 @@ import { EntitlementService } from '@core/services/entitlement.service';
 import { LayoutService } from '@core/services/layout.service';
 import { NotificationsService } from '@core/services/notifications.service';
 import { CommandPaletteComponent } from '@layout/command-palette/command-palette.component';
+import { ScopeBarComponent } from '@layout/scope-bar/scope-bar.component';
 import { SidebarComponent } from '@layout/sidebar/sidebar.component';
 import { TopbarComponent } from '@layout/topbar/topbar.component';
 
 @Component({
   selector: 'app-shell',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterOutlet, SidebarComponent, TopbarComponent, CommandPaletteComponent],
+  imports: [
+    RouterOutlet,
+    SidebarComponent,
+    TopbarComponent,
+    CommandPaletteComponent,
+    ScopeBarComponent,
+  ],
   host: { class: 'block min-h-dvh bg-surface-muted' },
   template: `
     <a
@@ -25,6 +32,7 @@ import { TopbarComponent } from '@layout/topbar/topbar.component';
 
     <div class="flex min-h-dvh flex-col transition-[padding] duration-300 ease-out" [class]="offset()">
       <app-topbar />
+      <app-scope-bar />
       <main id="main-content" tabindex="-1" class="flex-1 px-4 py-6 sm:px-6 lg:px-8">
         <div class="mx-auto w-full max-w-[88rem]">
           <router-outlet />

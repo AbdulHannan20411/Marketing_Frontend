@@ -11,6 +11,8 @@ export interface NavItem {
   readonly roles?: readonly UserRole[];
   /** Item is hidden unless the current plan includes this module. */
   readonly module?: FeatureModule;
+  /** Super Admin only: the item needs a selected Admin to be meaningful. */
+  readonly requiresScope?: boolean;
   readonly badge?: string;
 }
 

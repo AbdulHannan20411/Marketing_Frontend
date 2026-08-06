@@ -1,5 +1,6 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 
+import { AuthService } from '@core/auth/auth.service';
 import type { FeatureModule } from '@core/models/permission.model';
 import type {
   SubscriptionPlan,
@@ -55,17 +56,28 @@ function toView(metric: UsageMetric): UsageView {
 @Injectable({ providedIn: 'root' })
 export class EntitlementService {
   private readonly subscriptionService = inject(SubscriptionService);
+  private readonly auth = inject(AuthService);
 
   private readonly snapshot = signal<SubscriptionSnapshot | null>(null);
   private readonly loaded = signal(false);
+
+  /**
+   * Plan limits are a property of an Admin's subscription, so they never apply
+   * to a SuperAdmin. When true, every gate opens and usage reports as
+   * unlimited — no caps, no upgrade prompts.
+   */
+  readonly isUnrestricted = computed(() => this.auth.isSuperAdmin());
 
   readonly isLoaded = this.loaded.asReadonly();
   readonly subscription = computed(() => this.snapshot()?.subscription ?? null);
   readonly plan = computed<SubscriptionPlan | null>(() => this.snapshot()?.plan ?? null);
 
-  readonly usage = computed<readonly UsageView[]>(() =>
-    (this.snapshot()?.usage ?? []).map(toView),
-  );
+  readonly usage = computed<readonly UsageView[]>(() => {
+    const metrics = this.snapshot()?.usage ?? [];
+    return this.isUnrestricted()
+      ? metrics.map((metric) => toView({ ...metric, limit: null }))
+      : metrics.map(toView);
+  });
 
   private readonly usageByKey = computed(() => {
     const lookup = new Map<UsageMetricKey, UsageView>();
@@ -98,7 +110,9 @@ export class EntitlementService {
 
   /** Metrics at or past their ceiling, used to drive upgrade prompts. */
   readonly breachedMetrics = computed(() =>
-    this.usage().filter((metric) => metric.severity === 'exceeded'),
+    this.isUnrestricted()
+      ? []
+      : this.usage().filter((metric) => metric.severity === 'exceeded'),
   );
 
   load(): void {
@@ -118,6 +132,9 @@ export class EntitlementService {
    * still loading so the shell does not flash-hide navigation on first paint.
    */
   hasFeature(module: FeatureModule): boolean {
+    if (this.isUnrestricted()) {
+      return true;
+    }
     const plan = this.plan();
     return plan === null ? !this.loaded() : plan.modules[module];
   }
@@ -128,6 +145,6 @@ export class EntitlementService {
 
   /** True when a metric has hit its ceiling and the action should be blocked. */
   hasReachedLimit(key: UsageMetricKey): boolean {
-    return this.usageFor(key)?.severity === 'exceeded';
+    return !this.isUnrestricted() && this.usageFor(key)?.severity === 'exceeded';
   }
 }

@@ -1,0 +1,135 @@
+<app-page-header
+  title="Global reports"
+  description="Delivery and engagement aggregated across every admin and employee."
+  [breadcrumbs]="[{ label: 'Super Admin', route: null }, { label: 'Reports', route: null }]"
+>
+  <button appButton variant="outline" size="md" (click)="exportCsv()">
+    <app-icon name="download" [size]="16" />
+    Export CSV
+  </button>
+</app-page-header>
+
+@if (state() === 'error') {
+  <app-card class="mt-6 block" [padded]="false">
+    <app-error-state (retry)="load()" />
+  </app-card>
+} @else {
+  <section class="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Platform report totals">
+    <app-stat-card
+      label="Messages this month"
+      icon="send"
+      [value]="totalMessages()"
+      [delta]="overview()?.messagesDelta ?? null"
+      [loading]="state() === 'loading'"
+    />
+    <app-stat-card
+      label="Average per admin"
+      icon="building"
+      [value]="averagePerAdmin()"
+      [loading]="state() === 'loading'"
+    />
+    <app-stat-card
+      label="Total customers"
+      icon="users"
+      [value]="overview()?.totalCustomers ?? 0"
+      [delta]="overview()?.customersDelta ?? null"
+      [loading]="state() === 'loading'"
+    />
+    <app-stat-card
+      label="Total leads"
+      icon="trendingUp"
+      [value]="overview()?.totalLeads ?? 0"
+      [delta]="overview()?.leadsDelta ?? null"
+      [loading]="state() === 'loading'"
+    />
+  </section>
+
+  <section class="mt-5">
+    <app-card title="Platform volume over time" subtitle="Sent, delivered and read across all admins">
+      @if (state() === 'loading') {
+        <app-skeleton height="18.75rem" />
+      } @else {
+        <app-chart [options]="trendOptions()" />
+      }
+    </app-card>
+  </section>
+
+  <!-- Per-admin comparison -->
+  <section class="mt-4">
+    <app-card
+      title="Volume by admin"
+      subtitle="Open any row to see that admin's own report"
+      [padded]="false"
+    >
+      @if (state() === 'loading') {
+        <div class="space-y-3 p-5">
+          @for (item of skeletons; track item) {
+            <app-skeleton height="2.75rem" />
+          }
+        </div>
+      } @else {
+        <div class="app-scrollbar overflow-x-auto">
+          <table class="w-full border-collapse text-sm">
+            <thead>
+              <tr class="border-b border-line bg-surface-sunken/60">
+                <th scope="col" class="px-5 py-2.5 text-left text-xs font-semibold tracking-wide text-ink-muted uppercase">
+                  Admin
+                </th>
+                <th scope="col" class="hidden px-5 py-2.5 text-left text-xs font-semibold tracking-wide text-ink-muted uppercase md:table-cell">
+                  Plan
+                </th>
+                <th scope="col" class="hidden px-5 py-2.5 text-right text-xs font-semibold tracking-wide text-ink-muted uppercase sm:table-cell">
+                  Employees
+                </th>
+                <th scope="col" class="px-5 py-2.5 text-right text-xs font-semibold tracking-wide text-ink-muted uppercase">
+                  Messages
+                </th>
+                <th scope="col" class="px-5 py-2.5 text-right text-xs font-semibold tracking-wide text-ink-muted uppercase">
+                  Share
+                </th>
+                <th scope="col" class="px-5 py-2.5 text-right text-xs font-semibold tracking-wide text-ink-muted uppercase">
+                  Report
+                </th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-line">
+              @for (row of rows(); track row.admin.id) {
+                <tr class="transition-colors hover:bg-surface-muted">
+                  <td class="px-5 py-3.5">
+                    <p class="text-sm font-medium text-ink">{{ row.admin.organisation }}</p>
+                    <p class="mt-0.5 text-xs text-ink-muted">{{ row.admin.name }}</p>
+                  </td>
+                  <td class="hidden px-5 py-3.5 md:table-cell">
+                    <app-badge tone="neutral">{{ row.admin.plan }}</app-badge>
+                  </td>
+                  <td class="hidden px-5 py-3.5 text-right text-sm text-ink-soft tabular-nums sm:table-cell">
+                    {{ row.admin.employeeCount }}
+                  </td>
+                  <td class="px-5 py-3.5 text-right text-sm font-semibold text-ink tabular-nums">
+                    {{ row.messages | number }}
+                  </td>
+                  <td class="px-5 py-3.5">
+                    <div class="flex items-center justify-end gap-2.5">
+                      <div class="hidden h-1.5 w-16 overflow-hidden rounded-full bg-surface-sunken sm:block">
+                        <div class="h-full rounded-full bg-brand-500" [style.width.%]="row.sharePercent"></div>
+                      </div>
+                      <span class="w-9 text-right text-sm text-ink-soft tabular-nums">
+                        {{ row.sharePercent }}%
+                      </span>
+                    </div>
+                  </td>
+                  <td class="px-5 py-3.5 text-right">
+                    <button appButton variant="ghost" size="sm" (click)="viewAs(row.admin)">
+                      <app-icon name="eye" [size]="14" />
+                      View
+                    </button>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </app-card>
+  </section>
+}

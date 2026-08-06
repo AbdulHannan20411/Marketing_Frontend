@@ -99,39 +99,8 @@ export const NAVIGATION: readonly NavSection[] = [
       },
     ],
   },
-  {
-    title: 'Platform',
-    items: [
-      {
-        label: 'Tenants',
-        route: '/admin/tenants',
-        icon: 'building',
-        permissions: ['platform.tenants'],
-        roles: ['SuperAdmin'],
-      },
-      {
-        label: 'Plans',
-        route: '/admin/plans',
-        icon: 'rocket',
-        permissions: ['platform.plans'],
-        roles: ['SuperAdmin'],
-      },
-      {
-        label: 'Audit Logs',
-        route: '/admin/audit',
-        icon: 'clipboard',
-        permissions: ['platform.audit'],
-        roles: ['SuperAdmin'],
-      },
-      {
-        label: 'Monitoring',
-        route: '/admin/monitoring',
-        icon: 'shield',
-        permissions: ['platform.monitoring'],
-        roles: ['SuperAdmin'],
-      },
-    ],
-  },
+  // Platform administration is not part of this portal — see
+  // `superadmin-navigation.config.ts`.
   {
     title: null,
     items: [

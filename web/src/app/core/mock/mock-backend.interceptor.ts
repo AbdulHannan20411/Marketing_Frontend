@@ -34,6 +34,15 @@ import {
   PLANS,
   SUBSCRIPTION_SNAPSHOT,
 } from './mock-billing-data';
+import {
+  ADMIN_ACCOUNTS,
+  PLATFORM_OVERVIEW,
+  campaignsForAdmin,
+  connectionForAdmin,
+  contactsForAdmin,
+  dashboardForAdmin,
+  employeesForAdmin,
+} from './mock-platform-data';
 import { searchEverything } from './mock-search';
 import { MOCK_ACCOUNTS, accountFromRefreshToken, issueMockTokens } from './mock-tokens';
 
@@ -81,12 +90,23 @@ function paginate<T>(items: readonly T[], params: HttpParams): PagedResult<T> {
   };
 }
 
+/**
+ * The Admin account a SuperAdmin is viewing as, or `null` for their own /
+ * global context. A real API would authorise this against the caller's role;
+ * the mock simply honours it.
+ */
+function scopeOf(params: HttpParams): string | null {
+  return params.get('adminId');
+}
+
 function filterContacts(params: HttpParams): readonly Contact[] {
   const search = (params.get('search') ?? '').trim().toLowerCase();
   const status = params.get('status') ?? 'all';
   const groupId = params.get('groupId') ?? 'all';
+  const adminId = scopeOf(params);
+  const source = adminId === null ? CONTACTS : contactsForAdmin(adminId);
 
-  return CONTACTS.filter((contact) => {
+  return source.filter((contact) => {
     const matchesSearch =
       search === '' ||
       contact.fullName.toLowerCase().includes(search) ||
@@ -239,24 +259,36 @@ export const mockBackendInterceptor: HttpInterceptorFn = (request, next) => {
 
   if (method === 'GET') {
     switch (path) {
-      case '/dashboard':
-        return ok(DASHBOARD);
+      case '/dashboard': {
+        const adminId = scopeOf(params);
+        return ok(adminId === null ? DASHBOARD : dashboardForAdmin(adminId));
+      }
+      case '/superadmin/admins':
+        return ok(ADMIN_ACCOUNTS);
+      case '/superadmin/overview':
+        return ok(PLATFORM_OVERVIEW);
       case '/contacts':
         return ok(paginate(filterContacts(params), params));
       case '/groups':
         return ok(GROUPS_WITH_COUNTS);
       case '/tags':
         return ok(TAGS_WITH_COUNTS);
-      case '/whatsapp/connection':
-        return ok(WHATSAPP_CONNECTION);
+      case '/whatsapp/connection': {
+        const adminId = scopeOf(params);
+        return ok(adminId === null ? WHATSAPP_CONNECTION : connectionForAdmin(adminId));
+      }
       case '/templates':
         return ok(TEMPLATES);
-      case '/campaigns':
-        return ok(CAMPAIGNS);
+      case '/campaigns': {
+        const adminId = scopeOf(params);
+        return ok(adminId === null ? CAMPAIGNS : campaignsForAdmin(adminId));
+      }
       case '/reports/failures':
         return ok(paginate(DELIVERY_FAILURES, params));
-      case '/reports/overview':
-        return ok(DASHBOARD);
+      case '/reports/overview': {
+        const adminId = scopeOf(params);
+        return ok(adminId === null ? DASHBOARD : dashboardForAdmin(adminId));
+      }
       case '/admin/tenants':
         return ok(paginate(TENANTS, params));
       case '/admin/audit':
@@ -273,8 +305,10 @@ export const mockBackendInterceptor: HttpInterceptorFn = (request, next) => {
         return ok([...planStore]);
       case '/billing/history':
         return ok(BILLING_HISTORY);
-      case '/employees':
-        return ok(EMPLOYEES);
+      case '/employees': {
+        const adminId = scopeOf(params);
+        return ok(adminId === null ? EMPLOYEES : employeesForAdmin(adminId));
+      }
       case '/permission-sets':
         return ok(PERMISSION_SETS);
       case '/notifications':

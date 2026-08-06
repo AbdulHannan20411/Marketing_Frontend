@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/c
 import { RouterLink, RouterLinkActive } from '@angular/router';
 
 import { environment } from '@env/environment';
+import { AuthService } from '@core/auth/auth.service';
 import { LayoutService } from '@core/services/layout.service';
 import { IconComponent } from '@shared/ui/icon/icon.component';
 
@@ -13,6 +14,12 @@ import { IconComponent } from '@shared/ui/icon/icon.component';
 })
 export class SidebarComponent {
   private readonly layout = inject(LayoutService);
+  private readonly auth = inject(AuthService);
+
+  /** Each portal has its own home, so the logo never bounces through a guard. */
+  protected readonly homeRoute = computed(() =>
+    this.auth.isSuperAdmin() ? '/superadmin/dashboard' : '/dashboard',
+  );
 
   protected readonly appName = environment.appName;
   protected readonly sections = this.layout.visibleNavigation;

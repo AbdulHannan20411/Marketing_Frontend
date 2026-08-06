@@ -10,6 +10,7 @@ import {
 import { authTokenInterceptor } from '@core/interceptors/auth-token.interceptor';
 import { errorInterceptor } from '@core/interceptors/error.interceptor';
 import { mockBackendInterceptor } from '@core/mock/mock-backend.interceptor';
+import { scopeInterceptor } from '@core/scope/scope.interceptor';
 import { routes } from './app.routes';
 
 export const appConfig: ApplicationConfig = {
@@ -21,10 +22,16 @@ export const appConfig: ApplicationConfig = {
       withViewTransitions(),
       withInMemoryScrolling({ scrollPositionRestoration: 'top', anchorScrolling: 'enabled' }),
     ),
-    // Order matters: error normalisation wraps the token retry, and the mock
-    // backend sits innermost so it short-circuits before hitting the network.
+    // Order matters: error normalisation wraps the token retry, the scope
+    // parameter is applied before the request is served, and the mock backend
+    // sits innermost so it short-circuits before hitting the network.
     provideHttpClient(
-      withInterceptors([errorInterceptor, authTokenInterceptor, mockBackendInterceptor]),
+      withInterceptors([
+        errorInterceptor,
+        authTokenInterceptor,
+        scopeInterceptor,
+        mockBackendInterceptor,
+      ]),
     ),
   ],
 };

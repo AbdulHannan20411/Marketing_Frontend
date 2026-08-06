@@ -1,0 +1,168 @@
+<app-page-header
+  title="Platform overview"
+  description="Aggregated activity across every admin account on the platform."
+  [breadcrumbs]="[{ label: 'Super Admin', route: null }, { label: 'Dashboard', route: null }]"
+>
+  <a appButton variant="outline" size="md" routerLink="/superadmin/reports">
+    <app-icon name="chartBar" [size]="16" />
+    Global reports
+  </a>
+  <a appButton size="md" routerLink="/superadmin/admins">
+    <app-icon name="building" [size]="16" />
+    Manage admins
+  </a>
+</app-page-header>
+
+@if (state() === 'error') {
+  <app-card class="mt-6 block" [padded]="false">
+    <app-error-state (retry)="load()" />
+  </app-card>
+} @else {
+  <!-- Headline totals -->
+  <section class="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3" aria-label="Platform totals">
+    <app-stat-card
+      label="Total admins"
+      icon="building"
+      [value]="overview()?.totalAdmins ?? 0"
+      [loading]="state() === 'loading'"
+    />
+    <app-stat-card
+      label="Total employees"
+      icon="userGroup"
+      [value]="overview()?.totalEmployees ?? 0"
+      [loading]="state() === 'loading'"
+    />
+    <app-stat-card
+      label="Total campaigns"
+      icon="megaphone"
+      [value]="overview()?.totalCampaigns ?? 0"
+      [delta]="overview()?.campaignsDelta ?? null"
+      [loading]="state() === 'loading'"
+    />
+    <app-stat-card
+      label="Total leads"
+      icon="trendingUp"
+      [value]="overview()?.totalLeads ?? 0"
+      [delta]="overview()?.leadsDelta ?? null"
+      [loading]="state() === 'loading'"
+    />
+    <app-stat-card
+      label="Total customers"
+      icon="users"
+      [value]="overview()?.totalCustomers ?? 0"
+      [delta]="overview()?.customersDelta ?? null"
+      [loading]="state() === 'loading'"
+    />
+    <app-stat-card
+      label="Messages this month"
+      icon="send"
+      [value]="overview()?.totalMessagesThisMonth ?? 0"
+      [delta]="overview()?.messagesDelta ?? null"
+      [loading]="state() === 'loading'"
+    />
+  </section>
+
+  <!-- Charts -->
+  <section class="mt-5 grid gap-4 lg:grid-cols-3">
+    <app-card
+      class="lg:col-span-2"
+      title="Platform message volume"
+      subtitle="Daily totals across all admins"
+    >
+      @if (state() === 'loading') {
+        <app-skeleton height="18.75rem" />
+      } @else {
+        <app-chart [options]="trendOptions()" />
+      }
+    </app-card>
+
+    <app-card title="Admins by plan" subtitle="Distribution across tiers">
+      @if (state() === 'loading') {
+        <app-skeleton height="18.75rem" />
+      } @else {
+        <app-chart [options]="planChartOptions()" />
+      }
+    </app-card>
+  </section>
+
+  <!-- Revenue + leaderboard -->
+  <section class="mt-4 grid gap-4 lg:grid-cols-3">
+    <app-card title="Recurring revenue" subtitle="Monthly, by plan tier">
+      @if (state() === 'loading') {
+        <div class="space-y-3">
+          @for (row of [1, 2, 3, 4]; track row) {
+            <app-skeleton height="2rem" />
+          }
+        </div>
+      } @else {
+        <p class="text-3xl font-semibold tracking-tight text-ink tabular-nums">
+          ${{ monthlyRevenue() | number }}
+        </p>
+        <p class="mt-0.5 text-xs text-ink-muted">per month across all admins</p>
+
+        <ul class="mt-4 space-y-2.5 border-t border-line pt-4">
+          @for (row of overview()?.planBreakdown ?? []; track row.plan) {
+            <li class="flex items-center justify-between gap-3">
+              <span class="flex items-center gap-2">
+                <app-badge tone="neutral">{{ row.plan }}</app-badge>
+                <span class="text-xs text-ink-muted">{{ row.adminCount }} admins</span>
+              </span>
+              <span class="text-sm font-semibold text-ink tabular-nums">
+                ${{ row.monthlyRevenue | number }}
+              </span>
+            </li>
+          }
+        </ul>
+      }
+    </app-card>
+
+    <app-card
+      class="lg:col-span-2"
+      title="Most active admins"
+      subtitle="By messages sent this month"
+      [padded]="false"
+    >
+      <a cardActions appButton variant="ghost" size="sm" routerLink="/superadmin/admins">
+        View all
+      </a>
+
+      @if (state() === 'loading') {
+        <div class="space-y-3 p-5">
+          @for (row of [1, 2, 3, 4, 5]; track row) {
+            <app-skeleton height="2.5rem" />
+          }
+        </div>
+      } @else {
+        <ul class="divide-y divide-line">
+          @for (row of overview()?.topAdmins ?? []; track row.adminId) {
+            <li class="flex flex-wrap items-center gap-3 px-5 py-3.5 transition-colors hover:bg-surface-muted">
+              <app-avatar [name]="row.name" [initials]="initialsOf(row.name)" size="sm" />
+
+              <div class="min-w-0 flex-1">
+                <p class="truncate text-sm font-medium text-ink">{{ row.organisation }}</p>
+                <p class="mt-0.5 truncate text-xs text-ink-muted">{{ row.name }}</p>
+              </div>
+
+              <div class="hidden text-right sm:block">
+                <p class="text-sm font-semibold text-ink tabular-nums">
+                  {{ row.messagesThisMonth | number }}
+                </p>
+                <p class="text-xs text-ink-muted">messages</p>
+              </div>
+
+              <div class="hidden text-right md:block">
+                <p class="text-sm font-semibold text-ink tabular-nums">{{ row.deliveryRate }}%</p>
+                <p class="text-xs text-ink-muted">delivered</p>
+              </div>
+
+              <button appButton variant="outline" size="sm" (click)="viewAs(row.adminId)">
+                <app-icon name="eye" [size]="14" />
+                View as
+              </button>
+            </li>
+          }
+        </ul>
+      }
+    </app-card>
+  </section>
+}
