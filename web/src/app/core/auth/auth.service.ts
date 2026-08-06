@@ -95,6 +95,16 @@ export class AuthService {
     this.clearSession();
   }
 
+  /**
+   * Drops local session state without navigating. Used when a sign-in succeeds
+   * but the account is not valid for the portal it was attempted from.
+   */
+  discardSession(): void {
+    this.storage.clear();
+    this.currentUser.set(null);
+    this.refresh$ = null;
+  }
+
   /** Drops local session state and returns to login, preserving the attempted URL. */
   clearSession(redirectTo?: string): void {
     this.storage.clear();

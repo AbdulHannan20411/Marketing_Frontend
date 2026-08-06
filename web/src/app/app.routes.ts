@@ -16,6 +16,7 @@ export const routes: Routes = [
       {
         path: 'login',
         title: 'Sign in · Verdant',
+        data: { portal: 'admin' },
         loadComponent: () =>
           import('@features/auth/login/login.component').then((m) => m.LoginComponent),
       },
@@ -38,6 +39,15 @@ export const routes: Routes = [
    * components unchanged — the selected admin is applied by `scopeInterceptor`,
    * so there is no parallel implementation to keep in step.
    * ------------------------------------------------------------------ */
+  {
+    path: 'superadmin/login',
+    canActivate: [guestGuard],
+    title: 'Super Admin sign-in · Verdant',
+    data: { portal: 'superadmin' },
+    loadComponent: () =>
+      import('@features/auth/login/login.component').then((m) => m.LoginComponent),
+  },
+
   {
     path: 'superadmin',
     canActivate: [authGuard, superAdminPortalGuard],
