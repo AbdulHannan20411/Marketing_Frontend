@@ -7,7 +7,12 @@ import { AuthService } from '@core/auth/auth.service';
 import type { DashboardSnapshot } from '@core/models/analytics.model';
 import type { Campaign } from '@core/models/campaign.model';
 import type { LoadState } from '@core/models/api.model';
+import type { WhatsAppConnection } from '@core/models/whatsapp.model';
 import { DashboardService } from '@core/services/dashboard.service';
+import { EntitlementService } from '@core/services/entitlement.service';
+import { WhatsAppService } from '@core/services/whatsapp.service';
+import { ExecutiveWidgetsComponent } from './executive-widgets.component';
+import { UpgradePromptComponent } from '@shared/ui/upgrade-prompt/upgrade-prompt.component';
 import { TimeAgoPipe } from '@shared/pipes/time-ago.pipe';
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
 import { BadgeComponent } from '@shared/ui/badge/badge.component';
@@ -37,16 +42,26 @@ import { StatCardComponent } from '@shared/ui/stat-card/stat-card.component';
     ButtonDirective,
     IconComponent,
     SkeletonComponent,
+    ExecutiveWidgetsComponent,
+    UpgradePromptComponent,
   ],
   templateUrl: './dashboard.component.html',
 })
 export class DashboardComponent {
   private readonly dashboardService = inject(DashboardService);
+  private readonly whatsappService = inject(WhatsAppService);
+  private readonly entitlements = inject(EntitlementService);
   private readonly auth = inject(AuthService);
 
   protected readonly state = signal<LoadState>('loading');
   protected readonly snapshot = signal<DashboardSnapshot | null>(null);
   protected readonly campaigns = signal<readonly Campaign[]>([]);
+  protected readonly connection = signal<WhatsAppConnection | null>(null);
+
+  /** Any allowance already at its ceiling, surfaced as an inline upgrade nudge. */
+  protected readonly breachedMetrics = this.entitlements.breachedMetrics;
+  protected readonly firstBreach = computed(() => this.breachedMetrics()[0] ?? null);
+  protected readonly hasWhatsApp = computed(() => this.entitlements.hasFeature('whatsapp'));
 
   protected readonly statusTone = CAMPAIGN_STATUS_TONE;
   protected readonly statusLabel = CAMPAIGN_STATUS_LABEL;
@@ -119,6 +134,13 @@ export class DashboardComponent {
         this.state.set('ready');
       },
       error: () => this.state.set('error'),
+    });
+
+    // Connection health feeds the executive strip; a failure there should not
+    // take the whole dashboard down, so it loads independently.
+    this.whatsappService.getConnection().subscribe({
+      next: (connection) => this.connection.set(connection),
+      error: () => this.connection.set(null),
     });
   }
 

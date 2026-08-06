@@ -1,0 +1,186 @@
+<app-page-header
+  title="Plans & pricing"
+  description="Every plan is served from the billing API — nothing here is hardcoded."
+  [breadcrumbs]="[{ label: 'Home', route: '/dashboard' }, { label: 'Pricing', route: null }]"
+/>
+
+<!-- Billing cycle toggle -->
+<div class="mt-6 flex flex-wrap items-center justify-center gap-3">
+  <div class="inline-flex rounded-xl bg-white p-1 ring-1 ring-line shadow-xs">
+    <button
+      type="button"
+      [attr.aria-pressed]="cycle() === 'monthly'"
+      class="rounded-lg px-4 py-1.5 text-sm font-medium transition-all duration-150"
+      [class]="cycle() === 'monthly' ? 'bg-brand-600 text-white' : 'text-ink-soft hover:bg-surface-muted'"
+      (click)="cycle.set('monthly')"
+    >
+      Monthly
+    </button>
+    <button
+      type="button"
+      [attr.aria-pressed]="cycle() === 'yearly'"
+      class="rounded-lg px-4 py-1.5 text-sm font-medium transition-all duration-150"
+      [class]="cycle() === 'yearly' ? 'bg-brand-600 text-white' : 'text-ink-soft hover:bg-surface-muted'"
+      (click)="cycle.set('yearly')"
+    >
+      Yearly
+    </button>
+  </div>
+
+  @if (yearlySavingPercent() > 0) {
+    <app-badge tone="success">Save {{ yearlySavingPercent() }}% yearly</app-badge>
+  }
+</div>
+
+@if (state() === 'loading') {
+  <div class="mt-6 grid gap-5 lg:grid-cols-2 xl:grid-cols-4">
+    @for (item of skeletons; track item) {
+      <div class="rounded-xl bg-white p-6 ring-1 ring-line shadow-card">
+        <app-skeleton width="45%" height="1.25rem" />
+        <div class="mt-4"><app-skeleton width="60%" height="2.25rem" /></div>
+        <div class="mt-6 space-y-2.5">
+          @for (line of [1, 2, 3, 4, 5]; track line) {
+            <app-skeleton height="0.875rem" />
+          }
+        </div>
+        <div class="mt-6"><app-skeleton height="2.5rem" /></div>
+      </div>
+    }
+  </div>
+} @else if (state() === 'error') {
+  <app-card class="mt-6 block" [padded]="false">
+    <app-error-state (retry)="load()" />
+  </app-card>
+} @else {
+  <div class="mt-6 grid items-start gap-5 lg:grid-cols-2 xl:grid-cols-4">
+    @for (plan of visiblePlans(); track plan.id) {
+      <div
+        class="group relative flex h-full flex-col overflow-hidden rounded-xl bg-white transition-all duration-300 hover:-translate-y-1"
+        [class]="
+          plan.isMostPopular
+            ? 'ring-2 ring-brand-500 shadow-card-hover'
+            : isCurrent(plan)
+              ? 'ring-2 ring-emerald-400 shadow-card'
+              : 'ring-1 ring-line shadow-card hover:shadow-card-hover hover:ring-brand-300'
+        "
+      >
+        <!-- Ribbons -->
+        @if (plan.isMostPopular) {
+          <div
+            class="bg-gradient-to-r from-brand-600 to-brand-500 py-1.5 text-center text-xs font-semibold tracking-wide text-white uppercase"
+          >
+            Most popular
+          </div>
+        } @else if (plan.isRecommended) {
+          <div
+            class="bg-gradient-to-r from-emerald-600 to-emerald-500 py-1.5 text-center text-xs font-semibold tracking-wide text-white uppercase"
+          >
+            Recommended
+          </div>
+        } @else if (plan.isPromotional) {
+          <div
+            class="bg-gradient-to-r from-amber-500 to-amber-400 py-1.5 text-center text-xs font-semibold tracking-wide text-white uppercase"
+          >
+            Limited offer
+          </div>
+        }
+
+        <div class="flex flex-1 flex-col p-6">
+          <!-- Header -->
+          <div class="flex items-start justify-between gap-2">
+            <h2 class="text-base font-semibold tracking-tight text-ink">{{ plan.name }}</h2>
+            @if (isCurrent(plan)) {
+              <app-badge tone="success" [dot]="true">Current</app-badge>
+            } @else if (plan.discountPercent > 0) {
+              <app-badge tone="warning">−{{ plan.discountPercent }}%</app-badge>
+            }
+          </div>
+
+          <p class="mt-1.5 min-h-10 text-xs leading-relaxed text-ink-muted">{{ plan.tagline }}</p>
+
+          <!-- Price -->
+          <div class="mt-4">
+            <div class="flex items-baseline gap-1.5">
+              <span class="text-3xl font-semibold tracking-tight text-ink tabular-nums">
+                {{ plan.currency === 'USD' ? '$' : plan.currency }}{{ monthlyEquivalent(plan) }}
+              </span>
+              <span class="text-sm text-ink-muted">/ month</span>
+            </div>
+            <p class="mt-1 text-xs text-ink-muted">
+              @if (cycle() === 'yearly') {
+                Billed ${{ priceFor(plan) }} yearly
+              } @else {
+                Billed monthly · ${{ plan.yearlyPrice }}/yr if annual
+              }
+            </p>
+            @if (plan.trialDays > 0) {
+              <p class="mt-1.5 inline-flex items-center gap-1 text-xs font-medium text-brand-700">
+                <app-icon name="sparkles" [size]="13" />
+                {{ plan.trialDays }}-day free trial
+              </p>
+            }
+          </div>
+
+          <!-- CTA -->
+          <button
+            appButton
+            class="mt-5 w-full justify-center"
+            [variant]="isCurrent(plan) ? 'outline' : plan.isMostPopular ? 'primary' : 'secondary'"
+            size="md"
+            [disabled]="isCurrent(plan)"
+            (click)="choose(plan)"
+          >
+            {{ isCurrent(plan) ? 'Your current plan' : 'Choose ' + plan.name }}
+          </button>
+
+          <!-- Highlights -->
+          <ul class="mt-5 space-y-2 border-t border-line pt-5">
+            @for (highlight of plan.highlights; track highlight) {
+              <li class="flex items-start gap-2 text-xs leading-relaxed text-ink-soft">
+                <app-icon name="checkCircle" [size]="15" class="mt-px shrink-0 text-brand-600" />
+                {{ highlight }}
+              </li>
+            }
+          </ul>
+
+          <!-- Included modules -->
+          <div class="mt-5 border-t border-line pt-4">
+            <p class="text-[11px] font-semibold tracking-wide text-ink-muted uppercase">
+              Modules included
+            </p>
+            <div class="mt-2 flex flex-wrap gap-1">
+              @for (module of enabledModules(plan); track module) {
+                <span
+                  class="rounded-md bg-brand-50 px-1.5 py-0.5 text-[11px] font-medium text-brand-800"
+                >
+                  {{ moduleLabel[module] }}
+                </span>
+              }
+            </div>
+          </div>
+
+          <!-- Limits table -->
+          <dl class="mt-5 space-y-1.5 border-t border-line pt-4">
+            @for (row of limitRows(plan); track row.label) {
+              <div class="flex items-baseline justify-between gap-3">
+                <dt class="text-xs text-ink-muted">{{ row.label }}</dt>
+                <dd class="text-xs font-medium text-ink tabular-nums">{{ row.value }}</dd>
+              </div>
+            }
+          </dl>
+
+          <!-- Support -->
+          <div class="mt-auto flex items-center gap-2 border-t border-line pt-4">
+            <app-icon name="shield" [size]="15" class="shrink-0 text-ink-muted" />
+            <span class="text-xs text-ink-soft">{{ supportLabel[plan.supportLevel] }}</span>
+          </div>
+        </div>
+      </div>
+    }
+  </div>
+
+  <p class="mt-6 text-center text-xs text-ink-muted">
+    Prices exclude tax. You can change plan at any time; upgrades take effect immediately and
+    downgrades at the end of the current cycle.
+  </p>
+}

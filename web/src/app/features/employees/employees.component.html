@@ -1,0 +1,286 @@
+<app-page-header
+  title="Employees & permissions"
+  description="Manage your team and grant exactly the access each person needs."
+  [breadcrumbs]="[{ label: 'Home', route: '/dashboard' }, { label: 'Employees', route: null }]"
+>
+  <button appButton size="md" [disabled]="seatsExhausted()" (click)="invite()">
+    <app-icon name="plus" [size]="16" />
+    Invite employee
+  </button>
+</app-page-header>
+
+<!-- Seat usage -->
+@if (seatUsage(); as seats) {
+  <div class="mt-6 grid gap-4 lg:grid-cols-3">
+    <app-card class="lg:col-span-2" title="Seat usage" subtitle="Employees against your plan allowance">
+      <app-usage-bar [metric]="seats" />
+    </app-card>
+
+    <div class="grid grid-cols-3 gap-4 lg:grid-cols-1 lg:gap-3">
+      <div class="rounded-xl bg-white p-4 ring-1 ring-line shadow-card">
+        <p class="text-xs font-medium tracking-wide text-ink-muted uppercase">Active</p>
+        <p class="mt-1 text-xl font-semibold text-ink tabular-nums">{{ counts().active }}</p>
+      </div>
+      <div class="rounded-xl bg-white p-4 ring-1 ring-line shadow-card">
+        <p class="text-xs font-medium tracking-wide text-ink-muted uppercase">Invited</p>
+        <p class="mt-1 text-xl font-semibold text-ink tabular-nums">{{ counts().invited }}</p>
+      </div>
+      <div class="rounded-xl bg-white p-4 ring-1 ring-line shadow-card">
+        <p class="text-xs font-medium tracking-wide text-ink-muted uppercase">Total</p>
+        <p class="mt-1 text-xl font-semibold text-ink tabular-nums">{{ counts().total }}</p>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Seat limit reached -->
+@if (seatsExhausted()) {
+  <div class="mt-4">
+    <app-upgrade-prompt
+      title="You've used every seat on this plan"
+      description="Invite more people by moving to a plan with a larger team allowance. Existing employees keep working as normal."
+      iconName="users"
+      recommendedPlan="Scale"
+      ctaLabel="Add more seats"
+      [metric]="seatUsage()"
+    />
+  </div>
+}
+
+<!-- Tabs -->
+<div class="mt-5 flex flex-wrap items-center gap-2" role="tablist">
+  @for (option of tabs; track option.value) {
+    <button
+      type="button"
+      role="tab"
+      [attr.aria-selected]="tab() === option.value"
+      class="rounded-lg px-3.5 py-1.5 text-sm font-medium transition-all duration-150"
+      [class]="
+        tab() === option.value
+          ? 'bg-brand-600 text-white shadow-xs'
+          : 'bg-white text-ink-soft ring-1 ring-line hover:bg-surface-muted hover:ring-brand-300'
+      "
+      (click)="tab.set(option.value)"
+    >
+      {{ option.label }}
+    </button>
+  }
+</div>
+
+@if (state() === 'loading') {
+  <app-card class="mt-5 block" [padded]="false">
+    <div class="space-y-3 p-5">
+      @for (item of skeletons; track item) {
+        <app-skeleton height="3.25rem" />
+      }
+    </div>
+  </app-card>
+} @else if (state() === 'error') {
+  <app-card class="mt-5 block" [padded]="false">
+    <app-error-state (retry)="load()" />
+  </app-card>
+} @else {
+  <!-- Team -->
+  @if (tab() === 'team') {
+    <app-card class="mt-5 block" [padded]="false">
+      <ul class="divide-y divide-line">
+        @for (employee of employees(); track employee.id) {
+          <li
+            class="flex flex-wrap items-center gap-4 px-5 py-4 transition-colors hover:bg-surface-muted"
+          >
+            <app-avatar [name]="employee.name" [initials]="employee.initials" size="md" />
+
+            <div class="min-w-0 flex-1">
+              <div class="flex flex-wrap items-center gap-2">
+                <p class="truncate text-sm font-medium text-ink">{{ employee.name }}</p>
+                <app-badge [tone]="roleTone[employee.role]">{{ roleLabel[employee.role] }}</app-badge>
+                <app-badge [tone]="statusTone[employee.status]" [dot]="true">
+                  {{ employee.status }}
+                </app-badge>
+              </div>
+              <p class="mt-0.5 truncate text-xs text-ink-muted">
+                {{ employee.jobTitle }} · {{ employee.email }}
+              </p>
+            </div>
+
+            <div class="hidden text-right sm:block">
+              <p class="text-sm font-semibold text-ink tabular-nums">
+                {{ employee.permissions.length }}
+              </p>
+              <p class="text-xs text-ink-muted">permissions</p>
+            </div>
+
+            <div class="hidden text-right md:block">
+              <p class="text-xs text-ink-muted">
+                {{
+                  employee.lastActiveAt === null
+                    ? 'Never signed in'
+                    : 'Active ' + (employee.lastActiveAt | timeAgo)
+                }}
+              </p>
+            </div>
+
+            <button appButton variant="outline" size="sm" (click)="select(employee)">
+              <app-icon name="key" [size]="14" />
+              Permissions
+            </button>
+          </li>
+        }
+      </ul>
+    </app-card>
+  }
+
+  <!-- Permission matrix -->
+  @if (tab() === 'matrix') {
+    @if (selected(); as employee) {
+      <!-- Sticky action bar -->
+      <div
+        class="mt-5 flex flex-wrap items-center gap-3 rounded-xl bg-white px-5 py-4 ring-1 ring-line shadow-card"
+      >
+        <app-avatar [name]="employee.name" [initials]="employee.initials" size="md" />
+        <div class="min-w-0 flex-1">
+          <div class="flex flex-wrap items-center gap-2">
+            <p class="truncate text-sm font-semibold text-ink">{{ employee.name }}</p>
+            <app-badge [tone]="roleTone[employee.role]">{{ roleLabel[employee.role] }}</app-badge>
+          </div>
+          <p class="mt-0.5 text-xs text-ink-muted">
+            {{ grantedCount() }} permissions granted
+            @if (hasUnsavedChanges()) {
+              · <span class="font-medium text-amber-700">unsaved changes</span>
+            }
+          </p>
+        </div>
+
+        <label for="employee-picker" class="sr-only">Choose employee</label>
+        <select
+          id="employee-picker"
+          [value]="employee.id"
+          (change)="selectedId.set($any($event.target).value)"
+          class="h-9 rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink-soft ring-1 ring-line ring-inset focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none"
+        >
+          @for (candidate of employees(); track candidate.id) {
+            <option [value]="candidate.id">{{ candidate.name }}</option>
+          }
+        </select>
+
+        @if (hasUnsavedChanges()) {
+          <button appButton variant="ghost" size="sm" (click)="discardChanges()">Discard</button>
+        }
+        <button appButton size="sm" [disabled]="!hasUnsavedChanges()" (click)="savePermissions()">
+          <app-icon name="checkCircle" [size]="15" />
+          Save
+        </button>
+      </div>
+
+      @if (employee.role !== 'Employee') {
+        <div
+          class="mt-4 flex items-start gap-2.5 rounded-xl bg-emerald-50 px-4 py-3 ring-1 ring-emerald-200"
+        >
+          <app-icon name="info" [size]="16" class="mt-px shrink-0 text-info" />
+          <p class="text-xs leading-relaxed text-emerald-900">
+            {{ roleLabel[employee.role] }} accounts hold their permissions by role. Edits here are
+            recorded but the role grant always takes precedence.
+          </p>
+        </div>
+      }
+
+      <!-- Matrix -->
+      <div class="mt-4 space-y-4">
+        @for (category of catalogue; track category.key) {
+          <app-card [padded]="false">
+            <div class="flex flex-wrap items-center gap-3 border-b border-line px-5 py-3.5">
+              <div class="min-w-0 flex-1">
+                <div class="flex flex-wrap items-center gap-2">
+                  <h3 class="text-sm font-semibold text-ink">{{ category.label }}</h3>
+                  @if (isCategoryLocked(category)) {
+                    <app-badge tone="neutral">
+                      <app-icon name="lock" [size]="11" />
+                      Not in plan
+                    </app-badge>
+                  }
+                </div>
+                <p class="mt-0.5 text-xs text-ink-muted">{{ category.description }}</p>
+              </div>
+
+              <span class="text-xs font-medium text-ink-muted tabular-nums">
+                {{ categoryGrantedCount(category) }} / {{ category.permissions.length }}
+              </span>
+
+              <app-toggle
+                [checked]="isCategoryFullyGranted(category)"
+                (checkedChange)="toggleCategory(category, $event)"
+                [disabled]="isCategoryLocked(category)"
+                [label]="'Grant all ' + category.label + ' permissions'"
+              />
+            </div>
+
+            <ul class="divide-y divide-line/70">
+              @for (permission of category.permissions; track permission.key) {
+                <li
+                  class="flex items-center gap-4 px-5 py-2.5 transition-colors"
+                  [class]="isCategoryLocked(category) ? 'opacity-50' : 'hover:bg-surface-muted'"
+                >
+                  <div class="min-w-0 flex-1">
+                    <p class="text-sm text-ink">{{ permission.label }}</p>
+                    <p class="mt-0.5 truncate text-xs text-ink-muted">{{ permission.description }}</p>
+                  </div>
+
+                  <code class="hidden font-mono text-[11px] text-ink-muted lg:block">
+                    {{ permission.key }}
+                  </code>
+
+                  <app-toggle
+                    [checked]="isGranted(permission.key)"
+                    (checkedChange)="togglePermission(permission.key, $event)"
+                    [disabled]="isCategoryLocked(category)"
+                    [label]="permission.label"
+                  />
+                </li>
+              }
+            </ul>
+          </app-card>
+        }
+      </div>
+    } @else {
+      <app-card class="mt-5 block">
+        <p class="py-10 text-center text-sm text-ink-muted">
+          Select an employee from the Team tab to edit their permissions.
+        </p>
+      </app-card>
+    }
+  }
+
+  <!-- Permission sets -->
+  @if (tab() === 'sets') {
+    <div class="mt-5 grid gap-4 sm:grid-cols-2">
+      @for (set of permissionSets(); track set.id) {
+        <app-card [interactive]="true">
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <div class="flex flex-wrap items-center gap-2">
+                <h3 class="text-sm font-semibold text-ink">{{ set.name }}</h3>
+                @if (set.isSystem) {
+                  <app-badge tone="neutral">System</app-badge>
+                }
+              </div>
+              <p class="mt-1 text-xs leading-relaxed text-ink-muted">{{ set.description }}</p>
+            </div>
+            <span class="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-brand-50 text-brand-600">
+              <app-icon name="key" [size]="17" />
+            </span>
+          </div>
+
+          <div class="mt-4 flex items-end justify-between border-t border-line pt-3.5">
+            <div>
+              <p class="text-lg font-semibold text-ink tabular-nums">{{ set.permissions.length }}</p>
+              <p class="text-xs text-ink-muted">permissions · {{ set.assignedCount }} assigned</p>
+            </div>
+            <button appButton variant="outline" size="sm" (click)="applySet(set)">
+              Apply to selected
+            </button>
+          </div>
+        </app-card>
+      }
+    </div>
+  }
+}

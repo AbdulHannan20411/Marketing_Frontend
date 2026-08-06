@@ -1,0 +1,168 @@
+<section aria-label="Account health">
+  <div class="grid gap-4 lg:grid-cols-3">
+    <!-- Subscription -->
+    <div
+      class="rounded-xl bg-white p-5 ring-1 ring-line shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:shadow-card-hover"
+    >
+      <div class="flex items-start gap-4">
+        <app-progress-ring
+          [value]="daysPercent()"
+          [tone]="daysTone()"
+          [size]="82"
+          [thickness]="7"
+          label="Days remaining on subscription"
+        >
+          <div>
+            <p class="text-lg font-semibold text-ink tabular-nums">{{ daysRemaining() }}</p>
+            <p class="text-[10px] text-ink-muted">days</p>
+          </div>
+        </app-progress-ring>
+
+        <div class="min-w-0 flex-1">
+          <div class="flex flex-wrap items-center gap-2">
+            <p class="text-xs font-medium tracking-wide text-ink-muted uppercase">Subscription</p>
+            <app-badge [tone]="subscriptionBadge().tone" [dot]="true">
+              {{ subscriptionBadge().text }}
+            </app-badge>
+          </div>
+
+          <p class="mt-1.5 truncate text-lg font-semibold text-ink">
+            {{ plan()?.name ?? 'No plan' }}
+          </p>
+          <p class="mt-0.5 text-xs text-ink-muted">
+            {{ daysRemaining() }} days until renewal
+          </p>
+
+          <a appButton variant="outline" size="sm" class="mt-3" routerLink="/billing">
+            <app-icon name="creditCard" [size]="14" />
+            {{ daysRemaining() <= 14 ? 'Renew now' : 'Manage billing' }}
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- WhatsApp connection -->
+    <div
+      class="rounded-xl bg-white p-5 ring-1 ring-line shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:shadow-card-hover"
+    >
+      <div class="flex items-start gap-4">
+        <span
+          class="grid h-[82px] w-[82px] shrink-0 place-items-center rounded-2xl"
+          [class]="isConnected() ? 'bg-brand-50 text-brand-600' : 'bg-red-50 text-danger'"
+        >
+          <app-icon name="chat" [size]="32" [strokeWidth]="1.6" />
+        </span>
+
+        <div class="min-w-0 flex-1">
+          <div class="flex flex-wrap items-center gap-2">
+            <p class="text-xs font-medium tracking-wide text-ink-muted uppercase">WhatsApp</p>
+            <app-badge [tone]="metaBadge().tone" [dot]="true">{{ metaBadge().text }}</app-badge>
+          </div>
+
+          @if (connection(); as conn) {
+            <p class="mt-1.5 truncate text-lg font-semibold text-ink">{{ conn.verifiedName }}</p>
+            <p class="mt-0.5 truncate text-xs text-ink-muted tabular-nums">
+              {{ conn.displayPhoneNumber }}
+            </p>
+            <a appButton variant="outline" size="sm" class="mt-3" routerLink="/whatsapp">
+              <app-icon name="cog" [size]="14" />
+              Manage connection
+            </a>
+          } @else {
+            <p class="mt-1.5 text-lg font-semibold text-ink">Not connected</p>
+            <p class="mt-0.5 text-xs text-ink-muted">Link a business number to start sending</p>
+            <a appButton size="sm" class="mt-3" routerLink="/whatsapp">
+              <app-icon name="chat" [size]="14" />
+              Connect WhatsApp
+            </a>
+          }
+        </div>
+      </div>
+    </div>
+
+    <!-- Meta business status -->
+    <div
+      class="rounded-xl bg-white p-5 ring-1 ring-line shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:shadow-card-hover"
+    >
+      <div class="flex items-start gap-4">
+        <span
+          class="grid h-[82px] w-[82px] shrink-0 place-items-center rounded-2xl bg-emerald-50 text-info"
+        >
+          <app-icon name="shield" [size]="32" [strokeWidth]="1.6" />
+        </span>
+
+        <div class="min-w-0 flex-1">
+          <div class="flex flex-wrap items-center gap-2">
+            <p class="text-xs font-medium tracking-wide text-ink-muted uppercase">Meta business</p>
+            @if (connection(); as conn) {
+              <app-badge [tone]="conn.webhookHealthy ? 'success' : 'warning'" [dot]="true">
+                {{ conn.webhookHealthy ? 'Verified' : 'Attention' }}
+              </app-badge>
+            }
+          </div>
+
+          @if (connection(); as conn) {
+            <p class="mt-1.5 truncate text-lg font-semibold text-ink">
+              {{ conn.messagesLast24h | number }}
+            </p>
+            <p class="mt-0.5 text-xs text-ink-muted tabular-nums">
+              of {{ conn.messagingLimit | number }} daily limit
+            </p>
+            <a appButton variant="outline" size="sm" class="mt-3" routerLink="/subscription">
+              <app-icon name="trendingUp" [size]="14" />
+              View usage
+            </a>
+          } @else {
+            <p class="mt-1.5 text-lg font-semibold text-ink">Unknown</p>
+            <p class="mt-0.5 text-xs text-ink-muted">Connect to read business status</p>
+          }
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Remaining allowances -->
+  @if (allowances().length > 0) {
+    <div class="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      @for (widget of allowances(); track widget.key) {
+        <div
+          class="flex flex-col items-center rounded-xl bg-white p-5 text-center ring-1 ring-line shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:shadow-card-hover"
+        >
+          <app-progress-ring
+            [value]="widget.remainingPercent"
+            [tone]="widget.tone"
+            [size]="88"
+            [thickness]="7"
+            [label]="widget.label + ' remaining'"
+          >
+            <div>
+              <p class="text-base font-semibold text-ink tabular-nums">{{ widget.remainingText }}</p>
+              <p class="text-[10px] text-ink-muted">left</p>
+            </div>
+          </app-progress-ring>
+
+          <div class="mt-3 flex items-center gap-1.5">
+            <app-icon [name]="widget.icon" [size]="14" class="text-ink-muted" />
+            <p class="text-sm font-medium text-ink">{{ widget.label }}</p>
+          </div>
+          <p class="mt-0.5 text-xs text-ink-muted tabular-nums">{{ widget.detail }}</p>
+
+          <div class="mt-2">
+            <app-badge [tone]="widget.badgeTone" [dot]="true">{{ widget.badgeText }}</app-badge>
+          </div>
+
+          <a
+            appButton
+            variant="ghost"
+            size="sm"
+            class="mt-3"
+            [routerLink]="widget.actionRoute"
+          >
+            {{ widget.actionLabel }}
+            <app-icon name="chevronRight" [size]="13" />
+          </a>
+        </div>
+      }
+    </div>
+  }
+</section>

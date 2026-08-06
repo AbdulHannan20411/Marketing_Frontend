@@ -7,29 +7,35 @@ function base64UrlEncode(value: string): string {
   return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-const TENANT_USER_PERMISSIONS: readonly Permission[] = [
-  'contacts.read',
-  'contacts.write',
-  'groups.manage',
-  'tags.manage',
-  'whatsapp.read',
-  'templates.read',
-  'campaigns.read',
-  'reports.read',
+/**
+ * Employees are deliberately not given a blanket grant — they start with a
+ * modest read-focused set that an Admin then extends via the permission matrix.
+ */
+export const EMPLOYEE_DEFAULT_PERMISSIONS: readonly Permission[] = [
+  'dashboard.view',
+  'dashboard.statistics',
+  'contacts.view',
+  'contacts.create',
+  'contacts.edit',
+  'whatsapp.templates.view',
+  'whatsapp.campaigns.create',
+  'whatsapp.campaigns.reports',
+  'reports.view',
 ];
 
-const TENANT_OWNER_PERMISSIONS: readonly Permission[] = PERMISSIONS.filter(
+/** Admins run their own workspace but hold nothing cross-tenant. */
+const ADMIN_PERMISSIONS: readonly Permission[] = PERMISSIONS.filter(
   (permission) => !permission.startsWith('platform.'),
 );
 
 export function permissionsForRole(role: UserRole): readonly Permission[] {
   switch (role) {
-    case 'PlatformAdmin':
+    case 'SuperAdmin':
       return PERMISSIONS;
-    case 'TenantOwner':
-      return TENANT_OWNER_PERMISSIONS;
-    case 'TenantUser':
-      return TENANT_USER_PERMISSIONS;
+    case 'Admin':
+      return ADMIN_PERMISSIONS;
+    case 'Employee':
+      return EMPLOYEE_DEFAULT_PERMISSIONS;
   }
 }
 
@@ -43,24 +49,24 @@ export interface MockAccount {
 
 export const MOCK_ACCOUNTS: readonly MockAccount[] = [
   {
-    email: 'owner@verdant.io',
-    password: 'Password1!',
-    name: 'Amara Chen',
-    role: 'TenantOwner',
-    workspaceName: 'Northwind Retail',
-  },
-  {
-    email: 'agent@verdant.io',
-    password: 'Password1!',
-    name: 'Diego Rivera',
-    role: 'TenantUser',
-    workspaceName: 'Northwind Retail',
-  },
-  {
     email: 'admin@verdant.io',
     password: 'Password1!',
+    name: 'Amara Chen',
+    role: 'Admin',
+    workspaceName: 'Northwind Retail',
+  },
+  {
+    email: 'employee@verdant.io',
+    password: 'Password1!',
+    name: 'Diego Rivera',
+    role: 'Employee',
+    workspaceName: 'Northwind Retail',
+  },
+  {
+    email: 'superadmin@verdant.io',
+    password: 'Password1!',
     name: 'Priya Raman',
-    role: 'PlatformAdmin',
+    role: 'SuperAdmin',
     workspaceName: 'Verdant Platform',
   },
 ];

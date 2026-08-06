@@ -1,6 +1,7 @@
 import type { Routes } from '@angular/router';
 
 import { authGuard, guestGuard } from '@core/guards/auth.guard';
+import { featureGuard } from '@core/guards/feature.guard';
 import { permissionGuard } from '@core/guards/permission.guard';
 
 export const routes: Routes = [
@@ -39,60 +40,117 @@ export const routes: Routes = [
         loadComponent: () =>
           import('@features/dashboard/dashboard.component').then((m) => m.DashboardComponent),
       },
+
+      /* ---------------- Audience ---------------- */
       {
         path: 'contacts',
         title: 'Contacts · Verdant',
-        canActivate: [permissionGuard],
-        data: { permissions: ['contacts.read'] },
+        canActivate: [permissionGuard, featureGuard],
+        data: { permissions: ['contacts.view'], module: 'crm' },
         loadComponent: () =>
           import('@features/contacts/contacts.component').then((m) => m.ContactsComponent),
       },
       {
         path: 'groups',
         title: 'Groups · Verdant',
-        canActivate: [permissionGuard],
-        data: { permissions: ['groups.manage'] },
+        canActivate: [permissionGuard, featureGuard],
+        data: { permissions: ['groups.manage'], module: 'crm' },
         loadComponent: () =>
           import('@features/groups/groups.component').then((m) => m.GroupsComponent),
       },
       {
         path: 'tags',
         title: 'Tags · Verdant',
-        canActivate: [permissionGuard],
-        data: { permissions: ['tags.manage'] },
+        canActivate: [permissionGuard, featureGuard],
+        data: { permissions: ['tags.manage'], module: 'crm' },
         loadComponent: () => import('@features/tags/tags.component').then((m) => m.TagsComponent),
       },
+
+      /* ---------------- Messaging ---------------- */
       {
         path: 'whatsapp',
         title: 'WhatsApp · Verdant',
-        canActivate: [permissionGuard],
-        data: { permissions: ['whatsapp.read'] },
+        canActivate: [permissionGuard, featureGuard],
+        data: { permissions: ['whatsapp.templates.view', 'whatsapp.connect'], module: 'whatsapp' },
         loadComponent: () =>
           import('@features/whatsapp/whatsapp.component').then((m) => m.WhatsAppComponent),
       },
       {
         path: 'templates',
         title: 'Templates · Verdant',
-        canActivate: [permissionGuard],
-        data: { permissions: ['templates.read'] },
+        canActivate: [permissionGuard, featureGuard],
+        data: { permissions: ['whatsapp.templates.view'], module: 'whatsapp' },
         loadComponent: () =>
           import('@features/templates/templates.component').then((m) => m.TemplatesComponent),
       },
       {
         path: 'campaigns',
         title: 'Campaigns · Verdant',
-        canActivate: [permissionGuard],
-        data: { permissions: ['campaigns.read'] },
+        canActivate: [permissionGuard, featureGuard],
+        data: {
+          permissions: ['whatsapp.campaigns.reports', 'whatsapp.campaigns.create'],
+          module: 'whatsapp',
+        },
         loadComponent: () =>
           import('@features/campaigns/campaigns.component').then((m) => m.CampaignsComponent),
       },
+
+      /* ---------------- Insights ---------------- */
       {
         path: 'reports',
         title: 'Reports · Verdant',
-        canActivate: [permissionGuard],
-        data: { permissions: ['reports.read'] },
+        canActivate: [permissionGuard, featureGuard],
+        data: { permissions: ['reports.view'], module: 'reporting' },
         loadComponent: () =>
           import('@features/reports/reports.component').then((m) => m.ReportsComponent),
+      },
+
+      /* ---------------- Workspace ---------------- */
+      {
+        path: 'employees',
+        title: 'Employees · Verdant',
+        canActivate: [permissionGuard, featureGuard],
+        data: { permissions: ['settings.employees'], module: 'employees' },
+        loadComponent: () =>
+          import('@features/employees/employees.component').then((m) => m.EmployeesComponent),
+      },
+      {
+        path: 'subscription',
+        title: 'Subscription · Verdant',
+        canActivate: [permissionGuard],
+        data: { permissions: ['settings.subscription'] },
+        loadComponent: () =>
+          import('@features/subscription/subscription.component').then(
+            (m) => m.SubscriptionComponent,
+          ),
+      },
+      {
+        path: 'billing',
+        title: 'Billing · Verdant',
+        canActivate: [permissionGuard],
+        data: { permissions: ['settings.billing'] },
+        loadComponent: () =>
+          import('@features/billing/billing.component').then((m) => m.BillingComponent),
+      },
+      {
+        path: 'pricing',
+        title: 'Plans & pricing · Verdant',
+        loadComponent: () =>
+          import('@features/pricing/pricing.component').then((m) => m.PricingComponent),
+      },
+      {
+        path: 'notifications',
+        title: 'Notifications · Verdant',
+        loadComponent: () =>
+          import('@features/notifications/notifications.component').then(
+            (m) => m.NotificationsComponent,
+          ),
+      },
+      {
+        path: 'upgrade',
+        title: 'Upgrade · Verdant',
+        loadComponent: () =>
+          import('@features/upgrade/upgrade.component').then((m) => m.UpgradeComponent),
       },
       {
         path: 'settings',
@@ -101,22 +159,29 @@ export const routes: Routes = [
         data: {
           title: 'Settings',
           description: 'Workspace, team and billing configuration.',
-          permissions: ['settings.manage'],
+          permissions: ['settings.company'],
         },
         loadComponent: () =>
           import('@features/placeholder/placeholder.component').then((m) => m.PlaceholderComponent),
       },
 
+      /* ---------------- Platform administration ---------------- */
       {
         path: 'admin',
         canActivate: [permissionGuard],
-        data: { roles: ['PlatformAdmin'] },
+        data: { roles: ['SuperAdmin'] },
         children: [
           {
             path: 'tenants',
             title: 'Tenants · Verdant',
             loadComponent: () =>
               import('@features/admin/tenants/tenants.component').then((m) => m.TenantsComponent),
+          },
+          {
+            path: 'plans',
+            title: 'Plans · Verdant',
+            loadComponent: () =>
+              import('@features/admin/plans/plans.component').then((m) => m.PlansComponent),
           },
           {
             path: 'audit',

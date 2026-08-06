@@ -1,14 +1,17 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 
+import { EntitlementService } from '@core/services/entitlement.service';
 import { LayoutService } from '@core/services/layout.service';
+import { NotificationsService } from '@core/services/notifications.service';
+import { CommandPaletteComponent } from '@layout/command-palette/command-palette.component';
 import { SidebarComponent } from '@layout/sidebar/sidebar.component';
 import { TopbarComponent } from '@layout/topbar/topbar.component';
 
 @Component({
   selector: 'app-shell',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterOutlet, SidebarComponent, TopbarComponent],
+  imports: [RouterOutlet, SidebarComponent, TopbarComponent, CommandPaletteComponent],
   host: { class: 'block min-h-dvh bg-surface-muted' },
   template: `
     <a
@@ -28,13 +31,24 @@ import { TopbarComponent } from '@layout/topbar/topbar.component';
         </div>
       </main>
     </div>
+
+    <app-command-palette />
   `,
 })
 export class ShellComponent {
   private readonly layout = inject(LayoutService);
+  private readonly entitlements = inject(EntitlementService);
+  private readonly notifications = inject(NotificationsService);
 
   /** Sidebar is fixed-position, so the content column reserves its width on lg+. */
   protected readonly offset = computed(() =>
     this.layout.sidebarCollapsed() ? 'lg:pl-[4.75rem]' : 'lg:pl-64',
   );
+
+  constructor() {
+    // Entitlements gate the sidebar and route guards, so they load once here
+    // rather than per-page.
+    this.entitlements.load();
+    this.notifications.load();
+  }
 }

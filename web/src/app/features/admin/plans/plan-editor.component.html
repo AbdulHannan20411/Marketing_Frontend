@@ -1,0 +1,251 @@
+<app-modal [title]="dialogTitle()" subtitle="Pricing, availability and resource limits" size="xl" (closed)="cancel.emit()">
+  <!-- Identity -->
+  <section>
+    <h3 class="text-xs font-semibold tracking-wide text-ink-muted uppercase">Plan details</h3>
+    <div class="mt-3 grid gap-4 sm:grid-cols-2">
+      <div>
+        <label for="plan-name" class="block text-sm font-medium text-ink-soft">Plan name</label>
+        <input
+          id="plan-name"
+          type="text"
+          [ngModel]="name()"
+          (ngModelChange)="name.set($event)"
+          placeholder="e.g. Growth"
+          class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink ring-1 ring-line ring-inset transition-all placeholder:text-ink-muted focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none"
+          [class.ring-red-400]="nameInvalid()"
+        />
+        @if (nameInvalid()) {
+          <p class="mt-1 text-xs text-danger">A plan name is required.</p>
+        }
+      </div>
+
+      <div>
+        <label for="plan-status" class="block text-sm font-medium text-ink-soft">Status</label>
+        <select
+          id="plan-status"
+          [ngModel]="status()"
+          (ngModelChange)="status.set($event)"
+          class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink ring-1 ring-line ring-inset focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none"
+        >
+          @for (option of statuses; track option.value) {
+            <option [value]="option.value">{{ option.label }}</option>
+          }
+        </select>
+      </div>
+
+      <div class="sm:col-span-2">
+        <label for="plan-tagline" class="block text-sm font-medium text-ink-soft">Tagline</label>
+        <input
+          id="plan-tagline"
+          type="text"
+          [ngModel]="tagline()"
+          (ngModelChange)="tagline.set($event)"
+          placeholder="Who this plan is for"
+          class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink ring-1 ring-line ring-inset transition-all placeholder:text-ink-muted focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none"
+        />
+      </div>
+    </div>
+  </section>
+
+  <!-- Pricing -->
+  <section class="mt-6 border-t border-line pt-5">
+    <h3 class="text-xs font-semibold tracking-wide text-ink-muted uppercase">Pricing & renewal</h3>
+    <div class="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div>
+        <label for="plan-monthly" class="block text-sm font-medium text-ink-soft">Monthly price</label>
+        <input
+          id="plan-monthly"
+          type="number"
+          min="0"
+          [ngModel]="monthlyPrice()"
+          (ngModelChange)="monthlyPrice.set($event)"
+          class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink tabular-nums ring-1 ring-line ring-inset focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none"
+        />
+      </div>
+      <div>
+        <label for="plan-yearly" class="block text-sm font-medium text-ink-soft">Yearly price</label>
+        <input
+          id="plan-yearly"
+          type="number"
+          min="0"
+          [ngModel]="yearlyPrice()"
+          (ngModelChange)="yearlyPrice.set($event)"
+          class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink tabular-nums ring-1 ring-line ring-inset focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none"
+        />
+      </div>
+      <div>
+        <label for="plan-trial" class="block text-sm font-medium text-ink-soft">Trial days</label>
+        <input
+          id="plan-trial"
+          type="number"
+          min="0"
+          [ngModel]="trialDays()"
+          (ngModelChange)="trialDays.set($event)"
+          class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink tabular-nums ring-1 ring-line ring-inset focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none"
+        />
+      </div>
+      <div>
+        <label for="plan-renewal" class="block text-sm font-medium text-ink-soft">
+          Renewal (months)
+        </label>
+        <input
+          id="plan-renewal"
+          type="number"
+          min="1"
+          [ngModel]="renewalPeriodMonths()"
+          (ngModelChange)="renewalPeriodMonths.set($event)"
+          class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink tabular-nums ring-1 ring-line ring-inset focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none"
+        />
+      </div>
+      <div>
+        <label for="plan-discount" class="block text-sm font-medium text-ink-soft">Discount %</label>
+        <input
+          id="plan-discount"
+          type="number"
+          min="0"
+          max="100"
+          [ngModel]="discountPercent()"
+          (ngModelChange)="discountPercent.set($event)"
+          class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink tabular-nums ring-1 ring-line ring-inset focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none"
+        />
+      </div>
+      <div>
+        <label for="plan-support" class="block text-sm font-medium text-ink-soft">Support level</label>
+        <select
+          id="plan-support"
+          [ngModel]="supportLevel()"
+          (ngModelChange)="supportLevel.set($event)"
+          class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink ring-1 ring-line ring-inset focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none"
+        >
+          @for (option of supportLevels; track option.value) {
+            <option [value]="option.value">{{ option.label }}</option>
+          }
+        </select>
+      </div>
+    </div>
+
+    <!-- Flags -->
+    <div class="mt-4 grid gap-2.5 sm:grid-cols-3">
+      <label class="flex items-center justify-between gap-3 rounded-lg bg-surface-sunken px-3 py-2.5 ring-1 ring-line">
+        <span class="text-sm text-ink-soft">Promotional plan</span>
+        <app-toggle
+          [checked]="isPromotional()"
+          (checkedChange)="isPromotional.set($event)"
+          label="Promotional plan"
+        />
+      </label>
+      <label class="flex items-center justify-between gap-3 rounded-lg bg-surface-sunken px-3 py-2.5 ring-1 ring-line">
+        <span class="text-sm text-ink-soft">Most popular badge</span>
+        <app-toggle
+          [checked]="isMostPopular()"
+          (checkedChange)="isMostPopular.set($event)"
+          label="Most popular badge"
+        />
+      </label>
+      <label class="flex items-center justify-between gap-3 rounded-lg bg-surface-sunken px-3 py-2.5 ring-1 ring-line">
+        <span class="text-sm text-ink-soft">Recommended badge</span>
+        <app-toggle
+          [checked]="isRecommended()"
+          (checkedChange)="isRecommended.set($event)"
+          label="Recommended badge"
+        />
+      </label>
+    </div>
+  </section>
+
+  <!-- Modules -->
+  <section class="mt-6 border-t border-line pt-5">
+    <div class="flex items-center justify-between gap-3">
+      <h3 class="text-xs font-semibold tracking-wide text-ink-muted uppercase">
+        Feature availability
+      </h3>
+      <span class="text-xs text-ink-muted">{{ enabledModuleCount() }} of {{ moduleKeys.length }} enabled</span>
+    </div>
+
+    <div class="mt-3 grid gap-2.5 sm:grid-cols-2">
+      @for (module of moduleKeys; track module) {
+        <div
+          class="flex items-center justify-between gap-3 rounded-lg px-3 py-2.5 ring-1 transition-colors"
+          [class]="moduleEnabled(module) ? 'bg-brand-50/60 ring-brand-200' : 'bg-surface-sunken ring-line'"
+        >
+          <span class="flex min-w-0 items-center gap-2.5">
+            <app-icon
+              [name]="moduleEnabled(module) ? 'checkCircle' : 'lock'"
+              [size]="16"
+              [class]="moduleEnabled(module) ? 'text-brand-600' : 'text-ink-muted'"
+            />
+            <span class="truncate text-sm" [class]="moduleEnabled(module) ? 'text-ink' : 'text-ink-muted'">
+              {{ moduleLabel[module] }}
+            </span>
+          </span>
+          <app-toggle
+            [checked]="moduleEnabled(module)"
+            (checkedChange)="setModule(module, $event)"
+            [label]="moduleLabel[module]"
+          />
+        </div>
+      }
+    </div>
+  </section>
+
+  <!-- Limits -->
+  <section class="mt-6 border-t border-line pt-5">
+    <h3 class="text-xs font-semibold tracking-wide text-ink-muted uppercase">Resource limits</h3>
+    <p class="mt-1 text-xs text-ink-muted">Switch a field to unlimited to remove its ceiling.</p>
+
+    <div class="mt-3 grid gap-3 sm:grid-cols-2">
+      @for (field of limitFields; track field.key) {
+        <div class="rounded-lg bg-surface-sunken p-3 ring-1 ring-line">
+          <div class="flex items-center justify-between gap-3">
+            <label [for]="'limit-' + field.key" class="text-sm font-medium text-ink-soft">
+              {{ field.label }}
+            </label>
+            <span class="flex items-center gap-1.5">
+              <span class="text-[11px] text-ink-muted">Unlimited</span>
+              <app-toggle
+                [checked]="isUnlimited(field.key)"
+                (checkedChange)="setUnlimited(field.key, $event)"
+                [label]="field.label + ' unlimited'"
+              />
+            </span>
+          </div>
+
+          <input
+            [id]="'limit-' + field.key"
+            type="number"
+            min="0"
+            [value]="limitValue(field.key) ?? 0"
+            [disabled]="isUnlimited(field.key)"
+            (input)="setLimit(field.key, $any($event.target).value)"
+            class="mt-2 h-9 w-full rounded-lg border-0 bg-white px-3 text-sm text-ink tabular-nums ring-1 ring-line ring-inset focus:ring-2 focus:ring-brand-500 focus:outline-none disabled:cursor-not-allowed disabled:bg-surface-muted disabled:text-ink-muted"
+          />
+          <p class="mt-1 text-[11px] text-ink-muted">{{ field.hint }}</p>
+        </div>
+      }
+    </div>
+  </section>
+
+  <!-- Highlights -->
+  <section class="mt-6 border-t border-line pt-5">
+    <label for="plan-highlights" class="text-xs font-semibold tracking-wide text-ink-muted uppercase">
+      Marketing highlights
+    </label>
+    <p class="mt-1 text-xs text-ink-muted">One bullet per line, shown on the pricing card.</p>
+    <textarea
+      id="plan-highlights"
+      rows="5"
+      [ngModel]="highlightsText()"
+      (ngModelChange)="highlightsText.set($event)"
+      placeholder="Everything in Starter&#10;Email marketing&#10;Priority support"
+      class="mt-2 w-full rounded-lg border-0 bg-surface-sunken px-3 py-2 text-sm leading-relaxed text-ink ring-1 ring-line ring-inset transition-all placeholder:text-ink-muted focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none"
+    ></textarea>
+  </section>
+
+  <ng-container modalFooter>
+    <button appButton variant="ghost" size="md" (click)="cancel.emit()">Cancel</button>
+    <button appButton size="md" [disabled]="nameInvalid()" (click)="submit()">
+      <app-icon name="checkCircle" [size]="16" />
+      {{ isEdit() ? 'Save changes' : 'Create plan' }}
+    </button>
+  </ng-container>
+</app-modal>

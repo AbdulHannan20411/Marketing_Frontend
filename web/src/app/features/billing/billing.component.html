@@ -1,0 +1,255 @@
+<app-page-header
+  title="Billing history"
+  description="Invoices, payments and renewals for this workspace."
+  [breadcrumbs]="[{ label: 'Home', route: '/dashboard' }, { label: 'Billing', route: null }]"
+>
+  <a appButton variant="outline" size="md" routerLink="/subscription">
+    <app-icon name="sparkles" [size]="16" />
+    Subscription
+  </a>
+  <a appButton size="md" routerLink="/pricing">
+    <app-icon name="rocket" [size]="16" />
+    Change plan
+  </a>
+</app-page-header>
+
+<!-- Failed payment banner -->
+@if (state() === 'ready' && hasFailedPayment()) {
+  <div
+    class="mt-6 flex flex-wrap items-center gap-3 rounded-xl bg-red-50 px-5 py-4 ring-1 ring-red-200"
+    role="alert"
+  >
+    <span class="grid h-10 w-10 place-items-center rounded-xl bg-danger text-white">
+      <app-icon name="warning" [size]="20" />
+    </span>
+    <div class="min-w-0 flex-1">
+      <p class="text-sm font-semibold text-red-800">A payment could not be collected</p>
+      <p class="mt-0.5 text-xs text-red-700">
+        Update your payment method to avoid your subscription being suspended.
+      </p>
+    </div>
+    <button appButton variant="outline" size="sm" (click)="tab.set('payments')">
+      Review payments
+    </button>
+  </div>
+}
+
+<!-- Summary -->
+<section class="mt-6 grid gap-4 sm:grid-cols-3" aria-label="Billing summary">
+  <div class="rounded-xl bg-white p-5 ring-1 ring-line shadow-card">
+    <p class="text-xs font-medium tracking-wide text-ink-muted uppercase">Outstanding</p>
+    <p
+      class="mt-1.5 text-2xl font-semibold tabular-nums"
+      [class]="outstanding() > 0 ? 'text-amber-700' : 'text-ink'"
+    >
+      ${{ outstanding() | number: '1.2-2' }}
+    </p>
+    <p class="mt-1 text-xs text-ink-muted">Across unpaid invoices</p>
+  </div>
+
+  <div class="rounded-xl bg-white p-5 ring-1 ring-line shadow-card">
+    <p class="text-xs font-medium tracking-wide text-ink-muted uppercase">Paid to date</p>
+    <p class="mt-1.5 text-2xl font-semibold text-ink tabular-nums">
+      ${{ totalPaid() | number: '1.2-2' }}
+    </p>
+    <p class="mt-1 text-xs text-ink-muted">{{ payments().length }} payments recorded</p>
+  </div>
+
+  <div class="rounded-xl bg-white p-5 ring-1 ring-line shadow-card">
+    <p class="text-xs font-medium tracking-wide text-ink-muted uppercase">Next charge</p>
+    @if (subscription(); as sub) {
+      <p class="mt-1.5 text-2xl font-semibold text-ink tabular-nums">
+        ${{ sub.amount | number: '1.2-2' }}
+      </p>
+      <p class="mt-1 text-xs text-ink-muted">
+        {{ sub.nextRenewalAt === null ? 'Not scheduled' : (sub.nextRenewalAt | date: 'd MMM y') }}
+      </p>
+    } @else {
+      <p class="mt-1.5 text-2xl font-semibold text-ink">—</p>
+      <p class="mt-1 text-xs text-ink-muted">No active subscription</p>
+    }
+  </div>
+</section>
+
+<!-- Tabs -->
+<div class="mt-5 flex flex-wrap items-center gap-2" role="tablist">
+  @for (option of tabs; track option.value) {
+    <button
+      type="button"
+      role="tab"
+      [attr.aria-selected]="tab() === option.value"
+      class="rounded-lg px-3.5 py-1.5 text-sm font-medium transition-all duration-150"
+      [class]="
+        tab() === option.value
+          ? 'bg-brand-600 text-white shadow-xs'
+          : 'bg-white text-ink-soft ring-1 ring-line hover:bg-surface-muted hover:ring-brand-300'
+      "
+      (click)="tab.set(option.value)"
+    >
+      {{ option.label }}
+    </button>
+  }
+</div>
+
+@if (state() === 'loading') {
+  <app-card class="mt-5 block" [padded]="false">
+    <div class="space-y-3 p-5">
+      @for (item of skeletons; track item) {
+        <app-skeleton height="3rem" />
+      }
+    </div>
+  </app-card>
+} @else if (state() === 'error') {
+  <app-card class="mt-5 block" [padded]="false">
+    <app-error-state (retry)="load()" />
+  </app-card>
+} @else {
+  <app-card class="mt-5 block" [padded]="false">
+    <div class="app-scrollbar overflow-x-auto">
+      <!-- Invoices -->
+      @if (tab() === 'invoices') {
+        <table class="w-full border-collapse text-sm">
+          <thead>
+            <tr class="border-b border-line bg-surface-sunken/60">
+              <th scope="col" class="px-5 py-2.5 text-left text-xs font-semibold tracking-wide text-ink-muted uppercase">Invoice</th>
+              <th scope="col" class="hidden px-5 py-2.5 text-left text-xs font-semibold tracking-wide text-ink-muted uppercase md:table-cell">Period</th>
+              <th scope="col" class="px-5 py-2.5 text-left text-xs font-semibold tracking-wide text-ink-muted uppercase">Status</th>
+              <th scope="col" class="px-5 py-2.5 text-right text-xs font-semibold tracking-wide text-ink-muted uppercase">Amount</th>
+              <th scope="col" class="px-5 py-2.5 text-right text-xs font-semibold tracking-wide text-ink-muted uppercase">Invoice</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-line">
+            @for (invoice of invoices(); track invoice.id) {
+              <tr class="transition-colors hover:bg-surface-muted">
+                <td class="px-5 py-3.5">
+                  <p class="font-mono text-sm font-medium text-ink">{{ invoice.number }}</p>
+                  <p class="mt-0.5 text-xs text-ink-muted">
+                    {{ invoice.planName }} · issued {{ invoice.issuedAt | date: 'd MMM y' }}
+                  </p>
+                </td>
+                <td class="hidden px-5 py-3.5 text-sm whitespace-nowrap text-ink-soft md:table-cell">
+                  {{ invoice.periodStart | date: 'd MMM' }} – {{ invoice.periodEnd | date: 'd MMM y' }}
+                </td>
+                <td class="px-5 py-3.5">
+                  <app-badge [tone]="invoiceTone[invoice.status]" [dot]="true">
+                    {{ invoice.status }}
+                  </app-badge>
+                  @if (invoice.paidAt !== null) {
+                    <p class="mt-1 text-xs text-ink-muted">Paid {{ invoice.paidAt | timeAgo }}</p>
+                  }
+                </td>
+                <td class="px-5 py-3.5 text-right">
+                  <p class="text-sm font-semibold text-ink tabular-nums">
+                    ${{ total(invoice) | number: '1.2-2' }}
+                  </p>
+                  <p class="mt-0.5 text-xs text-ink-muted tabular-nums">
+                    incl. ${{ invoice.tax | number: '1.2-2' }} tax
+                  </p>
+                </td>
+                <td class="px-5 py-3.5 text-right">
+                  <button appButton variant="ghost" size="sm" (click)="download(invoice)">
+                    <app-icon name="download" [size]="15" />
+                    PDF
+                  </button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      }
+
+      <!-- Payments -->
+      @if (tab() === 'payments') {
+        <table class="w-full border-collapse text-sm">
+          <thead>
+            <tr class="border-b border-line bg-surface-sunken/60">
+              <th scope="col" class="px-5 py-2.5 text-left text-xs font-semibold tracking-wide text-ink-muted uppercase">Payment</th>
+              <th scope="col" class="hidden px-5 py-2.5 text-left text-xs font-semibold tracking-wide text-ink-muted uppercase md:table-cell">Method</th>
+              <th scope="col" class="px-5 py-2.5 text-left text-xs font-semibold tracking-wide text-ink-muted uppercase">Status</th>
+              <th scope="col" class="px-5 py-2.5 text-right text-xs font-semibold tracking-wide text-ink-muted uppercase">Amount</th>
+              <th scope="col" class="px-5 py-2.5 text-right text-xs font-semibold tracking-wide text-ink-muted uppercase">When</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-line">
+            @for (payment of payments(); track payment.id) {
+              <tr class="transition-colors hover:bg-surface-muted">
+                <td class="px-5 py-3.5">
+                  <p class="font-mono text-sm font-medium text-ink">{{ payment.invoiceNumber }}</p>
+                  @if (payment.failureReason !== null) {
+                    <p class="mt-1 max-w-xs text-xs leading-relaxed text-red-700">
+                      {{ payment.failureReason }}
+                    </p>
+                  }
+                </td>
+                <td class="hidden px-5 py-3.5 text-sm whitespace-nowrap text-ink-soft md:table-cell">
+                  <span class="flex items-center gap-2">
+                    <app-icon name="creditCard" [size]="15" class="text-ink-muted" />
+                    {{ payment.cardBrand }} ···· {{ payment.cardLast4 }}
+                  </span>
+                </td>
+                <td class="px-5 py-3.5">
+                  <app-badge [tone]="paymentTone[payment.status]" [dot]="true">
+                    {{ payment.status }}
+                  </app-badge>
+                </td>
+                <td class="px-5 py-3.5 text-right text-sm font-semibold text-ink tabular-nums">
+                  ${{ payment.amount | number: '1.2-2' }}
+                </td>
+                <td class="px-5 py-3.5 text-right whitespace-nowrap">
+                  <p class="text-sm text-ink-muted">{{ payment.processedAt | timeAgo }}</p>
+                  @if (payment.status === 'failed') {
+                    <button
+                      appButton
+                      variant="ghost"
+                      size="sm"
+                      class="mt-1"
+                      (click)="retry(payment)"
+                    >
+                      Retry
+                    </button>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      }
+
+      <!-- Renewals -->
+      @if (tab() === 'renewals') {
+        <table class="w-full border-collapse text-sm">
+          <thead>
+            <tr class="border-b border-line bg-surface-sunken/60">
+              <th scope="col" class="px-5 py-2.5 text-left text-xs font-semibold tracking-wide text-ink-muted uppercase">Plan</th>
+              <th scope="col" class="hidden px-5 py-2.5 text-left text-xs font-semibold tracking-wide text-ink-muted uppercase md:table-cell">Cycle</th>
+              <th scope="col" class="px-5 py-2.5 text-left text-xs font-semibold tracking-wide text-ink-muted uppercase">Type</th>
+              <th scope="col" class="px-5 py-2.5 text-right text-xs font-semibold tracking-wide text-ink-muted uppercase">Amount</th>
+              <th scope="col" class="px-5 py-2.5 text-right text-xs font-semibold tracking-wide text-ink-muted uppercase">Renewed</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-line">
+            @for (renewal of renewals(); track renewal.id) {
+              <tr class="transition-colors hover:bg-surface-muted">
+                <td class="px-5 py-3.5 text-sm font-medium text-ink">{{ renewal.planName }}</td>
+                <td class="hidden px-5 py-3.5 text-sm text-ink-soft capitalize md:table-cell">
+                  {{ renewal.billingCycle }}
+                </td>
+                <td class="px-5 py-3.5">
+                  <app-badge [tone]="renewal.automatic ? 'brand' : 'neutral'">
+                    {{ renewal.automatic ? 'Automatic' : 'Manual' }}
+                  </app-badge>
+                </td>
+                <td class="px-5 py-3.5 text-right text-sm font-semibold text-ink tabular-nums">
+                  ${{ renewal.amount | number: '1.2-2' }}
+                </td>
+                <td class="px-5 py-3.5 text-right text-sm whitespace-nowrap text-ink-muted">
+                  {{ renewal.renewedAt | timeAgo }}
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      }
+    </div>
+  </app-card>
+}

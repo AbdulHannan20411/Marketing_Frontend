@@ -1,0 +1,247 @@
+<app-page-header
+  title="Subscription plans"
+  description="Create, price and control every plan available across the platform."
+  [breadcrumbs]="[{ label: 'Platform', route: null }, { label: 'Plans', route: null }]"
+>
+  <button appButton size="md" (click)="openCreate()">
+    <app-icon name="plus" [size]="16" />
+    Create plan
+  </button>
+</app-page-header>
+
+<!-- Counts -->
+<section class="mt-6 grid gap-4 sm:grid-cols-3" aria-label="Plan totals">
+  <div class="rounded-xl bg-white p-5 ring-1 ring-line shadow-card">
+    <p class="text-xs font-medium tracking-wide text-ink-muted uppercase">Total plans</p>
+    <p class="mt-1.5 text-2xl font-semibold text-ink tabular-nums">{{ counts().total }}</p>
+  </div>
+  <div class="rounded-xl bg-white p-5 ring-1 ring-line shadow-card">
+    <p class="text-xs font-medium tracking-wide text-ink-muted uppercase">Sellable</p>
+    <p class="mt-1.5 text-2xl font-semibold text-ink tabular-nums">{{ counts().active }}</p>
+  </div>
+  <div class="rounded-xl bg-white p-5 ring-1 ring-line shadow-card">
+    <p class="text-xs font-medium tracking-wide text-ink-muted uppercase">Promotional</p>
+    <p class="mt-1.5 text-2xl font-semibold text-ink tabular-nums">{{ counts().promotional }}</p>
+  </div>
+</section>
+
+<!-- Filters -->
+<div class="mt-5 flex flex-wrap items-center gap-2">
+  @for (option of statuses; track option.value) {
+    <button
+      type="button"
+      [attr.aria-pressed]="statusFilter() === option.value"
+      class="rounded-lg px-3 py-1.5 text-sm font-medium transition-all duration-150"
+      [class]="
+        statusFilter() === option.value
+          ? 'bg-brand-600 text-white shadow-xs'
+          : 'bg-white text-ink-soft ring-1 ring-line hover:bg-surface-muted hover:ring-brand-300'
+      "
+      (click)="statusFilter.set(option.value)"
+    >
+      {{ option.label }}
+    </button>
+  }
+</div>
+
+@if (state() === 'loading') {
+  <div class="mt-5 grid gap-4 lg:grid-cols-2">
+    @for (item of skeletons; track item) {
+      <div class="rounded-xl bg-white p-5 ring-1 ring-line shadow-card">
+        <app-skeleton width="40%" height="1.25rem" />
+        <div class="mt-3"><app-skeleton width="25%" height="1.75rem" /></div>
+        <div class="mt-4 space-y-2">
+          @for (line of [1, 2, 3]; track line) {
+            <app-skeleton height="0.75rem" />
+          }
+        </div>
+      </div>
+    }
+  </div>
+} @else if (state() === 'error') {
+  <app-card class="mt-5 block" [padded]="false">
+    <app-error-state (retry)="load()" />
+  </app-card>
+} @else if (visiblePlans().length === 0) {
+  <app-card class="mt-5 block" [padded]="false">
+    <app-empty-state
+      icon="rocket"
+      title="No plans in this view"
+      description="Change the filter, or create a new subscription plan to get started."
+    >
+      <button appButton size="sm" (click)="openCreate()">
+        <app-icon name="plus" [size]="15" />
+        Create plan
+      </button>
+    </app-empty-state>
+  </app-card>
+} @else {
+  <div class="mt-5 grid gap-4 lg:grid-cols-2">
+    @for (plan of visiblePlans(); track plan.id) {
+      <app-card>
+        <!-- Header -->
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <div class="flex flex-wrap items-center gap-2">
+              <h2 class="text-base font-semibold tracking-tight text-ink">{{ plan.name }}</h2>
+              <app-badge [tone]="statusTone[plan.status]" [dot]="true">{{ plan.status }}</app-badge>
+              @if (plan.isMostPopular) {
+                <app-badge tone="brand">Popular</app-badge>
+              }
+              @if (plan.isRecommended) {
+                <app-badge tone="info">Recommended</app-badge>
+              }
+              @if (plan.isPromotional) {
+                <app-badge tone="warning">Promo</app-badge>
+              }
+            </div>
+            <p class="mt-1 line-clamp-1 text-xs text-ink-muted">{{ plan.tagline }}</p>
+          </div>
+        </div>
+
+        <!-- Price -->
+        <div class="mt-4 flex flex-wrap items-baseline gap-x-4 gap-y-1">
+          <p class="text-2xl font-semibold text-ink tabular-nums">
+            ${{ plan.monthlyPrice }}<span class="text-sm font-normal text-ink-muted">/mo</span>
+          </p>
+          <p class="text-sm text-ink-muted tabular-nums">${{ plan.yearlyPrice }}/yr</p>
+          @if (plan.discountPercent > 0) {
+            <app-badge tone="warning">−{{ plan.discountPercent }}%</app-badge>
+          }
+        </div>
+
+        <!-- Facts -->
+        <dl class="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 border-t border-line pt-4 sm:grid-cols-4">
+          <div>
+            <dt class="text-[11px] text-ink-muted">Trial</dt>
+            <dd class="text-sm font-medium text-ink tabular-nums">{{ plan.trialDays }} days</dd>
+          </div>
+          <div>
+            <dt class="text-[11px] text-ink-muted">Renewal</dt>
+            <dd class="text-sm font-medium text-ink tabular-nums">
+              {{ plan.renewalPeriodMonths }} mo
+            </dd>
+          </div>
+          <div>
+            <dt class="text-[11px] text-ink-muted">Contacts</dt>
+            <dd class="text-sm font-medium text-ink tabular-nums">
+              {{ plan.limits.maxContacts === null ? '∞' : plan.limits.maxContacts.toLocaleString() }}
+            </dd>
+          </div>
+          <div>
+            <dt class="text-[11px] text-ink-muted">Seats</dt>
+            <dd class="text-sm font-medium text-ink tabular-nums">
+              {{ plan.limits.maxEmployees === null ? '∞' : plan.limits.maxEmployees }}
+            </dd>
+          </div>
+        </dl>
+
+        <!-- Modules -->
+        <div class="mt-4 border-t border-line pt-4">
+          <p class="text-[11px] font-semibold tracking-wide text-ink-muted uppercase">Modules</p>
+          <div class="mt-2 flex flex-wrap gap-1">
+            @for (module of enabledModules(plan); track module) {
+              <span class="rounded-md bg-brand-50 px-1.5 py-0.5 text-[11px] font-medium text-brand-800">
+                {{ moduleLabel[module] }}
+              </span>
+            } @empty {
+              <span class="text-xs text-ink-muted">No modules enabled</span>
+            }
+          </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="mt-4 flex flex-wrap items-center gap-1.5 border-t border-line pt-4">
+          <button appButton variant="outline" size="sm" (click)="openEdit(plan)">
+            <app-icon name="pencil" [size]="14" />
+            Edit
+          </button>
+          <button appButton variant="ghost" size="sm" (click)="duplicate(plan)">
+            <app-icon name="duplicate" [size]="14" />
+            Duplicate
+          </button>
+
+          @if (plan.status === 'active') {
+            <button appButton variant="ghost" size="sm" (click)="setStatus(plan, 'inactive')">
+              Deactivate
+            </button>
+          } @else if (plan.status === 'inactive') {
+            <button appButton variant="ghost" size="sm" (click)="setStatus(plan, 'active')">
+              Activate
+            </button>
+          }
+
+          @if (plan.status !== 'archived') {
+            <button appButton variant="ghost" size="sm" (click)="setStatus(plan, 'archived')">
+              <app-icon name="archive" [size]="14" />
+              Archive
+            </button>
+          } @else {
+            <button appButton variant="ghost" size="sm" (click)="setStatus(plan, 'inactive')">
+              Restore
+            </button>
+          }
+
+          <button
+            appButton
+            variant="ghost"
+            size="sm"
+            class="ml-auto text-danger"
+            (click)="askDelete(plan)"
+          >
+            <app-icon name="trash" [size]="14" />
+            Delete
+          </button>
+        </div>
+
+        <p class="mt-3 text-[11px] text-ink-muted">Updated {{ plan.updatedAt | timeAgo }}</p>
+      </app-card>
+    }
+  </div>
+}
+
+<!-- Editor -->
+@if (editing() !== null) {
+  <app-plan-editor [plan]="editorPlan()" (save)="onSave($event)" (cancel)="closeEditor()" />
+}
+
+<!-- Delete confirmation -->
+@if (confirmingDelete(); as target) {
+  <div class="fixed inset-0 z-100 grid place-items-center p-4">
+    <div
+      class="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px] animate-fade"
+      aria-hidden="true"
+      (click)="cancelDelete()"
+    ></div>
+
+    <div
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="delete-plan-title"
+      class="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl ring-1 ring-line animate-rise"
+    >
+      <div class="flex items-start gap-4">
+        <span class="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-red-50 text-danger">
+          <app-icon name="warning" [size]="22" />
+        </span>
+        <div class="min-w-0">
+          <h2 id="delete-plan-title" class="text-base font-semibold text-ink">
+            Delete "{{ target.name }}"?
+          </h2>
+          <p class="mt-1.5 text-sm leading-relaxed text-ink-muted">
+            This permanently removes the plan. Workspaces already subscribed keep their current
+            terms, but no one will be able to select it again. Consider archiving instead.
+          </p>
+        </div>
+      </div>
+
+      <div class="mt-6 flex flex-wrap justify-end gap-2">
+        <button appButton variant="ghost" size="md" (click)="cancelDelete()">Cancel</button>
+        <button appButton variant="danger" size="md" (click)="confirmDelete()">
+          <app-icon name="trash" [size]="15" />
+          Delete plan
+        </button>
+      </div>
+    </div>
+  </div>
+}

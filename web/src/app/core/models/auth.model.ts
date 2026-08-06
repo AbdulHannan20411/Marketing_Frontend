@@ -1,29 +1,15 @@
-export type UserRole = 'PlatformAdmin' | 'TenantOwner' | 'TenantUser';
+import type { Permission } from './permission.model';
 
-export const PERMISSIONS = [
-  'contacts.read',
-  'contacts.write',
-  'contacts.delete',
-  'groups.manage',
-  'tags.manage',
-  'whatsapp.read',
-  'whatsapp.connect',
-  'templates.read',
-  'templates.write',
-  'campaigns.read',
-  'campaigns.write',
-  'campaigns.send',
-  'reports.read',
-  'reports.export',
-  'settings.manage',
-  'team.manage',
-  'platform.tenants',
-  'platform.audit',
-  'platform.quotas',
-  'platform.monitoring',
-] as const;
+export type UserRole = 'SuperAdmin' | 'Admin' | 'Employee';
 
-export type Permission = (typeof PERMISSIONS)[number];
+export const USER_ROLE_LABEL: Readonly<Record<UserRole, string>> = {
+  SuperAdmin: 'Super Admin',
+  Admin: 'Admin',
+  Employee: 'Employee',
+};
+
+export type { Permission };
+export { PERMISSIONS } from './permission.model';
 
 /**
  * Claims we read from the access token.

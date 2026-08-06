@@ -30,7 +30,8 @@ export class AuthService {
   readonly user = this.currentUser.asReadonly();
   readonly isAuthenticated = computed(() => this.currentUser() !== null);
   readonly role = computed<UserRole | null>(() => this.currentUser()?.role ?? null);
-  readonly isPlatformAdmin = computed(() => this.role() === 'PlatformAdmin');
+  readonly isSuperAdmin = computed(() => this.role() === 'SuperAdmin');
+  readonly isAdmin = computed(() => this.role() === 'Admin');
 
   hasPermission(permission: Permission): boolean {
     return this.currentUser()?.permissions.includes(permission) ?? false;

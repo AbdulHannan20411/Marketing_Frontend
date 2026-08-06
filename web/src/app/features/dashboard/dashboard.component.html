@@ -22,8 +22,29 @@
     </button>
   </div>
 } @else {
+  <!-- Executive account health -->
+  <div class="mt-6">
+    <app-executive-widgets [connection]="connection()" />
+  </div>
+
+  <!-- Limit reached nudge -->
+  @if (firstBreach(); as breach) {
+    <div class="mt-4">
+      <app-upgrade-prompt
+        [title]="breach.label + ' limit reached'"
+        [description]="
+          'You have used your entire ' +
+          breach.label.toLowerCase() +
+          ' allowance on this plan. Upgrade to keep going without interruption.'
+        "
+        [metric]="breach"
+        recommendedPlan="Scale"
+      />
+    </div>
+  }
+
   <!-- KPI row -->
-  <section class="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-5" aria-label="Key metrics">
+  <section class="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-5" aria-label="Key metrics">
     <app-stat-card
       label="Messages sent"
       icon="send"
