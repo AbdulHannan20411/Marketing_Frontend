@@ -1,9 +1,10 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 
 import { EntitlementService } from '@core/services/entitlement.service';
 import { LayoutService } from '@core/services/layout.service';
 import { NotificationsService } from '@core/services/notifications.service';
+import { RealtimeService } from '@core/services/realtime.service';
 import { CommandPaletteComponent } from '@layout/command-palette/command-palette.component';
 import { ScopeBarComponent } from '@layout/scope-bar/scope-bar.component';
 import { SidebarComponent } from '@layout/sidebar/sidebar.component';
@@ -47,6 +48,7 @@ export class ShellComponent {
   private readonly layout = inject(LayoutService);
   private readonly entitlements = inject(EntitlementService);
   private readonly notifications = inject(NotificationsService);
+  private readonly realtime = inject(RealtimeService);
 
   /** Sidebar is fixed-position, so the content column reserves its width on lg+. */
   protected readonly offset = computed(() =>
@@ -58,5 +60,10 @@ export class ShellComponent {
     // rather than per-page.
     this.entitlements.load();
     this.notifications.load();
+
+    // Campaign progress and notifications arrive by push; the reports endpoints
+    // are rate limited to 4 per window, so polling is not an option.
+    this.realtime.connect();
+    inject(DestroyRef).onDestroy(() => this.realtime.disconnect());
   }
 }

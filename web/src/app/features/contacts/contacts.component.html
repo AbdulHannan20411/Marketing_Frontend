@@ -3,11 +3,11 @@
   description="Everyone you can reach on WhatsApp, with opt-in status and engagement history."
   [breadcrumbs]="[{ label: 'Home', route: '/dashboard' }, { label: 'Contacts', route: null }]"
 >
-  <button appButton variant="outline" size="md" (click)="announcePending('Export')">
+  <button appButton variant="outline" size="md" [disabled]="busy()" (click)="exportCsv()">
     <app-icon name="download" [size]="16" />
     Export
   </button>
-  <button appButton size="md" (click)="announcePending('Import')">
+  <button appButton size="md" (click)="announcePending('Import contacts')">
     <app-icon name="plus" [size]="16" />
     Import contacts
   </button>
@@ -24,16 +24,34 @@
       {{ selectedCount() }} selected
     </p>
     <div class="ml-auto flex flex-wrap items-center gap-2">
-      <button appButton variant="outline" size="sm" (click)="announcePending('Add tag')">
-        <app-icon name="tag" [size]="15" />
-        Add tag
-      </button>
-      <button appButton variant="outline" size="sm" (click)="announcePending('Assign group')">
-        <app-icon name="userGroup" [size]="15" />
-        Assign group
-      </button>
-      <button appButton variant="danger" size="sm" (click)="announcePending('Delete')">
-        <app-icon name="close" [size]="15" />
+      <label for="bulk-tag" class="sr-only">Add a tag to the selection</label>
+      <select
+        id="bulk-tag"
+        [disabled]="busy()"
+        (change)="bulkAddTag($any($event.target).value); $any($event.target).value = ''"
+        class="h-8 rounded-lg border-0 bg-white px-2.5 text-xs text-ink-soft ring-1 ring-brand-200 ring-inset focus:ring-2 focus:ring-brand-500 focus:outline-none disabled:opacity-50"
+      >
+        <option value="" disabled selected>Add tag…</option>
+        @for (tag of tags(); track tag.id) {
+          <option [value]="tag.id">{{ tag.name }}</option>
+        }
+      </select>
+
+      <label for="bulk-group" class="sr-only">Assign the selection to a group</label>
+      <select
+        id="bulk-group"
+        [disabled]="busy()"
+        (change)="bulkAssignGroup($any($event.target).value); $any($event.target).value = ''"
+        class="h-8 rounded-lg border-0 bg-white px-2.5 text-xs text-ink-soft ring-1 ring-brand-200 ring-inset focus:ring-2 focus:ring-brand-500 focus:outline-none disabled:opacity-50"
+      >
+        <option value="" disabled selected>Assign group…</option>
+        @for (group of groups(); track group.id) {
+          <option [value]="group.id">{{ group.name }}</option>
+        }
+      </select>
+
+      <button appButton variant="danger" size="sm" [disabled]="busy()" (click)="bulkDelete()">
+        <app-icon name="trash" [size]="15" />
         Delete
       </button>
       <button appButton variant="ghost" size="sm" (click)="clearSelection()">Clear</button>
@@ -96,6 +114,19 @@
       <option value="all">All groups</option>
       @for (group of groups(); track group.id) {
         <option [value]="group.id">{{ group.name }}</option>
+      }
+    </select>
+
+    <label for="tag-filter" class="sr-only">Filter by tag</label>
+    <select
+      id="tag-filter"
+      [value]="tagId()"
+      (change)="onTagChange($event)"
+      class="h-9 rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink-soft ring-1 ring-line ring-inset transition-all focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none"
+    >
+      <option value="all">All tags</option>
+      @for (tag of tags(); track tag.id) {
+        <option [value]="tag.id">{{ tag.name }}</option>
       }
     </select>
 

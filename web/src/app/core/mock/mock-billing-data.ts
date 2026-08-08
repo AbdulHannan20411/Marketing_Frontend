@@ -271,7 +271,7 @@ const USAGE: readonly UsageMetric[] = [
   { key: 'employees', label: 'Employee seats', used: 7, limit: 10, unit: 'seats' },
   { key: 'contacts', label: 'Contacts', used: 18_420, limit: 25_000, unit: 'contacts' },
   { key: 'campaigns', label: 'Campaigns', used: 64, limit: 100, unit: 'campaigns' },
-  { key: 'whatsappAccounts', label: 'WhatsApp accounts', used: 1, limit: 2, unit: 'accounts' },
+  { key: 'whatsAppAccounts', label: 'WhatsApp accounts', used: 1, limit: 2, unit: 'accounts' },
   { key: 'emailAccounts', label: 'Email accounts', used: 2, limit: 2, unit: 'accounts' },
   { key: 'socialAccounts', label: 'Social accounts', used: 0, limit: 0, unit: 'accounts' },
   { key: 'apiCalls', label: 'API requests', used: 31_800, limit: 50_000, unit: 'requests' },

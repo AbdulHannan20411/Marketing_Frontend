@@ -63,12 +63,12 @@ export class LoginComponent {
     this.submitting.set(true);
     this.formError.set(null);
 
-    this.auth.login(this.form.getRawValue()).subscribe({
+    this.auth.login({ ...this.form.getRawValue(), portal: this.portal() }).subscribe({
       next: (user) => {
-        // Each entrance admits only its own accounts. A valid password for the
-        // wrong portal is still a failed sign-in here, so the session is
-        // discarded rather than silently landing them in the other console.
-        const isSuperAdmin = user.role === 'SuperAdmin';
+        // The API also enforces the portal, but it is checked here too so the
+        // session is discarded rather than silently landing the user in the
+        // other console if the server ever stops sending it.
+        const isSuperAdmin = user.isSuperAdmin;
 
         if (this.isSuperAdminPortal() && !isSuperAdmin) {
           this.auth.discardSession();

@@ -3,8 +3,21 @@ import type { Observable } from 'rxjs';
 
 import type { PagedResult } from '@core/models/api.model';
 import type { AdminAccount, PlatformOverview } from '@core/models/admin-account.model';
-import type { AuditLogEntry, SystemSnapshot, Tenant } from '@core/models/platform.model';
+import type {
+  AuditLogEntry,
+  SystemSnapshot,
+  Tenant,
+  TenantPlan,
+  TenantStatus,
+} from '@core/models/platform.model';
 import { ApiService } from './api.service';
+
+export interface CreateAdminAccountRequest {
+  readonly name: string;
+  readonly email: string;
+  readonly organisation: string;
+  readonly plan?: TenantPlan;
+}
 
 @Injectable({ providedIn: 'root' })
 export class PlatformService {
@@ -18,6 +31,23 @@ export class PlatformService {
   /** Aggregated figures across all Admins. */
   getOverview(): Observable<PlatformOverview> {
     return this.api.get<PlatformOverview>('/superadmin/overview');
+  }
+
+  /** Creates the organisation and its first Admin, and sends an invitation. */
+  createAdmin(request: CreateAdminAccountRequest): Observable<AdminAccount> {
+    return this.api.post<AdminAccount, CreateAdminAccountRequest>('/superadmin/admins', request);
+  }
+
+  updateAdmin(id: string, changes: Partial<CreateAdminAccountRequest>): Observable<AdminAccount> {
+    return this.api.put<AdminAccount>(`/superadmin/admins/${id}`, changes);
+  }
+
+  updateAdminStatus(id: string, status: TenantStatus): Observable<AdminAccount> {
+    return this.api.put<AdminAccount>(`/superadmin/admins/${id}/status`, { status });
+  }
+
+  removeAdmin(id: string): Observable<null> {
+    return this.api.delete(`/superadmin/admins/${id}`);
   }
 
   listTenants(page: number, pageSize: number): Observable<PagedResult<Tenant>> {

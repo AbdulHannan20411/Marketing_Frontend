@@ -138,5 +138,45 @@
     <td class="hidden px-4 py-3.5 text-right text-sm whitespace-nowrap text-ink-muted md:table-cell">
       {{ timing(campaign) | timeAgo }}
     </td>
+
+    <td class="px-4 py-3.5 text-right">
+      <div class="flex items-center justify-end gap-1">
+        @if (canSend(campaign)) {
+          <button
+            appButton
+            variant="outline"
+            size="sm"
+            [disabled]="busyId() !== null"
+            (click)="send(campaign)"
+          >
+            <app-icon name="send" [size]="14" />
+            Send
+          </button>
+        }
+        @if (canPause(campaign)) {
+          <button
+            appButton
+            variant="ghost"
+            size="sm"
+            [disabled]="busyId() !== null"
+            (click)="pause(campaign)"
+          >
+            Pause
+          </button>
+        }
+        @if (canCancel(campaign)) {
+          <button
+            appButton
+            variant="ghost"
+            size="sm"
+            class="text-danger"
+            [disabled]="busyId() !== null"
+            (click)="cancel(campaign)"
+          >
+            Cancel
+          </button>
+        }
+      </div>
+    </td>
   </ng-template>
 </app-data-table>

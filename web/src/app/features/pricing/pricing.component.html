@@ -127,10 +127,14 @@
             class="mt-5 w-full justify-center"
             [variant]="isCurrent(plan) ? 'outline' : plan.isMostPopular ? 'primary' : 'secondary'"
             size="md"
-            [disabled]="isCurrent(plan)"
+            [disabled]="isCurrent(plan) || changing() !== null"
             (click)="choose(plan)"
           >
-            {{ isCurrent(plan) ? 'Your current plan' : 'Choose ' + plan.name }}
+            @if (changing() === plan.id) {
+              Switching…
+            } @else {
+              {{ isCurrent(plan) ? 'Your current plan' : 'Choose ' + plan.name }}
+            }
           </button>
 
           <!-- Highlights -->

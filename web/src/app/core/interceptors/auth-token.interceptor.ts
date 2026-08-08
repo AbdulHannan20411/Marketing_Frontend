@@ -6,7 +6,14 @@ import { environment } from '@env/environment';
 import { AuthService } from '@core/auth/auth.service';
 import { TokenStorageService } from '@core/auth/token-storage.service';
 
-const AUTH_FREE_PATHS = ['/auth/login', '/auth/refresh', '/auth/forgot-password'];
+/** Endpoints that must never carry a bearer token or trigger a refresh. */
+const AUTH_FREE_PATHS = [
+  '/auth/login',
+  '/auth/refresh',
+  '/auth/forgot-password',
+  '/auth/reset-password',
+  '/auth/accept-invitation',
+];
 
 function isApiRequest(url: string): boolean {
   return url.startsWith(environment.apiBaseUrl);
@@ -17,11 +24,18 @@ function withBearer<T>(request: HttpRequest<T>, token: string): HttpRequest<T> {
 }
 
 /**
- * Attaches the bearer token to API calls and transparently retries once after a
- * token refresh when the server answers 401.
+ * Attaches the bearer token and retries once after a refresh when the server
+ * answers 401.
  *
- * No tenant identifier is ever attached — tenancy is resolved server-side from
- * the token's own claims.
+ * The refresh itself is single-flight inside `AuthService`, which matters more
+ * than usual here: the API rotates refresh tokens and treats a replayed one as
+ * theft, revoking every session. Two parallel refreshes would sign the user out.
+ *
+ * A 401 that survives the retry is a finished session — the server revokes
+ * tokens immediately on permission, role, status and password changes — so it
+ * is propagated rather than retried again.
+ *
+ * No tenant identifier is ever attached; tenancy comes from the token's claims.
  */
 export const authTokenInterceptor: HttpInterceptorFn = (request, next) => {
   const storage = inject(TokenStorageService);
@@ -41,9 +55,18 @@ export const authTokenInterceptor: HttpInterceptorFn = (request, next) => {
         return throwError(() => error);
       }
 
-      return auth
-        .refreshToken()
-        .pipe(switchMap((tokens) => next(withBearer(request, tokens.accessToken))));
+      return auth.refreshToken().pipe(
+        switchMap((tokens) =>
+          next(withBearer(request, tokens.accessToken)).pipe(
+            catchError((retryError: unknown) => {
+              if (retryError instanceof HttpErrorResponse && retryError.status === 401) {
+                auth.clearSession();
+              }
+              return throwError(() => retryError);
+            }),
+          ),
+        ),
+      );
     }),
   );
 };

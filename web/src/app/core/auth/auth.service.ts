@@ -1,13 +1,24 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
-import { Observable, catchError, map, shareReplay, tap, throwError } from 'rxjs';
+import {
+  Observable,
+  catchError,
+  map,
+  of,
+  shareReplay,
+  switchMap,
+  tap,
+  throwError,
+} from 'rxjs';
 
 import { environment } from '@env/environment';
 import type { ApiResponse } from '@core/models/api.model';
 import type {
   AuthTokens,
   AuthUser,
+  ChangePasswordRequest,
+  CurrentUserResponse,
   ForgotPasswordRequest,
   LoginRequest,
   Permission,
@@ -23,14 +34,14 @@ export class AuthService {
   private readonly storage = inject(TokenStorageService);
   private readonly baseUrl = `${environment.apiBaseUrl}/auth`;
 
-  private readonly currentUser = signal<AuthUser | null>(this.restoreUser());
+  private readonly currentUser = signal<AuthUser | null>(null);
   /** In-flight refresh, shared so concurrent 401s trigger exactly one round trip. */
   private refresh$: Observable<AuthTokens> | null = null;
 
   readonly user = this.currentUser.asReadonly();
   readonly isAuthenticated = computed(() => this.currentUser() !== null);
   readonly role = computed<UserRole | null>(() => this.currentUser()?.role ?? null);
-  readonly isSuperAdmin = computed(() => this.role() === 'SuperAdmin');
+  readonly isSuperAdmin = computed(() => this.currentUser()?.isSuperAdmin ?? false);
   readonly isAdmin = computed(() => this.role() === 'Admin');
 
   hasPermission(permission: Permission): boolean {
@@ -46,10 +57,57 @@ export class AuthService {
     return role !== null && roles.includes(role);
   }
 
+  /** True when a token exists, so the app can restore a session on reload. */
+  hasStoredSession(): boolean {
+    const token = this.storage.accessToken;
+    if (token === null) {
+      return false;
+    }
+    const claims = decodeJwt(token);
+    return claims !== null && !isExpired(claims, 0);
+  }
+
+  get accessToken(): string | null {
+    return this.storage.accessToken;
+  }
+
   login(request: LoginRequest): Observable<AuthUser> {
     return this.http.post<ApiResponse<AuthTokens>>(`${this.baseUrl}/login`, request).pipe(
       map((response) => response.data),
-      map((tokens) => this.acceptTokens(tokens, request.rememberMe)),
+      tap((tokens) => this.storage.save(tokens, request.rememberMe)),
+      // The token carries no email, so the profile is fetched rather than decoded.
+      switchMap(() => this.loadProfile()),
+    );
+  }
+
+  /**
+   * Fetches `GET /auth/me` and adopts it as the session user. Also used on
+   * app start to rehydrate from a stored token.
+   */
+  loadProfile(): Observable<AuthUser> {
+    return this.http.get<ApiResponse<CurrentUserResponse>>(`${this.baseUrl}/me`).pipe(
+      map((response) => response.data),
+      map((profile) => {
+        const token = this.storage.accessToken;
+        const user = toAuthUser(profile, token === null ? null : decodeJwt(token));
+        this.currentUser.set(user);
+        return user;
+      }),
+    );
+  }
+
+  /** Restores a session on bootstrap; resolves to null when there is none. */
+  restoreSession(): Observable<AuthUser | null> {
+    if (!this.hasStoredSession()) {
+      this.storage.clear();
+      return of(null);
+    }
+    return this.loadProfile().pipe(
+      catchError(() => {
+        this.storage.clear();
+        this.currentUser.set(null);
+        return of(null);
+      }),
     );
   }
 
@@ -59,6 +117,37 @@ export class AuthService {
       .pipe(map(() => undefined));
   }
 
+  changePassword(request: ChangePasswordRequest): Observable<void> {
+    return this.http
+      .post<ApiResponse<null>>(`${this.baseUrl}/change-password`, request)
+      .pipe(map(() => undefined));
+  }
+
+  acceptInvitation(token: string, password: string): Observable<AuthUser> {
+    return this.http
+      .post<ApiResponse<AuthTokens>>(`${this.baseUrl}/accept-invitation`, { token, password })
+      .pipe(
+        map((response) => response.data),
+        tap((tokens) => this.storage.save(tokens, true)),
+        switchMap(() => this.loadProfile()),
+      );
+  }
+
+  resetPassword(token: string, password: string): Observable<AuthUser> {
+    return this.http
+      .post<ApiResponse<AuthTokens>>(`${this.baseUrl}/reset-password`, { token, password })
+      .pipe(
+        map((response) => response.data),
+        tap((tokens) => this.storage.save(tokens, true)),
+        switchMap(() => this.loadProfile()),
+      );
+  }
+
+  /**
+   * Rotating refresh. Presenting an already-rotated token revokes every session
+   * for the user, so this must never run concurrently — the shared observable
+   * guarantees a single round trip per burst of 401s.
+   */
   refreshToken(): Observable<AuthTokens> {
     if (this.refresh$ !== null) {
       return this.refresh$;
@@ -74,7 +163,7 @@ export class AuthService {
       .pipe(
         map((response) => response.data),
         tap((tokens) => {
-          this.acceptTokens(tokens, this.storage.isPersistent);
+          this.storage.save(tokens, this.storage.isPersistent);
           this.refresh$ = null;
         }),
         catchError((error: unknown) => {
@@ -95,10 +184,14 @@ export class AuthService {
     this.clearSession();
   }
 
-  /**
-   * Drops local session state without navigating. Used when a sign-in succeeds
-   * but the account is not valid for the portal it was attempted from.
-   */
+  logoutEverywhere(): void {
+    this.http.post<ApiResponse<null>>(`${this.baseUrl}/logout-everywhere`, {}).subscribe({
+      error: () => undefined,
+    });
+    this.clearSession();
+  }
+
+  /** Drops local session state without navigating. */
   discardSession(): void {
     this.storage.clear();
     this.currentUser.set(null);
@@ -107,36 +200,11 @@ export class AuthService {
 
   /** Drops local session state and returns to login, preserving the attempted URL. */
   clearSession(redirectTo?: string): void {
-    this.storage.clear();
-    this.currentUser.set(null);
-    this.refresh$ = null;
-    void this.router.navigate(['/auth/login'], {
+    const wasSuperAdmin = this.isSuperAdmin();
+    this.discardSession();
+
+    void this.router.navigate([wasSuperAdmin ? '/superadmin/login' : '/auth/login'], {
       queryParams: redirectTo !== undefined ? { returnUrl: redirectTo } : {},
     });
-  }
-
-  private acceptTokens(tokens: AuthTokens, persistent: boolean): AuthUser {
-    this.storage.save(tokens, persistent);
-    const claims = decodeJwt(tokens.accessToken);
-    if (claims === null) {
-      this.storage.clear();
-      throw new Error('Received a malformed access token.');
-    }
-    const user = toAuthUser(claims);
-    this.currentUser.set(user);
-    return user;
-  }
-
-  private restoreUser(): AuthUser | null {
-    const token = this.storage.accessToken;
-    if (token === null) {
-      return null;
-    }
-    const claims = decodeJwt(token);
-    if (claims === null || isExpired(claims, 0)) {
-      this.storage.clear();
-      return null;
-    }
-    return toAuthUser(claims);
   }
 }

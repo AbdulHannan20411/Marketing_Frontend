@@ -11,24 +11,38 @@ export const USER_ROLE_LABEL: Readonly<Record<UserRole, string>> = {
 export type { Permission };
 export { PERMISSIONS } from './permission.model';
 
+/** Which sign-in entrance was used. The API refuses a mismatch like a bad password. */
+export type LoginPortal = 'admin' | 'superadmin';
+
 /**
- * Claims we read from the access token.
+ * Claims on the access token.
  *
- * The token also carries a tenant claim used for server-side isolation. It is
- * deliberately absent from this interface: the client must never read, store,
- * or transmit a tenant identifier. `workspaceName` is a display label only.
+ * Two shapes differ from the obvious: `role` is a **single string**, not an
+ * array, and `permissions` is **one claim holding a JSON array as a string**.
+ * `jwt.util.ts` normalises both. There is no `email` claim — the profile comes
+ * from `GET /auth/me`.
  */
 export interface JwtClaims {
   readonly sub: string;
-  readonly email: string;
-  readonly name: string;
-  readonly role: UserRole;
-  readonly permissions: readonly Permission[];
-  readonly workspaceName: string;
-  readonly avatarUrl: string | null;
-  /** Expiry, seconds since epoch. */
+  readonly name?: string;
+  readonly role?: string;
+  readonly permissions?: string;
+  readonly workspaceName?: string;
+  readonly avatarUrl?: string;
+  readonly sid?: string;
   readonly exp: number;
-  readonly iat: number;
+  readonly iat?: number;
+}
+
+/** `GET /auth/me` — the authoritative profile. */
+export interface CurrentUserResponse {
+  readonly id: number;
+  readonly email: string;
+  readonly displayName: string;
+  readonly tenantName: string | null;
+  readonly isSuperAdmin: boolean;
+  readonly roles: readonly string[];
+  readonly permissions: readonly string[];
 }
 
 export interface AuthUser {
@@ -40,6 +54,7 @@ export interface AuthUser {
   readonly permissions: readonly Permission[];
   readonly workspaceName: string;
   readonly avatarUrl: string | null;
+  readonly isSuperAdmin: boolean;
 }
 
 export interface AuthTokens {
@@ -52,6 +67,7 @@ export interface LoginRequest {
   readonly email: string;
   readonly password: string;
   readonly rememberMe: boolean;
+  readonly portal?: LoginPortal | null;
 }
 
 export interface RefreshTokenRequest {
@@ -65,4 +81,14 @@ export interface ForgotPasswordRequest {
 export interface ResetPasswordRequest {
   readonly token: string;
   readonly password: string;
+}
+
+export interface AcceptInvitationRequest {
+  readonly token: string;
+  readonly password: string;
+}
+
+export interface ChangePasswordRequest {
+  readonly currentPassword: string;
+  readonly newPassword: string;
 }

@@ -166,9 +166,14 @@
         @if (hasUnsavedChanges()) {
           <button appButton variant="ghost" size="sm" (click)="discardChanges()">Discard</button>
         }
-        <button appButton size="sm" [disabled]="!hasUnsavedChanges()" (click)="savePermissions()">
-          <app-icon name="checkCircle" [size]="15" />
-          Save
+        <button
+          appButton
+          size="sm"
+          [disabled]="!hasUnsavedChanges() || saving()"
+          (click)="savePermissions()"
+        >
+          <app-icon name="checkCircle" [size]="15" [class.animate-spin]="saving()" />
+          {{ saving() ? 'Saving…' : 'Save' }}
         </button>
       </div>
 

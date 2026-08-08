@@ -1,8 +1,12 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import type { Observable } from 'rxjs';
 
-import type { LoadState } from '@core/models/api.model';
+import type { ApiError, LoadState } from '@core/models/api.model';
 import type { Campaign, CampaignStatus } from '@core/models/campaign.model';
-import { DashboardService } from '@core/services/dashboard.service';
+import { CampaignsService } from '@core/services/campaigns.service';
+import { RealtimeService } from '@core/services/realtime.service';
+import { ToastService } from '@core/services/toast.service';
 import { TimeAgoPipe } from '@shared/pipes/time-ago.pipe';
 import { BadgeComponent } from '@shared/ui/badge/badge.component';
 import { CAMPAIGN_STATUS_LABEL, CAMPAIGN_STATUS_TONE } from '@shared/ui/badge/campaign-status';
@@ -33,8 +37,11 @@ const PAGE_SIZE = 8;
   templateUrl: './campaigns.component.html',
 })
 export class CampaignsComponent {
-  private readonly dashboardService = inject(DashboardService);
+  private readonly campaignsService = inject(CampaignsService);
+  private readonly realtime = inject(RealtimeService);
+  private readonly toast = inject(ToastService);
 
+  protected readonly busyId = signal<string | null>(null);
   protected readonly state = signal<LoadState>('loading');
   protected readonly campaigns = signal<readonly Campaign[]>([]);
   protected readonly statusFilter = signal<StatusFilter>('all');
@@ -52,6 +59,7 @@ export class CampaignsComponent {
     { key: 'delivered', header: 'Delivered', align: 'right', hideOnMobile: true },
     { key: 'read', header: 'Read rate', align: 'right' },
     { key: 'when', header: 'When', align: 'right', hideOnMobile: true },
+    { key: 'actions', header: '', align: 'right' },
   ];
 
   protected readonly statuses: readonly { value: StatusFilter; label: string }[] = [
@@ -108,17 +116,92 @@ export class CampaignsComponent {
 
   constructor() {
     this.load();
+
+    // The dispatcher runs on a one-minute cadence, so progress arrives by push
+    // rather than polling — the reports endpoints are rate limited to 4.
+    this.realtime.campaignProgress$
+      .pipe(takeUntilDestroyed())
+      .subscribe((updated) => this.upsert(updated));
+
+    // Events are not replayed, so a reconnect needs a fresh read.
+    this.realtime.resynced$.pipe(takeUntilDestroyed()).subscribe(() => this.load());
   }
 
   protected load(): void {
     this.state.set('loading');
-    this.dashboardService.getCampaigns().subscribe({
+    this.campaignsService.list().subscribe({
       next: (campaigns) => {
         this.campaigns.set(campaigns);
         this.state.set('ready');
       },
       error: () => this.state.set('error'),
     });
+  }
+
+  private upsert(updated: Campaign): void {
+    this.campaigns.update((current) => {
+      const index = current.findIndex((candidate) => candidate.id === updated.id);
+      if (index === -1) {
+        return [updated, ...current];
+      }
+      const next = [...current];
+      next[index] = updated;
+      return next;
+    });
+  }
+
+  private runAction(
+    campaign: Campaign,
+    action: (id: string) => Observable<Campaign>,
+    successMessage: string,
+  ): void {
+    if (this.busyId() !== null) {
+      return;
+    }
+    this.busyId.set(campaign.id);
+
+    action(campaign.id).subscribe({
+      next: (updated) => {
+        this.busyId.set(null);
+        this.upsert(updated);
+        this.toast.success(successMessage, campaign.name);
+      },
+      // Business rules (invalid transition, empty audience) arrive as 409 and
+      // are surfaced by the caller rather than the global handler.
+      error: (error: ApiError) => {
+        this.busyId.set(null);
+        this.toast.error(error.title, error.detail);
+      },
+    });
+  }
+
+  /** Returns with status "sending" — the dispatcher completes it asynchronously. */
+  protected send(campaign: Campaign): void {
+    this.runAction(campaign, (id) => this.campaignsService.send(id), 'Campaign started');
+  }
+
+  protected pause(campaign: Campaign): void {
+    this.runAction(campaign, (id) => this.campaignsService.pause(id), 'Campaign paused');
+  }
+
+  protected cancel(campaign: Campaign): void {
+    this.runAction(campaign, (id) => this.campaignsService.cancel(id), 'Campaign cancelled');
+  }
+
+  protected canSend(campaign: Campaign): boolean {
+    return campaign.status === 'draft' || campaign.status === 'scheduled';
+  }
+
+  protected canPause(campaign: Campaign): boolean {
+    return campaign.status === 'sending';
+  }
+
+  protected canCancel(campaign: Campaign): boolean {
+    return (
+      campaign.status === 'scheduled' ||
+      campaign.status === 'sending' ||
+      campaign.status === 'paused'
+    );
   }
 
   protected setStatus(value: StatusFilter): void {

@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 
-import type { LoadState } from '@core/models/api.model';
+import type { ApiError, LoadState } from '@core/models/api.model';
 import { USER_ROLE_LABEL, type UserRole } from '@core/models/auth.model';
 import type { Employee, EmployeeStatus, PermissionSet } from '@core/models/employee.model';
 import {
@@ -67,6 +67,7 @@ export class EmployeesComponent {
   protected readonly permissionSets = signal<readonly PermissionSet[]>([]);
   protected readonly tab = signal<EmployeeTab>('team');
   protected readonly selectedId = signal<string | null>(null);
+  protected readonly saving = signal(false);
   protected readonly skeletons = [1, 2, 3, 4, 5];
 
   /** Local permission edits, keyed by employee id, until saved. */
@@ -216,30 +217,35 @@ export class EmployeesComponent {
 
   protected savePermissions(): void {
     const employee = this.selected();
-    if (employee === null) {
+    if (employee === null || this.saving()) {
       return;
     }
 
-    const granted = this.effectivePermissions();
+    const granted = [...this.effectivePermissions()];
+    this.saving.set(true);
 
-    // Reflect the change locally; the write endpoint lands with the team-management milestone.
-    this.employees.update((current) =>
-      current.map((candidate) =>
-        candidate.id === employee.id
-          ? { ...candidate, permissions: [...granted] }
-          : candidate,
-      ),
-    );
-    this.draftPermissions.update((current) => {
-      const next = new Map(current);
-      next.delete(employee.id);
-      return next;
+    this.employeesService.updatePermissions(employee.id, granted).subscribe({
+      next: (updated) => {
+        this.saving.set(false);
+        this.employees.update((current) =>
+          current.map((candidate) => (candidate.id === updated.id ? updated : candidate)),
+        );
+        this.draftPermissions.update((current) => {
+          const next = new Map(current);
+          next.delete(employee.id);
+          return next;
+        });
+        this.toast.success(
+          'Permissions updated',
+          `${updated.name} now holds ${updated.permissions.length} permissions. Their sessions were signed out.`,
+        );
+      },
+      // Escalation and plan guards come back as 403 / 409 with a usable detail.
+      error: (error: ApiError) => {
+        this.saving.set(false);
+        this.toast.error(error.title, error.detail);
+      },
     });
-
-    this.toast.success(
-      'Permissions updated',
-      `${employee.name} now holds ${granted.size} permissions.`,
-    );
   }
 
   protected discardChanges(): void {

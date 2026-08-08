@@ -3,7 +3,7 @@ import { DecimalPipe } from '@angular/common';
 import { Subject, debounceTime, distinctUntilChanged } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
-import type { LoadState } from '@core/models/api.model';
+import type { BulkOperationResult, LoadState } from '@core/models/api.model';
 import type {
   Contact,
   ContactGroup,
@@ -62,7 +62,9 @@ export class ContactsComponent {
   protected readonly search = signal('');
   protected readonly status = signal<ContactStatus | 'all'>('all');
   protected readonly groupId = signal<string | 'all'>('all');
+  protected readonly tagId = signal<string | 'all'>('all');
   protected readonly selectedIds = signal<ReadonlySet<string>>(new Set());
+  protected readonly busy = signal(false);
 
   protected readonly pageSize = PAGE_SIZE;
   protected readonly statusTone = STATUS_TONE;
@@ -86,7 +88,11 @@ export class ContactsComponent {
   });
 
   protected readonly hasFilters = computed(
-    () => this.search() !== '' || this.status() !== 'all' || this.groupId() !== 'all',
+    () =>
+      this.search() !== '' ||
+      this.status() !== 'all' ||
+      this.groupId() !== 'all' ||
+      this.tagId() !== 'all',
   );
 
   private readonly tagNameById = computed(() => {
@@ -121,6 +127,7 @@ export class ContactsComponent {
         search: this.search(),
         status: this.status(),
         groupId: this.groupId(),
+        tagId: this.tagId(),
       })
       .subscribe({
         next: (result) => {
@@ -153,10 +160,17 @@ export class ContactsComponent {
     this.load();
   }
 
+  protected onTagChange(event: Event): void {
+    this.tagId.set((event.target as HTMLSelectElement).value);
+    this.page.set(1);
+    this.load();
+  }
+
   protected clearFilters(): void {
     this.search.set('');
     this.status.set('all');
     this.groupId.set('all');
+    this.tagId.set('all');
     this.page.set(1);
     this.load();
   }
@@ -200,8 +214,93 @@ export class ContactsComponent {
     return this.tagNameById().get(tagId);
   }
 
-  /** Bulk actions are wired to the UI now; the write endpoints land with the CRUD milestone. */
+  /** Applies a bulk result: report it, drop the selection, refresh the page. */
+  private applyBulkResult(result: BulkOperationResult, verb: string): void {
+    this.busy.set(false);
+    this.clearSelection();
+
+    if (result.failed.length > 0) {
+      this.toast.warning(
+        `${verb} partially applied`,
+        `${result.succeeded} of ${result.requested} succeeded. ${result.failed[0]?.reason ?? ''}`,
+      );
+    } else {
+      this.toast.success(`${verb} applied`, `${result.succeeded} contacts updated.`);
+    }
+
+    this.load();
+  }
+
+  private failBulk(verb: string): void {
+    this.busy.set(false);
+    this.toast.error(`Could not ${verb.toLowerCase()}`, 'The request failed. Please try again.');
+  }
+
+  protected bulkDelete(): void {
+    const ids = [...this.selectedIds()];
+    if (ids.length === 0 || this.busy()) {
+      return;
+    }
+    this.busy.set(true);
+
+    this.contactsService.bulkDelete(ids).subscribe({
+      next: (result) => this.applyBulkResult(result, 'Delete'),
+      error: () => this.failBulk('Delete'),
+    });
+  }
+
+  protected bulkAddTag(tagId: string): void {
+    const ids = [...this.selectedIds()];
+    if (ids.length === 0 || this.busy()) {
+      return;
+    }
+    this.busy.set(true);
+
+    this.contactsService.bulkTag({ ids, tagIds: [tagId], mode: 'add' }).subscribe({
+      next: (result) => this.applyBulkResult(result, 'Tag'),
+      error: () => this.failBulk('Tag'),
+    });
+  }
+
+  protected bulkAssignGroup(groupId: string): void {
+    const ids = [...this.selectedIds()];
+    if (ids.length === 0 || this.busy()) {
+      return;
+    }
+    this.busy.set(true);
+
+    this.contactsService.bulkGroup({ ids, groupIds: [groupId], mode: 'add' }).subscribe({
+      next: (result) => this.applyBulkResult(result, 'Group'),
+      error: () => this.failBulk('Group'),
+    });
+  }
+
+  /** Exports the current filter, or just the selection when rows are ticked. */
+  protected exportCsv(): void {
+    if (this.busy()) {
+      return;
+    }
+    this.busy.set(true);
+    const selected = [...this.selectedIds()];
+
+    this.contactsService
+      .exportCsv({
+        search: this.search(),
+        status: this.status(),
+        groupId: this.groupId(),
+        tagId: this.tagId(),
+        ...(selected.length > 0 ? { ids: selected.join(',') } : {}),
+      })
+      .subscribe({
+        next: () => {
+          this.busy.set(false);
+          this.toast.success('Export ready', 'Your CSV has been downloaded.');
+        },
+        error: () => this.failBulk('Export'),
+      });
+  }
+
   protected announcePending(action: string): void {
-    this.toast.info(`${action} queued`, `${this.selectedCount()} contacts selected.`);
+    this.toast.info(`${action}`, 'This flow lands with the next milestone.');
   }
 }

@@ -81,12 +81,13 @@ export function issueMockTokens(account: MockAccount): AuthTokens {
   const issuedAt = Math.floor(Date.now() / 1000);
   const claims: JwtClaims = {
     sub: `usr_${account.email.split('@')[0]}`,
-    email: account.email,
+    // The real issuer carries no email claim; the profile comes from /auth/me.
     name: account.name,
     role: account.role,
-    permissions: permissionsForRole(account.role),
+    // Mirrors the real issuer: one claim holding a JSON array.
+    permissions: JSON.stringify(permissionsForRole(account.role)),
     workspaceName: account.workspaceName,
-    avatarUrl: null,
+    avatarUrl: undefined,
     iat: issuedAt,
     exp: issuedAt + TOKEN_LIFETIME_SECONDS,
   };

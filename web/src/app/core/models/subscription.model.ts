@@ -64,11 +64,12 @@ export interface Subscription {
   readonly currency: string;
 }
 
+/** Wire values from the API. Note the capital A in `whatsAppAccounts`. */
 export type UsageMetricKey =
   | 'employees'
   | 'contacts'
   | 'campaigns'
-  | 'whatsappAccounts'
+  | 'whatsAppAccounts'
   | 'emailAccounts'
   | 'socialAccounts'
   | 'apiCalls'
@@ -96,7 +97,8 @@ export interface SubscriptionSnapshot {
  * ------------------------------------------------------------------ */
 export type InvoiceStatus = 'paid' | 'due' | 'overdue' | 'refunded' | 'void';
 export type PaymentStatus = 'succeeded' | 'failed' | 'pending' | 'refunded';
-export type PaymentMethodKind = 'card' | 'bank_transfer' | 'paypal';
+/** `payPal` is camelCased by the serialiser; `bank_transfer` is not. Both are literal. */
+export type PaymentMethodKind = 'card' | 'bank_transfer' | 'payPal';
 
 export interface Invoice {
   readonly id: string;
@@ -143,4 +145,45 @@ export interface BillingHistory {
   readonly invoices: readonly Invoice[];
   readonly payments: readonly Payment[];
   readonly renewals: readonly RenewalRecord[];
+}
+
+export interface PaymentMethod {
+  readonly id: string;
+  readonly kind: PaymentMethodKind;
+  readonly brand: string | null;
+  readonly last4: string | null;
+  readonly expiryMonth: number | null;
+  readonly expiryYear: number | null;
+  readonly isDefault: boolean;
+  readonly createdAt: string;
+}
+
+/** Card data never reaches this API — send a processor token instead. */
+export interface AddPaymentMethodRequest {
+  readonly providerToken: string;
+  readonly kind?: PaymentMethodKind;
+  readonly makeDefault?: boolean;
+}
+
+/** Returns empty strings rather than 404 when never filled in. */
+export interface BillingProfile {
+  readonly companyName: string;
+  readonly addressLine1: string;
+  readonly addressLine2: string;
+  readonly city: string;
+  readonly region: string;
+  readonly postalCode: string;
+  readonly country: string;
+  readonly taxId: string;
+  readonly billingEmail: string;
+}
+
+export interface ChangePlanRequest {
+  readonly planId: string;
+  readonly billingCycle: BillingCycle;
+}
+
+export interface CancelSubscriptionRequest {
+  readonly reason?: string;
+  readonly immediate?: boolean;
 }
