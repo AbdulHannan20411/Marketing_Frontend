@@ -1,5 +1,10 @@
 import { Injectable, inject, signal } from '@angular/core';
-import { HubConnectionBuilder, HubConnectionState, LogLevel } from '@microsoft/signalr';
+import {
+  HttpTransportType,
+  HubConnectionBuilder,
+  HubConnectionState,
+  LogLevel,
+} from '@microsoft/signalr';
 import type { HubConnection } from '@microsoft/signalr';
 import { Subject, type Observable } from 'rxjs';
 
@@ -46,6 +51,18 @@ export class RealtimeService {
     const connection = new HubConnectionBuilder()
       .withUrl(environment.realtimeUrl, {
         accessTokenFactory: () => this.auth.accessToken ?? '',
+        // Connect straight over WebSockets and skip the negotiate request.
+        //
+        // The SignalR client always sends `X-Requested-With` on negotiate, and
+        // the API's CORS policy allows only Authorization, Content-Type, Accept
+        // and X-Correlation-Id — so the preflight fails. Skipping negotiation
+        // sidesteps it; the token rides the query string, which is why the
+        // server accepts `access_token` there for /hubs.
+        //
+        // Remove this once the API adds X-Requested-With to its allowed headers,
+        // which would also restore the long-polling fallback.
+        transport: HttpTransportType.WebSockets,
+        skipNegotiation: true,
       })
       .withAutomaticReconnect()
       .configureLogging(environment.production ? LogLevel.Error : LogLevel.Warning)

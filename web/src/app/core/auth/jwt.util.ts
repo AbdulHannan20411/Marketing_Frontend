@@ -77,6 +77,16 @@ function toRole(value: string | undefined, isSuperAdmin: boolean): UserRole {
  * Builds the session user from `GET /auth/me`, which is authoritative — the
  * token has no email claim. Token claims fill in the display extras.
  */
+/** Treats blank strings as absent — platform staff have no tenant name. */
+function firstNonEmpty(...values: (string | null | undefined)[]): string | null {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim().length > 0) {
+      return value;
+    }
+  }
+  return null;
+}
+
 export function toAuthUser(profile: CurrentUserResponse, claims: JwtClaims | null): AuthUser {
   const isSuperAdmin = profile.isSuperAdmin;
 
@@ -87,8 +97,10 @@ export function toAuthUser(profile: CurrentUserResponse, claims: JwtClaims | nul
     initials: toInitials(profile.displayName),
     role: toRole(profile.roles[0] ?? claims?.role, isSuperAdmin),
     permissions: profile.permissions as readonly Permission[],
-    workspaceName: profile.tenantName ?? claims?.workspaceName ?? 'Platform',
-    avatarUrl: claims?.avatarUrl ?? null,
+    workspaceName:
+      firstNonEmpty(profile.tenantName, claims?.workspaceName) ??
+      (isSuperAdmin ? 'Platform' : 'Workspace'),
+    avatarUrl: firstNonEmpty(claims?.avatarUrl),
     isSuperAdmin,
   };
 }
