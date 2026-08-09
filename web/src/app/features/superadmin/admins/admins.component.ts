@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { ActivatedRoute, Router } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 
-import type { LoadState } from '@core/models/api.model';
+import type { ApiError, LoadState } from '@core/models/api.model';
 import type { AdminAccount } from '@core/models/admin-account.model';
 import type { TenantPlan, TenantStatus } from '@core/models/platform.model';
 import { AdminScopeService } from '@core/scope/admin-scope.service';
@@ -18,6 +18,7 @@ import { PageHeaderComponent } from '@shared/ui/page-header/page-header.componen
 import { SkeletonComponent } from '@shared/ui/skeleton/skeleton.component';
 import { EmptyStateComponent } from '@shared/ui/state/empty-state.component';
 import { ErrorStateComponent } from '@shared/ui/state/error-state.component';
+import { AdminEditorComponent, type AdminEditorResult } from './admin-editor.component';
 
 const STATUS_TONE: Readonly<Record<TenantStatus, BadgeTone>> = {
   active: 'success',
@@ -53,6 +54,7 @@ const PLAN_TONE: Readonly<Record<TenantPlan, BadgeTone>> = {
     SkeletonComponent,
     EmptyStateComponent,
     ErrorStateComponent,
+    AdminEditorComponent,
   ],
   templateUrl: './admins.component.html',
 })
@@ -70,6 +72,17 @@ export class SuperAdminAdminsComponent {
   protected readonly search = signal('');
   protected readonly statusFilter = signal<TenantStatus | 'all'>('all');
   protected readonly skeletons = [1, 2, 3, 4, 5, 6];
+
+  /** `null` = closed, `'new'` = create, otherwise the account being edited. */
+  protected readonly editing = signal<AdminAccount | 'new' | null>(null);
+  protected readonly confirmingDelete = signal<AdminAccount | null>(null);
+  protected readonly saving = signal(false);
+  protected readonly busyId = signal<string | null>(null);
+
+  protected readonly editorAdmin = computed(() => {
+    const target = this.editing();
+    return target === null || target === 'new' ? null : target;
+  });
 
   protected readonly statusTone = STATUS_TONE;
   protected readonly planTone = PLAN_TONE;
@@ -149,7 +162,112 @@ export class SuperAdminAdminsComponent {
     this.scope.clear();
   }
 
-  protected pendingWrite(action: string, admin: AdminAccount): void {
-    this.toast.info(`${action} ${admin.organisation}`, 'Admin write endpoints land with the account-management milestone.');
+  /* ------------------------------ account writes ------------------------------ */
+
+  protected openCreate(): void {
+    this.editing.set('new');
+  }
+
+  protected openEdit(event: Event, admin: AdminAccount): void {
+    event.stopPropagation();
+    this.editing.set(admin);
+  }
+
+  protected closeEditor(): void {
+    this.editing.set(null);
+  }
+
+  protected onSave(result: AdminEditorResult): void {
+    const target = this.editing();
+    if (target === null) {
+      return;
+    }
+    this.saving.set(true);
+
+    const request$ =
+      target === 'new'
+        ? this.platform.createAdmin(result)
+        : this.platform.updateAdmin(target.id, {
+            name: result.name,
+            organisation: result.organisation,
+            plan: result.plan,
+          });
+
+    request$.subscribe({
+      next: (admin) => {
+        this.saving.set(false);
+        this.editing.set(null);
+        this.toast.success(
+          target === 'new' ? 'Admin account created' : 'Account updated',
+          target === 'new'
+            ? `${admin.organisation} is pending. An invitation was emailed to ${admin.email}.`
+            : admin.organisation,
+        );
+        this.load();
+      },
+      // email_taken and organisation_exists arrive as 409 with a usable detail.
+      error: (error: ApiError) => {
+        this.saving.set(false);
+        this.toast.error(error.title, error.detail);
+      },
+    });
+  }
+
+  /** Approves a pending account, or suspends/reinstates an existing one. */
+  protected setStatus(event: Event, admin: AdminAccount, status: TenantStatus): void {
+    event.stopPropagation();
+    if (this.busyId() !== null) {
+      return;
+    }
+    this.busyId.set(admin.id);
+
+    this.platform.updateAdminStatus(admin.id, status).subscribe({
+      next: (updated) => {
+        this.busyId.set(null);
+        this.toast.success(
+          status === 'active' ? 'Account activated' : 'Account updated',
+          status === 'active'
+            ? `${updated.organisation} can now sign in and use the platform.`
+            : `${updated.organisation} is now ${status}.`,
+        );
+        this.load();
+      },
+      error: (error: ApiError) => {
+        this.busyId.set(null);
+        this.toast.error(error.title, error.detail);
+      },
+    });
+  }
+
+  protected askDelete(event: Event, admin: AdminAccount): void {
+    event.stopPropagation();
+    this.confirmingDelete.set(admin);
+  }
+
+  protected cancelDelete(): void {
+    this.confirmingDelete.set(null);
+  }
+
+  protected confirmDelete(): void {
+    const admin = this.confirmingDelete();
+    if (admin === null) {
+      return;
+    }
+
+    this.platform.removeAdmin(admin.id).subscribe({
+      next: () => {
+        this.confirmingDelete.set(null);
+        // Leaving a deleted account selected would scope every page to nothing.
+        if (this.scope.selectedId() === admin.id) {
+          this.scope.clear();
+        }
+        this.toast.success('Account removed', `${admin.organisation} was deleted.`);
+        this.load();
+      },
+      error: (error: ApiError) => {
+        this.confirmingDelete.set(null);
+        this.toast.error(error.title, error.detail);
+      },
+    });
   }
 }

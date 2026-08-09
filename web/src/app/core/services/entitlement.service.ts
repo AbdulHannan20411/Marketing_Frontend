@@ -1,6 +1,7 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 
 import { AuthService } from '@core/auth/auth.service';
+import { AdminScopeService } from '@core/scope/admin-scope.service';
 import type { FeatureModule } from '@core/models/permission.model';
 import type {
   SubscriptionPlan,
@@ -57,6 +58,7 @@ function toView(metric: UsageMetric): UsageView {
 export class EntitlementService {
   private readonly subscriptionService = inject(SubscriptionService);
   private readonly auth = inject(AuthService);
+  private readonly scope = inject(AdminScopeService);
 
   private readonly snapshot = signal<SubscriptionSnapshot | null>(null);
   private readonly loaded = signal(false);
@@ -116,6 +118,15 @@ export class EntitlementService {
   );
 
   load(): void {
+    // A Super Admin has no tenant of their own, so /subscription would 404 on
+    // every page load. Only fetch when there is a tenant to fetch for: their
+    // own (Admin, Employee) or the one they are scoped to.
+    if (this.auth.isSuperAdmin() && this.scope.selectedId() === null) {
+      this.snapshot.set(null);
+      this.loaded.set(true);
+      return;
+    }
+
     this.subscriptionService.getSnapshot().subscribe({
       next: (snapshot) => {
         this.snapshot.set(snapshot);

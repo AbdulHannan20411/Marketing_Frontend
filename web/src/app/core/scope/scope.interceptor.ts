@@ -9,6 +9,14 @@ import { AdminScopeService } from './admin-scope.service';
 export const SCOPE_PARAM = 'adminId';
 
 /**
+ * Platform-level routes are inherently cross-tenant — listing every admin,
+ * pricing plans, tenants, audit and system health. Scoping them to one admin is
+ * meaningless at best and misleading at worst, so the parameter is never
+ * attached there even while an admin is selected.
+ */
+const UNSCOPED_PREFIXES = ['/superadmin', '/admin/', '/plans', '/auth/'];
+
+/**
  * Attaches the selected Admin's id to outgoing API calls.
  *
  * This is the single sanctioned exception to "the client never names a tenant".
@@ -28,6 +36,11 @@ export const scopeInterceptor: HttpInterceptorFn = (request, next) => {
   const scope = inject(AdminScopeService);
 
   if (!auth.isSuperAdmin()) {
+    return next(request);
+  }
+
+  const path = request.url.slice(environment.apiBaseUrl.length);
+  if (UNSCOPED_PREFIXES.some((prefix) => path.startsWith(prefix))) {
     return next(request);
   }
 

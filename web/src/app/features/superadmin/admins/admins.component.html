@@ -13,7 +13,7 @@
       Clear selection
     </button>
   }
-  <button appButton size="md" (click)="pendingWrite('Create admin for', visibleAdmins()[0])">
+  <button appButton size="md" (click)="openCreate()">
     <app-icon name="plus" [size]="16" />
     New admin
   </button>
@@ -175,12 +175,40 @@
             <app-icon name="eye" [size]="14" />
             View as
           </button>
-          <button
-            appButton
-            variant="ghost"
-            size="sm"
-            (click)="$event.stopPropagation(); pendingWrite('Edit', admin)"
-          >
+
+          <!-- "trialing" is how a pending organisation is reported on the wire -->
+          @if (admin.status === 'trialing') {
+            <button
+              appButton
+              size="sm"
+              [disabled]="busyId() !== null"
+              (click)="setStatus($event, admin, 'active')"
+            >
+              <app-icon name="checkCircle" [size]="14" />
+              Activate
+            </button>
+          } @else if (admin.status === 'suspended') {
+            <button
+              appButton
+              size="sm"
+              [disabled]="busyId() !== null"
+              (click)="setStatus($event, admin, 'active')"
+            >
+              Reinstate
+            </button>
+          } @else {
+            <button
+              appButton
+              variant="ghost"
+              size="sm"
+              [disabled]="busyId() !== null"
+              (click)="setStatus($event, admin, 'suspended')"
+            >
+              Suspend
+            </button>
+          }
+
+          <button appButton variant="ghost" size="sm" (click)="openEdit($event, admin)">
             <app-icon name="pencil" [size]="14" />
             Edit
           </button>
@@ -189,7 +217,7 @@
             variant="ghost"
             size="sm"
             class="ml-auto text-danger"
-            (click)="$event.stopPropagation(); pendingWrite('Delete', admin)"
+            (click)="askDelete($event, admin)"
           >
             <app-icon name="trash" [size]="14" />
             Delete
@@ -197,5 +225,56 @@
         </div>
       </div>
     }
+  </div>
+}
+
+<!-- Create / edit -->
+@if (editing() !== null) {
+  <app-admin-editor
+    [admin]="editorAdmin()"
+    [saving]="saving()"
+    (save)="onSave($event)"
+    (cancel)="closeEditor()"
+  />
+}
+
+<!-- Delete confirmation -->
+@if (confirmingDelete(); as target) {
+  <div class="fixed inset-0 z-100 grid place-items-center p-4">
+    <div
+      class="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px] animate-fade"
+      aria-hidden="true"
+      (click)="cancelDelete()"
+    ></div>
+
+    <div
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="delete-admin-title"
+      class="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl ring-1 ring-line animate-rise"
+    >
+      <div class="flex items-start gap-4">
+        <span class="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-red-50 text-danger">
+          <app-icon name="warning" [size]="22" />
+        </span>
+        <div class="min-w-0">
+          <h2 id="delete-admin-title" class="text-base font-semibold text-ink">
+            Delete "{{ target.organisation }}"?
+          </h2>
+          <p class="mt-1.5 text-sm leading-relaxed text-ink-muted">
+            This removes the organisation and its administrator. Their contacts, campaigns and
+            employees go with it. Suspending keeps the data and blocks access instead.
+          </p>
+        </div>
+      </div>
+
+      <div class="mt-6 flex flex-wrap justify-end gap-2">
+        <button appButton variant="ghost" size="md" (click)="cancelDelete()">Cancel</button>
+        <button appButton variant="danger" size="md" (click)="confirmDelete()">
+          <app-icon name="trash" [size]="15" />
+          Delete account
+        </button>
+      </div>
+    </div>
   </div>
 }

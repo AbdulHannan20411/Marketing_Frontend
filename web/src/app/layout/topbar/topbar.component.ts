@@ -64,8 +64,17 @@ export class TopbarComponent {
   );
 
   protected readonly daysRemaining = this.entitlements.daysRemaining;
-  protected readonly showRenewalWarning = this.entitlements.isExpiringSoon;
   protected readonly planName = computed(() => this.entitlements.plan()?.name ?? null);
+
+  /**
+   * Subscription and billing belong to a tenant, so they are hidden from
+   * platform staff — a Super Admin has no plan of their own to manage.
+   */
+  protected readonly showBillingLinks = computed(() => !this.auth.isSuperAdmin());
+
+  protected readonly showRenewalWarning = computed(
+    () => this.showBillingLinks() && this.entitlements.isExpiringSoon(),
+  );
 
   protected openSearch(): void {
     this.closeMenus();

@@ -1,0 +1,115 @@
+<app-modal [title]="title()" [subtitle]="subtitle()" size="lg" (closed)="cancel.emit()">
+  <div class="grid gap-4 sm:grid-cols-2">
+    <div class="sm:col-span-2">
+      <label for="admin-org" class="block text-sm font-medium text-ink-soft">Organisation</label>
+      <input
+        id="admin-org"
+        type="text"
+        [ngModel]="organisation()"
+        (ngModelChange)="organisation.set($event)"
+        placeholder="e.g. Northwind Retail"
+        class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink ring-1 ring-line ring-inset transition-all placeholder:text-ink-muted focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none"
+        [class.ring-red-400]="orgInvalid()"
+      />
+      @if (orgInvalid()) {
+        <p class="mt-1 text-xs text-danger">An organisation name is required.</p>
+      } @else if (!isEdit()) {
+        <p class="mt-1 text-xs text-ink-muted">
+          The address is derived from this name and must be unique.
+        </p>
+      }
+    </div>
+
+    <div>
+      <label for="admin-name" class="block text-sm font-medium text-ink-soft">
+        Administrator name
+      </label>
+      <input
+        id="admin-name"
+        type="text"
+        [ngModel]="name()"
+        (ngModelChange)="name.set($event)"
+        class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink ring-1 ring-line ring-inset transition-all focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none"
+        [class.ring-red-400]="nameInvalid()"
+      />
+      @if (nameInvalid()) {
+        <p class="mt-1 text-xs text-danger">A name is required.</p>
+      }
+    </div>
+
+    <div>
+      <label for="admin-email" class="block text-sm font-medium text-ink-soft">Email</label>
+      <input
+        id="admin-email"
+        type="email"
+        [ngModel]="email()"
+        (ngModelChange)="email.set($event)"
+        [disabled]="isEdit()"
+        class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink ring-1 ring-line ring-inset transition-all focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none disabled:cursor-not-allowed disabled:text-ink-muted"
+        [class.ring-red-400]="emailInvalid()"
+      />
+      @if (emailInvalid()) {
+        <p class="mt-1 text-xs text-danger">Enter a valid email address.</p>
+      } @else if (isEdit()) {
+        <p class="mt-1 text-xs text-ink-muted">The API has no route for changing an email.</p>
+      }
+    </div>
+
+    <div [class.sm:col-span-2]="isEdit()">
+      <label for="admin-plan" class="block text-sm font-medium text-ink-soft">Plan band</label>
+      <select
+        id="admin-plan"
+        [ngModel]="plan()"
+        (ngModelChange)="plan.set($event)"
+        class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink capitalize ring-1 ring-line ring-inset focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none"
+      >
+        @for (option of plans; track option) {
+          <option [value]="option">{{ option }}</option>
+        }
+      </select>
+    </div>
+
+    @if (!isEdit()) {
+      <div>
+        <label for="admin-password" class="block text-sm font-medium text-ink-soft">
+          Placeholder password
+        </label>
+        <input
+          id="admin-password"
+          type="text"
+          [ngModel]="password()"
+          (ngModelChange)="password.set($event)"
+          class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 font-mono text-xs text-ink ring-1 ring-line ring-inset focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none"
+          [class.ring-red-400]="passwordInvalid()"
+        />
+        @if (passwordInvalid()) {
+          <p class="mt-1 text-xs text-danger">
+            At least 12 characters, including a letter and a digit.
+          </p>
+        } @else {
+          <p class="mt-1 text-xs text-ink-muted">
+            Generated for you. The admin sets their own when they accept the invitation.
+          </p>
+        }
+      </div>
+    }
+  </div>
+
+  @if (!isEdit()) {
+    <div class="mt-5 flex items-start gap-2.5 rounded-lg bg-emerald-50 px-3.5 py-3 ring-1 ring-emerald-200">
+      <app-icon name="info" [size]="16" class="mt-px shrink-0 text-info" />
+      <p class="text-xs leading-relaxed text-emerald-900">
+        The account is created <span class="font-medium">pending</span> and the administrator is
+        invited by email. Activate it from the account's menu once they are ready to start.
+      </p>
+    </div>
+  }
+
+  <ng-container modalFooter>
+    <button appButton variant="ghost" size="md" (click)="cancel.emit()">Cancel</button>
+    <button appButton size="md" [disabled]="invalid() || saving()" (click)="submit()">
+      <app-icon name="checkCircle" [size]="16" [class.animate-spin]="saving()" />
+      {{ saving() ? 'Saving…' : isEdit() ? 'Save changes' : 'Create account' }}
+    </button>
+  </ng-container>
+</app-modal>

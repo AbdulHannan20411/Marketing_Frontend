@@ -16,6 +16,17 @@ export interface CreateAdminAccountRequest {
   readonly name: string;
   readonly email: string;
   readonly organisation: string;
+  /**
+   * Placeholder hash only — the invitation email is what actually lets the
+   * admin in, and it overwrites this when they set their own password.
+   */
+  readonly password: string;
+  readonly plan?: TenantPlan;
+}
+
+export interface UpdateAdminAccountRequest {
+  readonly name?: string;
+  readonly organisation?: string;
   readonly plan?: TenantPlan;
 }
 
@@ -38,8 +49,11 @@ export class PlatformService {
     return this.api.post<AdminAccount, CreateAdminAccountRequest>('/superadmin/admins', request);
   }
 
-  updateAdmin(id: string, changes: Partial<CreateAdminAccountRequest>): Observable<AdminAccount> {
-    return this.api.put<AdminAccount>(`/superadmin/admins/${id}`, changes);
+  updateAdmin(id: string, changes: UpdateAdminAccountRequest): Observable<AdminAccount> {
+    return this.api.put<AdminAccount, UpdateAdminAccountRequest>(
+      `/superadmin/admins/${id}`,
+      changes,
+    );
   }
 
   updateAdminStatus(id: string, status: TenantStatus): Observable<AdminAccount> {
