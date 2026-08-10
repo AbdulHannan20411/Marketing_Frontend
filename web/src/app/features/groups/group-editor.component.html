@@ -1,0 +1,53 @@
+<app-modal
+  [title]="title()"
+  subtitle="Groups let you target a slice of your audience instead of everyone."
+  size="md"
+  (closed)="cancel.emit()"
+>
+  <div>
+    <label for="group-name" class="block text-sm font-medium text-ink-soft">Name</label>
+    <input
+      id="group-name"
+      type="text"
+      [ngModel]="name()"
+      (ngModelChange)="name.set($event)"
+      placeholder="e.g. Loyalty members"
+      autocomplete="off"
+      class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink ring-1 ring-line ring-inset transition-all placeholder:text-ink-muted focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none"
+      [class.ring-red-400]="nameInvalid() || nameError() !== null"
+    />
+    @if (nameError(); as message) {
+      <p class="mt-1 text-xs text-danger">{{ message }}</p>
+    } @else if (nameInvalid()) {
+      <p class="mt-1 text-xs text-danger">Enter a name of up to {{ nameMax }} characters.</p>
+    } @else {
+      <p class="mt-1 text-xs text-ink-muted">Must be unique within this workspace.</p>
+    }
+  </div>
+
+  <div class="mt-4">
+    <label for="group-description" class="block text-sm font-medium text-ink-soft">
+      Description <span class="font-normal text-ink-muted">(optional)</span>
+    </label>
+    <textarea
+      id="group-description"
+      rows="3"
+      [ngModel]="description()"
+      (ngModelChange)="description.set($event)"
+      placeholder="What this group is for"
+      class="mt-1.5 w-full rounded-lg border-0 bg-surface-sunken px-3 py-2 text-sm leading-relaxed text-ink ring-1 ring-line ring-inset transition-all placeholder:text-ink-muted focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none"
+      [class.ring-red-400]="descriptionInvalid()"
+    ></textarea>
+    <p class="mt-1 text-xs" [class]="descriptionInvalid() ? 'text-danger' : 'text-ink-muted'">
+      {{ description().length }} / {{ descriptionMax }}
+    </p>
+  </div>
+
+  <ng-container modalFooter>
+    <button appButton variant="ghost" size="md" (click)="cancel.emit()">Cancel</button>
+    <button appButton size="md" [disabled]="invalid() || saving()" (click)="submit()">
+      <app-icon name="checkCircle" [size]="16" [class.animate-spin]="saving()" />
+      {{ saving() ? 'Saving…' : isEdit() ? 'Save changes' : 'Create group' }}
+    </button>
+  </ng-container>
+</app-modal>

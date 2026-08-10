@@ -3,10 +3,12 @@
   description="Lightweight labels for building dynamic audiences without maintaining lists by hand."
   [breadcrumbs]="[{ label: 'Home', route: '/dashboard' }, { label: 'Tags', route: null }]"
 >
-  <button appButton size="md">
-    <app-icon name="plus" [size]="16" />
-    New tag
-  </button>
+  @if (canManage()) {
+    <button appButton size="md" (click)="openCreate()">
+      <app-icon name="plus" [size]="16" />
+      New tag
+    </button>
+  }
 </app-page-header>
 
 @if (state() === 'loading') {
@@ -23,19 +25,27 @@
   <app-card class="mt-6 block" [padded]="false">
     <app-error-state (retry)="load()" />
   </app-card>
+} @else if (state() === 'empty') {
+  <app-card class="mt-6 block" [padded]="false">
+    <app-empty-state
+      icon="tag"
+      title="No tags yet"
+      description="Tags let you build an audience from anyone carrying the same label."
+    >
+      @if (canManage()) {
+        <button appButton size="sm" (click)="openCreate()">
+          <app-icon name="plus" [size]="15" />
+          Create your first tag
+        </button>
+      }
+    </app-empty-state>
+  </app-card>
 } @else {
   <div class="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
     @for (tag of tags(); track tag.id) {
       <app-card [interactive]="true">
         <div class="flex items-start justify-between gap-3">
           <app-badge [tone]="tag.color" [dot]="true">{{ tag.name }}</app-badge>
-          <button
-            type="button"
-            class="rounded-lg p-1 text-ink-muted transition-colors hover:bg-surface-sunken hover:text-ink"
-            [attr.aria-label]="'Actions for ' + tag.name"
-          >
-            <app-icon name="ellipsis" [size]="16" />
-          </button>
         </div>
 
         <p class="mt-4 text-2xl font-semibold text-ink tabular-nums">
@@ -49,7 +59,76 @@
             [style.width]="barWidth(tag)"
           ></div>
         </div>
+
+        @if (canManage()) {
+          <div class="mt-4 flex items-center gap-1.5 border-t border-line pt-3">
+            <button appButton variant="ghost" size="sm" (click)="openEdit(tag)">
+              <app-icon name="pencil" [size]="14" />
+              Edit
+            </button>
+            <button
+              appButton
+              variant="ghost"
+              size="sm"
+              class="ml-auto text-danger"
+              (click)="askDelete(tag)"
+            >
+              <app-icon name="trash" [size]="14" />
+              Delete
+            </button>
+          </div>
+        }
       </app-card>
     }
+  </div>
+}
+
+@if (editing() !== null) {
+  <app-tag-editor
+    [tag]="editorTag()"
+    [saving]="saving()"
+    [nameError]="nameError()"
+    (save)="onSave($event)"
+    (cancel)="closeEditor()"
+  />
+}
+
+@if (confirmingDelete(); as target) {
+  <div class="fixed inset-0 z-100 grid place-items-center p-4">
+    <div
+      class="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px] animate-fade"
+      aria-hidden="true"
+      (click)="cancelDelete()"
+    ></div>
+
+    <div
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="delete-tag-title"
+      class="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl ring-1 ring-line animate-rise"
+    >
+      <div class="flex items-start gap-4">
+        <span class="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-red-50 text-danger">
+          <app-icon name="warning" [size]="22" />
+        </span>
+        <div class="min-w-0">
+          <h2 id="delete-tag-title" class="text-base font-semibold text-ink">
+            Delete "{{ target.name }}"?
+          </h2>
+          <p class="mt-1.5 text-sm leading-relaxed text-ink-muted">
+            This removes the tag from {{ target.contactCount }} contacts. The contacts themselves
+            are kept.
+          </p>
+        </div>
+      </div>
+
+      <div class="mt-6 flex flex-wrap justify-end gap-2">
+        <button appButton variant="ghost" size="md" (click)="cancelDelete()">Cancel</button>
+        <button appButton variant="danger" size="md" (click)="confirmDelete()">
+          <app-icon name="trash" [size]="15" />
+          Delete tag
+        </button>
+      </div>
+    </div>
   </div>
 }

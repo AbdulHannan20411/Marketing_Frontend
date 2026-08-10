@@ -1,0 +1,66 @@
+<app-modal
+  [title]="title()"
+  subtitle="Tags are lightweight labels for building audiences without maintaining lists."
+  size="md"
+  (closed)="cancel.emit()"
+>
+  <div>
+    <label for="tag-name" class="block text-sm font-medium text-ink-soft">Name</label>
+    <input
+      id="tag-name"
+      type="text"
+      [ngModel]="name()"
+      (ngModelChange)="name.set($event)"
+      placeholder="e.g. VIP"
+      autocomplete="off"
+      class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink ring-1 ring-line ring-inset transition-all placeholder:text-ink-muted focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none"
+      [class.ring-red-400]="nameInvalid() || nameError() !== null"
+    />
+    @if (nameError(); as message) {
+      <p class="mt-1 text-xs text-danger">{{ message }}</p>
+    } @else if (nameInvalid()) {
+      <p class="mt-1 text-xs text-danger">Enter a name of up to {{ nameMax }} characters.</p>
+    } @else {
+      <p class="mt-1 text-xs text-ink-muted">Must be unique within this workspace.</p>
+    }
+  </div>
+
+  <div class="mt-5">
+    <span class="block text-sm font-medium text-ink-soft">Colour</span>
+    <div class="mt-2 flex flex-wrap gap-2" role="radiogroup" aria-label="Tag colour">
+      @for (option of colours; track option.value) {
+        <button
+          type="button"
+          role="radio"
+          [attr.aria-checked]="color() === option.value"
+          [attr.aria-label]="option.label"
+          class="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all duration-150"
+          [class]="
+            color() === option.value
+              ? 'bg-white text-ink ring-2 ring-brand-500'
+              : 'bg-surface-sunken text-ink-soft ring-1 ring-line hover:ring-brand-300'
+          "
+          (click)="color.set(option.value)"
+        >
+          <span class="h-3 w-3 rounded-full" [class]="option.swatch"></span>
+          {{ option.label }}
+        </button>
+      }
+    </div>
+  </div>
+
+  <div class="mt-5 rounded-xl bg-surface-muted p-4 ring-1 ring-line">
+    <p class="text-[11px] font-semibold tracking-wide text-ink-muted uppercase">Preview</p>
+    <div class="mt-2">
+      <app-badge [tone]="color()" [dot]="true">{{ previewName() }}</app-badge>
+    </div>
+  </div>
+
+  <ng-container modalFooter>
+    <button appButton variant="ghost" size="md" (click)="cancel.emit()">Cancel</button>
+    <button appButton size="md" [disabled]="nameInvalid() || saving()" (click)="submit()">
+      <app-icon name="checkCircle" [size]="16" [class.animate-spin]="saving()" />
+      {{ saving() ? 'Saving…' : isEdit() ? 'Save changes' : 'Create tag' }}
+    </button>
+  </ng-container>
+</app-modal>
