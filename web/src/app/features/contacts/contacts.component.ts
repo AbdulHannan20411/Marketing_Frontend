@@ -6,6 +6,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import type { ApiError, BulkOperationResult, LoadState } from '@core/models/api.model';
 import { AuthService } from '@core/auth/auth.service';
 import type {
+  BulkMode,
   Contact,
   ContactGroup,
   ContactStatus,
@@ -68,8 +69,26 @@ export class ContactsComponent {
   protected readonly status = signal<ContactStatus | 'all'>('all');
   protected readonly groupId = signal<string | 'all'>('all');
   protected readonly tagId = signal<string | 'all'>('all');
-  protected readonly selectedIds = signal<ReadonlySet<string>>(new Set());
+  /**
+   * Selected rows, keyed by id and holding the whole contact.
+   *
+   * The contact is kept — not just the id — because selection survives paging,
+   * and the tag and group pickers need to know what each selected contact
+   * already carries even after the user has moved to another page.
+   */
+  protected readonly selected = signal<ReadonlyMap<string, Contact>>(new Map());
   protected readonly busy = signal(false);
+
+  /** Whether the tag and group pickers apply or strip the chosen value. */
+  protected readonly bulkMode = signal<BulkMode>('add');
+
+  protected readonly tagPickerLabel = computed(() =>
+    this.bulkMode() === 'add' ? 'Add tag…' : 'Remove tag…',
+  );
+
+  protected readonly groupPickerLabel = computed(() =>
+    this.bulkMode() === 'add' ? 'Add to group…' : 'Remove from group…',
+  );
 
   protected readonly creating = signal(false);
   protected readonly saving = signal(false);
@@ -91,13 +110,44 @@ export class ContactsComponent {
     { key: 'lastMessaged', header: 'Last messaged', align: 'right', hideOnMobile: true },
   ];
 
-  protected readonly selectedCount = computed(() => this.selectedIds().size);
+  protected readonly selectedCount = computed(() => this.selected().size);
+  private readonly selectedList = computed(() => [...this.selected().values()]);
 
   protected readonly allOnPageSelected = computed(() => {
     const rows = this.contacts();
-    const selected = this.selectedIds();
+    const selected = this.selected();
     return rows.length > 0 && rows.every((contact) => selected.has(contact.id));
   });
+
+  /**
+   * Only offer what the action can actually change: tags at least one selected
+   * contact already has when removing, and tags at least one still lacks when
+   * adding. Offering the rest invites clicks that quietly do nothing.
+   */
+  protected readonly tagOptions = computed(() => {
+    const rows = this.selectedList();
+    const all = this.tags();
+    if (rows.length === 0) {
+      return all;
+    }
+    return this.bulkMode() === 'remove'
+      ? all.filter((tag) => rows.some((contact) => contact.tagIds.includes(tag.id)))
+      : all.filter((tag) => rows.some((contact) => !contact.tagIds.includes(tag.id)));
+  });
+
+  protected readonly groupOptions = computed(() => {
+    const rows = this.selectedList();
+    const all = this.groups();
+    if (rows.length === 0) {
+      return all;
+    }
+    return this.bulkMode() === 'remove'
+      ? all.filter((group) => rows.some((contact) => contact.groupIds.includes(group.id)))
+      : all.filter((group) => rows.some((contact) => !contact.groupIds.includes(group.id)));
+  });
+
+  protected readonly tagPickerEmpty = computed(() => this.tagOptions().length === 0);
+  protected readonly groupPickerEmpty = computed(() => this.groupOptions().length === 0);
 
   protected readonly hasFilters = computed(
     () =>
@@ -187,13 +237,13 @@ export class ContactsComponent {
     this.load();
   }
 
-  protected toggleRow(id: string): void {
-    this.selectedIds.update((current) => {
-      const next = new Set(current);
-      if (next.has(id)) {
-        next.delete(id);
+  protected toggleRow(contact: Contact): void {
+    this.selected.update((current) => {
+      const next = new Map(current);
+      if (next.has(contact.id)) {
+        next.delete(contact.id);
       } else {
-        next.add(id);
+        next.set(contact.id, contact);
       }
       return next;
     });
@@ -201,13 +251,13 @@ export class ContactsComponent {
 
   protected toggleAllOnPage(): void {
     const shouldClear = this.allOnPageSelected();
-    this.selectedIds.update((current) => {
-      const next = new Set(current);
+    this.selected.update((current) => {
+      const next = new Map(current);
       for (const contact of this.contacts()) {
         if (shouldClear) {
           next.delete(contact.id);
         } else {
-          next.add(contact.id);
+          next.set(contact.id, contact);
         }
       }
       return next;
@@ -215,11 +265,11 @@ export class ContactsComponent {
   }
 
   protected clearSelection(): void {
-    this.selectedIds.set(new Set());
+    this.selected.set(new Map());
   }
 
   protected isSelected(id: string): boolean {
-    return this.selectedIds().has(id);
+    return this.selected().has(id);
   }
 
   protected tagFor(tagId: string): ContactTag | undefined {
@@ -227,63 +277,74 @@ export class ContactsComponent {
   }
 
   /** Applies a bulk result: report it, drop the selection, refresh the page. */
-  private applyBulkResult(result: BulkOperationResult, verb: string): void {
+  private applyBulkResult(result: BulkOperationResult, outcome: string): void {
     this.busy.set(false);
     this.clearSelection();
 
     if (result.failed.length > 0) {
       this.toast.warning(
-        `${verb} partially applied`,
+        `${outcome} for some contacts`,
         `${result.succeeded} of ${result.requested} succeeded. ${result.failed[0]?.reason ?? ''}`,
       );
     } else {
-      this.toast.success(`${verb} applied`, `${result.succeeded} contacts updated.`);
+      this.toast.success(outcome, `${result.succeeded} contacts updated.`);
     }
 
     this.load();
   }
 
-  private failBulk(verb: string): void {
+  private failBulk(action: string): void {
     this.busy.set(false);
-    this.toast.error(`Could not ${verb.toLowerCase()}`, 'The request failed. Please try again.');
+    this.toast.error(`Could not ${action}`, 'The request failed. Please try again.');
   }
 
   protected bulkDelete(): void {
-    const ids = [...this.selectedIds()];
+    const ids = [...this.selected().keys()];
     if (ids.length === 0 || this.busy()) {
       return;
     }
     this.busy.set(true);
 
     this.contactsService.bulkDelete(ids).subscribe({
-      next: (result) => this.applyBulkResult(result, 'Delete'),
-      error: () => this.failBulk('Delete'),
+      next: (result) => this.applyBulkResult(result, 'Contacts deleted'),
+      error: () => this.failBulk('delete those contacts'),
     });
   }
 
-  protected bulkAddTag(tagId: string): void {
-    const ids = [...this.selectedIds()];
-    if (ids.length === 0 || this.busy()) {
+  /**
+   * Applies or strips a tag across the selection. Removing a tag a contact does
+   * not carry is a no-op server-side, so the whole selection can be sent.
+   */
+  protected bulkApplyTag(tagId: string): void {
+    const ids = [...this.selected().keys()];
+    if (tagId === '' || ids.length === 0 || this.busy()) {
       return;
     }
     this.busy.set(true);
+    const mode = this.bulkMode();
 
-    this.contactsService.bulkTag({ ids, tagIds: [tagId], mode: 'add' }).subscribe({
-      next: (result) => this.applyBulkResult(result, 'Tag'),
-      error: () => this.failBulk('Tag'),
+    this.contactsService.bulkTag({ ids, tagIds: [tagId], mode }).subscribe({
+      next: (result) =>
+        this.applyBulkResult(result, mode === 'add' ? 'Tag added' : 'Tag removed'),
+      error: () => this.failBulk(mode === 'add' ? 'add the tag' : 'remove the tag'),
     });
   }
 
-  protected bulkAssignGroup(groupId: string): void {
-    const ids = [...this.selectedIds()];
-    if (ids.length === 0 || this.busy()) {
+  protected bulkApplyGroup(groupId: string): void {
+    const ids = [...this.selected().keys()];
+    if (groupId === '' || ids.length === 0 || this.busy()) {
       return;
     }
     this.busy.set(true);
+    const mode = this.bulkMode();
 
-    this.contactsService.bulkGroup({ ids, groupIds: [groupId], mode: 'add' }).subscribe({
-      next: (result) => this.applyBulkResult(result, 'Group'),
-      error: () => this.failBulk('Group'),
+    this.contactsService.bulkGroup({ ids, groupIds: [groupId], mode }).subscribe({
+      next: (result) =>
+        this.applyBulkResult(
+          result,
+          mode === 'add' ? 'Added to group' : 'Removed from group',
+        ),
+      error: () => this.failBulk(mode === 'add' ? 'assign the group' : 'remove from the group'),
     });
   }
 
@@ -293,7 +354,7 @@ export class ContactsComponent {
       return;
     }
     this.busy.set(true);
-    const selected = [...this.selectedIds()];
+    const selected = [...this.selected().keys()];
 
     this.contactsService
       .exportCsv({

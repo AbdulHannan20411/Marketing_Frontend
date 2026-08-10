@@ -30,28 +30,73 @@
       {{ selectedCount() }} selected
     </p>
     <div class="ml-auto flex flex-wrap items-center gap-2">
-      <label for="bulk-tag" class="sr-only">Add a tag to the selection</label>
+      <!-- Governs both pickers below, so one control covers apply and strip -->
+      <div
+        class="inline-flex rounded-lg bg-white p-0.5 ring-1 ring-brand-200"
+        role="radiogroup"
+        aria-label="Whether the pickers add or remove"
+      >
+        <button
+          type="button"
+          role="radio"
+          [attr.aria-checked]="bulkMode() === 'add'"
+          class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors duration-150"
+          [class]="bulkMode() === 'add' ? 'bg-brand-600 text-white' : 'text-ink-soft hover:bg-surface-muted'"
+          (click)="bulkMode.set('add')"
+        >
+          Add
+        </button>
+        <button
+          type="button"
+          role="radio"
+          [attr.aria-checked]="bulkMode() === 'remove'"
+          class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors duration-150"
+          [class]="bulkMode() === 'remove' ? 'bg-brand-600 text-white' : 'text-ink-soft hover:bg-surface-muted'"
+          (click)="bulkMode.set('remove')"
+        >
+          Remove
+        </button>
+      </div>
+
+      <!-- Options are limited to what the chosen mode can actually change -->
+      <label for="bulk-tag" class="sr-only">{{ tagPickerLabel() }}</label>
       <select
         id="bulk-tag"
-        [disabled]="busy()"
-        (change)="bulkAddTag($any($event.target).value); $any($event.target).value = ''"
+        [disabled]="busy() || tagPickerEmpty()"
+        (change)="bulkApplyTag($any($event.target).value); $any($event.target).value = ''"
         class="h-8 rounded-lg border-0 bg-white px-2.5 text-xs text-ink-soft ring-1 ring-brand-200 ring-inset focus:ring-2 focus:ring-brand-500 focus:outline-none disabled:opacity-50"
       >
-        <option value="" disabled selected>Add tag…</option>
-        @for (tag of tags(); track tag.id) {
+        <option value="" selected>
+          {{
+            tagPickerEmpty()
+              ? bulkMode() === 'remove'
+                ? 'No tags to remove'
+                : 'All tags applied'
+              : tagPickerLabel()
+          }}
+        </option>
+        @for (tag of tagOptions(); track tag.id) {
           <option [value]="tag.id">{{ tag.name }}</option>
         }
       </select>
 
-      <label for="bulk-group" class="sr-only">Assign the selection to a group</label>
+      <label for="bulk-group" class="sr-only">{{ groupPickerLabel() }}</label>
       <select
         id="bulk-group"
-        [disabled]="busy()"
-        (change)="bulkAssignGroup($any($event.target).value); $any($event.target).value = ''"
+        [disabled]="busy() || groupPickerEmpty()"
+        (change)="bulkApplyGroup($any($event.target).value); $any($event.target).value = ''"
         class="h-8 rounded-lg border-0 bg-white px-2.5 text-xs text-ink-soft ring-1 ring-brand-200 ring-inset focus:ring-2 focus:ring-brand-500 focus:outline-none disabled:opacity-50"
       >
-        <option value="" disabled selected>Assign group…</option>
-        @for (group of groups(); track group.id) {
+        <option value="" selected>
+          {{
+            groupPickerEmpty()
+              ? bulkMode() === 'remove'
+                ? 'Not in any group'
+                : 'In every group'
+              : groupPickerLabel()
+          }}
+        </option>
+        @for (group of groupOptions(); track group.id) {
           <option [value]="group.id">{{ group.name }}</option>
         }
       </select>
@@ -166,7 +211,7 @@
       <input
         type="checkbox"
         [checked]="isSelected(contact.id)"
-        (change)="toggleRow(contact.id)"
+        (change)="toggleRow(contact)"
         [attr.aria-label]="'Select ' + contact.fullName"
         class="h-4 w-4 rounded border-line-strong text-brand-600 focus:ring-2 focus:ring-brand-500"
       />
