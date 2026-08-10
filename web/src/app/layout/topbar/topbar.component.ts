@@ -14,6 +14,7 @@ import type { AppNotification } from '@core/models/notification.model';
 import { EntitlementService } from '@core/services/entitlement.service';
 import { LayoutService } from '@core/services/layout.service';
 import { NotificationsService } from '@core/services/notifications.service';
+import { ThemeService } from '@core/services/theme.service';
 import { TimeAgoPipe } from '@shared/pipes/time-ago.pipe';
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
 import { BadgeComponent, type BadgeTone } from '@shared/ui/badge/badge.component';
@@ -33,7 +34,7 @@ export const NOTIFICATION_TONE: Readonly<Record<AppNotification['priority'], Bad
   templateUrl: './topbar.component.html',
   host: {
     class:
-      'sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-line bg-white/85 px-4 backdrop-blur-md sm:px-6',
+      'sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-line bg-surface/85 px-4 backdrop-blur-md sm:px-6',
     '(document:keydown.escape)': 'closeMenus()',
     '(document:click)': 'onDocumentClick($event)',
   },
@@ -43,7 +44,10 @@ export class TopbarComponent {
   private readonly layout = inject(LayoutService);
   private readonly notificationsService = inject(NotificationsService);
   private readonly entitlements = inject(EntitlementService);
+  private readonly theme = inject(ThemeService);
   private readonly router = inject(Router);
+
+  protected readonly isDark = this.theme.isDark;
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
   protected readonly user = this.auth.user;
@@ -79,6 +83,11 @@ export class TopbarComponent {
   protected openSearch(): void {
     this.closeMenus();
     this.layout.openCommandPalette();
+  }
+
+  /** Quick flip; the three-way preference lives in Settings. */
+  protected toggleTheme(): void {
+    this.theme.toggle();
   }
 
   protected toggleMobileNav(): void {

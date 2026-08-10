@@ -13,17 +13,17 @@
 
 <!-- Summary strip -->
 <div class="mt-6 grid gap-4 sm:grid-cols-3">
-  <div class="rounded-xl bg-white p-4 ring-1 ring-line shadow-card">
+  <div class="rounded-xl bg-surface p-4 ring-1 ring-line shadow-card">
     <p class="text-xs font-medium tracking-wide text-ink-muted uppercase">Unread</p>
     <p class="mt-1.5 text-2xl font-semibold text-ink tabular-nums">{{ unreadCount() }}</p>
   </div>
-  <div class="rounded-xl bg-white p-4 ring-1 ring-line shadow-card">
+  <div class="rounded-xl bg-surface p-4 ring-1 ring-line shadow-card">
     <p class="text-xs font-medium tracking-wide text-ink-muted uppercase">Needs action</p>
     <p class="mt-1.5 text-2xl font-semibold tabular-nums" [class]="criticalCount() > 0 ? 'text-danger' : 'text-ink'">
       {{ criticalCount() }}
     </p>
   </div>
-  <div class="rounded-xl bg-white p-4 ring-1 ring-line shadow-card">
+  <div class="rounded-xl bg-surface p-4 ring-1 ring-line shadow-card">
     <p class="text-xs font-medium tracking-wide text-ink-muted uppercase">Total</p>
     <p class="mt-1.5 text-2xl font-semibold text-ink tabular-nums">{{ visible().length }}</p>
   </div>
@@ -39,7 +39,7 @@
       [class]="
         readFilter() === option.value
           ? 'bg-brand-600 text-white shadow-xs'
-          : 'bg-white text-ink-soft ring-1 ring-line hover:bg-surface-muted hover:ring-brand-300'
+          : 'bg-surface text-ink-soft ring-1 ring-line hover:bg-surface-muted hover:ring-brand-300'
       "
       (click)="readFilter.set(option.value)"
     >
@@ -54,7 +54,7 @@
     id="priority-filter"
     [value]="priorityFilter()"
     (change)="priorityFilter.set($any($event.target).value)"
-    class="h-9 rounded-lg border-0 bg-white px-3 text-sm text-ink-soft ring-1 ring-line ring-inset transition-all focus:ring-2 focus:ring-brand-500 focus:outline-none"
+    class="h-9 rounded-lg border-0 bg-surface px-3 text-sm text-ink-soft ring-1 ring-line ring-inset transition-all focus:ring-2 focus:ring-brand-500 focus:outline-none"
   >
     @for (option of priorityFilters; track option.value) {
       <option [value]="option.value">{{ option.label }}</option>
@@ -141,7 +141,7 @@
             @if (!notification.read) {
               <button
                 type="button"
-                class="shrink-0 rounded-lg p-1.5 text-ink-muted transition-colors hover:bg-white hover:text-ink"
+                class="shrink-0 rounded-lg p-1.5 text-ink-muted transition-colors hover:bg-surface hover:text-ink"
                 aria-label="Mark as read"
                 (click)="markRead($event, notification)"
               >

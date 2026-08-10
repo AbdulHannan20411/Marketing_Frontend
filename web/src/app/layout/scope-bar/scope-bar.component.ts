@@ -49,7 +49,7 @@ import { IconComponent } from '@shared/ui/icon/icon.component';
           </a>
           <button
             type="button"
-            class="inline-flex items-center gap-1.5 rounded-lg bg-white px-2.5 py-1.5 text-xs font-medium text-amber-900 ring-1 ring-amber-300 transition-colors hover:bg-amber-100"
+            class="inline-flex items-center gap-1.5 rounded-lg bg-surface px-2.5 py-1.5 text-xs font-medium text-amber-900 ring-1 ring-amber-300 transition-colors hover:bg-amber-100"
             (click)="exitScope()"
           >
             <app-icon name="close" [size]="13" />

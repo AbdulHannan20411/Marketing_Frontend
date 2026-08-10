@@ -34,7 +34,7 @@ const SIZE_CLASS: Readonly<Record<ModalSize, string>> = {
       role="dialog"
       aria-modal="true"
       [attr.aria-label]="title()"
-      class="relative flex max-h-[calc(100dvh-3rem)] w-full flex-col overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-line animate-rise"
+      class="relative flex max-h-[calc(100dvh-3rem)] w-full flex-col overflow-hidden rounded-2xl bg-surface shadow-2xl ring-1 ring-line animate-rise"
       [class]="sizeClass()"
     >
       <header class="flex items-start justify-between gap-4 border-b border-line px-6 py-4">

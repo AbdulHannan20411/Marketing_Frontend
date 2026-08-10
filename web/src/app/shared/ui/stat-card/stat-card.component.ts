@@ -11,7 +11,7 @@ import { SkeletonComponent } from '@shared/ui/skeleton/skeleton.component';
   imports: [DecimalPipe, IconComponent, SkeletonComponent],
   host: {
     class:
-      'block rounded-xl bg-white p-5 ring-1 ring-line shadow-card transition-all duration-200 hover:shadow-card-hover hover:-translate-y-0.5',
+      'block rounded-xl bg-surface p-5 ring-1 ring-line shadow-card transition-all duration-200 hover:shadow-card-hover hover:-translate-y-0.5',
   },
   template: `
     <div class="flex items-start justify-between gap-3">

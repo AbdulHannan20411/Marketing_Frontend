@@ -11,14 +11,14 @@
 <!-- Global search: opens the command palette rather than filtering in place -->
 <button
   type="button"
-  class="group flex h-9.5 min-w-0 flex-1 items-center gap-2.5 rounded-lg bg-surface-sunken px-3 text-left ring-1 ring-line ring-inset transition-all hover:bg-white hover:ring-brand-300 sm:max-w-md"
+  class="group flex h-9.5 min-w-0 flex-1 items-center gap-2.5 rounded-lg bg-surface-sunken px-3 text-left ring-1 ring-line ring-inset transition-all hover:bg-surface hover:ring-brand-300 sm:max-w-md"
   aria-label="Search everything"
   (click)="openSearch()"
 >
   <app-icon name="search" [size]="17" class="shrink-0 text-ink-muted" />
   <span class="min-w-0 flex-1 truncate text-sm text-ink-muted">Search everything…</span>
   <kbd
-    class="hidden shrink-0 items-center gap-0.5 rounded border border-line bg-white px-1.5 py-0.5 font-sans text-[11px] font-medium text-ink-muted sm:flex"
+    class="hidden shrink-0 items-center gap-0.5 rounded border border-line bg-surface px-1.5 py-0.5 font-sans text-[11px] font-medium text-ink-muted sm:flex"
   >
     Ctrl K
   </kbd>
@@ -35,6 +35,17 @@
       Renews in {{ daysRemaining() }} days
     </a>
   }
+
+  <!-- Theme -->
+  <button
+    type="button"
+    class="rounded-lg p-2 text-ink-soft transition-colors hover:bg-surface-muted hover:text-ink"
+    [attr.aria-label]="isDark() ? 'Switch to light theme' : 'Switch to dark theme'"
+    [attr.aria-pressed]="isDark()"
+    (click)="toggleTheme()"
+  >
+    <app-icon [name]="isDark() ? 'sparkles' : 'eye'" [size]="19" />
+  </button>
 
   <!-- Notifications -->
   <div class="relative">
@@ -62,7 +73,7 @@
     @if (notificationsOpen()) {
       <div
         role="menu"
-        class="absolute right-0 mt-2 w-[22rem] origin-top-right overflow-hidden rounded-xl bg-white ring-1 ring-line shadow-pop animate-rise"
+        class="absolute right-0 mt-2 w-[22rem] origin-top-right overflow-hidden rounded-xl bg-surface ring-1 ring-line shadow-pop animate-rise"
       >
         <div class="flex items-center justify-between gap-2 border-b border-line px-4 py-3">
           <p class="text-sm font-semibold text-ink">Notifications</p>
@@ -164,7 +175,7 @@
     @if (profileOpen() && user(); as currentUser) {
       <div
         role="menu"
-        class="absolute right-0 mt-2 w-64 origin-top-right overflow-hidden rounded-xl bg-white ring-1 ring-line shadow-pop animate-rise"
+        class="absolute right-0 mt-2 w-64 origin-top-right overflow-hidden rounded-xl bg-surface ring-1 ring-line shadow-pop animate-rise"
       >
         <div class="border-b border-line bg-surface-muted px-4 py-3">
           <p class="truncate text-sm font-semibold text-ink">{{ currentUser.name }}</p>

@@ -15,7 +15,7 @@
         (ngModelChange)="fullName.set($event)"
         placeholder="e.g. Camila Weber"
         autocomplete="off"
-        class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink ring-1 ring-line ring-inset transition-all placeholder:text-ink-muted focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none"
+        class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink ring-1 ring-line ring-inset transition-all placeholder:text-ink-muted focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
         [class.ring-red-400]="nameInvalid() || errorFor('fullName')"
       />
       @if (errorFor('fullName'); as message) {
@@ -37,7 +37,7 @@
         (ngModelChange)="phoneNumber.set($event)"
         placeholder="+44 7700 900123"
         autocomplete="off"
-        class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink tabular-nums ring-1 ring-line ring-inset transition-all placeholder:text-ink-muted focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none"
+        class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink tabular-nums ring-1 ring-line ring-inset transition-all placeholder:text-ink-muted focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
         [class.ring-red-400]="phoneInvalid() || errorFor('phoneNumber')"
       />
       @if (errorFor('phoneNumber'); as message) {
@@ -61,7 +61,7 @@
         (ngModelChange)="email.set($event)"
         placeholder="name@example.com"
         autocomplete="off"
-        class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink ring-1 ring-line ring-inset transition-all placeholder:text-ink-muted focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none"
+        class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink ring-1 ring-line ring-inset transition-all placeholder:text-ink-muted focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
         [class.ring-red-400]="emailInvalid() || errorFor('email')"
       />
       @if (errorFor('email'); as message) {
@@ -78,7 +78,7 @@
         id="contact-country"
         [ngModel]="country()"
         (ngModelChange)="country.set($event)"
-        class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink ring-1 ring-line ring-inset focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none"
+        class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink ring-1 ring-line ring-inset focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
         [class.ring-red-400]="errorFor('country')"
       >
         <option value="">Detect from the number</option>
@@ -98,7 +98,7 @@
         id="contact-status"
         [ngModel]="status()"
         (ngModelChange)="status.set($event)"
-        class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink ring-1 ring-line ring-inset focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none"
+        class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink ring-1 ring-line ring-inset focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
       >
         @for (option of statuses; track option.value) {
           <option [value]="option.value">{{ option.label }}</option>

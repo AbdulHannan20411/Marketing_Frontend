@@ -2,7 +2,7 @@
   <div class="grid gap-4 lg:grid-cols-3">
     <!-- Subscription -->
     <div
-      class="rounded-xl bg-white p-5 ring-1 ring-line shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:shadow-card-hover"
+      class="rounded-xl bg-surface p-5 ring-1 ring-line shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:shadow-card-hover"
     >
       <div class="flex items-start gap-4">
         <app-progress-ring
@@ -43,7 +43,7 @@
 
     <!-- WhatsApp connection -->
     <div
-      class="rounded-xl bg-white p-5 ring-1 ring-line shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:shadow-card-hover"
+      class="rounded-xl bg-surface p-5 ring-1 ring-line shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:shadow-card-hover"
     >
       <div class="flex items-start gap-4">
         <span
@@ -82,7 +82,7 @@
 
     <!-- Meta business status -->
     <div
-      class="rounded-xl bg-white p-5 ring-1 ring-line shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:shadow-card-hover"
+      class="rounded-xl bg-surface p-5 ring-1 ring-line shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:shadow-card-hover"
     >
       <div class="flex items-start gap-4">
         <span
@@ -126,7 +126,7 @@
     <div class="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
       @for (widget of allowances(); track widget.key) {
         <div
-          class="flex flex-col items-center rounded-xl bg-white p-5 text-center ring-1 ring-line shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:shadow-card-hover"
+          class="flex flex-col items-center rounded-xl bg-surface p-5 text-center ring-1 ring-line shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:shadow-card-hover"
         >
           <app-progress-ring
             [value]="widget.remainingPercent"

@@ -158,12 +158,8 @@ export const routes: Routes = [
       {
         path: 'settings',
         title: 'Settings · Verdant',
-        data: {
-          title: 'Platform settings',
-          description: 'System-wide configuration for the Super Admin console.',
-        },
         loadComponent: () =>
-          import('@features/placeholder/placeholder.component').then((m) => m.PlaceholderComponent),
+          import('@features/settings/settings.component').then((m) => m.SettingsComponent),
       },
       {
         path: 'notifications',
@@ -306,14 +302,8 @@ export const routes: Routes = [
       {
         path: 'settings',
         title: 'Settings · Verdant',
-        canActivate: [permissionGuard],
-        data: {
-          title: 'Settings',
-          description: 'Workspace, team and billing configuration.',
-          permissions: ['settings.company'],
-        },
         loadComponent: () =>
-          import('@features/placeholder/placeholder.component').then((m) => m.PlaceholderComponent),
+          import('@features/settings/settings.component').then((m) => m.SettingsComponent),
       },
 
       // Platform administration lives exclusively under /superadmin.

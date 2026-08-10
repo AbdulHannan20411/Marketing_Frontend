@@ -17,15 +17,15 @@
     </app-card>
 
     <div class="grid grid-cols-3 gap-4 lg:grid-cols-1 lg:gap-3">
-      <div class="rounded-xl bg-white p-4 ring-1 ring-line shadow-card">
+      <div class="rounded-xl bg-surface p-4 ring-1 ring-line shadow-card">
         <p class="text-xs font-medium tracking-wide text-ink-muted uppercase">Active</p>
         <p class="mt-1 text-xl font-semibold text-ink tabular-nums">{{ counts().active }}</p>
       </div>
-      <div class="rounded-xl bg-white p-4 ring-1 ring-line shadow-card">
+      <div class="rounded-xl bg-surface p-4 ring-1 ring-line shadow-card">
         <p class="text-xs font-medium tracking-wide text-ink-muted uppercase">Invited</p>
         <p class="mt-1 text-xl font-semibold text-ink tabular-nums">{{ counts().invited }}</p>
       </div>
-      <div class="rounded-xl bg-white p-4 ring-1 ring-line shadow-card">
+      <div class="rounded-xl bg-surface p-4 ring-1 ring-line shadow-card">
         <p class="text-xs font-medium tracking-wide text-ink-muted uppercase">Total</p>
         <p class="mt-1 text-xl font-semibold text-ink tabular-nums">{{ counts().total }}</p>
       </div>
@@ -58,7 +58,7 @@
       [class]="
         tab() === option.value
           ? 'bg-brand-600 text-white shadow-xs'
-          : 'bg-white text-ink-soft ring-1 ring-line hover:bg-surface-muted hover:ring-brand-300'
+          : 'bg-surface text-ink-soft ring-1 ring-line hover:bg-surface-muted hover:ring-brand-300'
       "
       (click)="tab.set(option.value)"
     >
@@ -135,7 +135,7 @@
     @if (selected(); as employee) {
       <!-- Sticky action bar -->
       <div
-        class="mt-5 flex flex-wrap items-center gap-3 rounded-xl bg-white px-5 py-4 ring-1 ring-line shadow-card"
+        class="mt-5 flex flex-wrap items-center gap-3 rounded-xl bg-surface px-5 py-4 ring-1 ring-line shadow-card"
       >
         <app-avatar [name]="employee.name" [initials]="employee.initials" size="md" />
         <div class="min-w-0 flex-1">
@@ -156,7 +156,7 @@
           id="employee-picker"
           [value]="employee.id"
           (change)="selectedId.set($any($event.target).value)"
-          class="h-9 rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink-soft ring-1 ring-line ring-inset focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none"
+          class="h-9 rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink-soft ring-1 ring-line ring-inset focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
         >
           @for (candidate of employees(); track candidate.id) {
             <option [value]="candidate.id">{{ candidate.name }}</option>

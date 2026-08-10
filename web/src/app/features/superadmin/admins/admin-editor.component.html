@@ -8,7 +8,7 @@
         [ngModel]="organisation()"
         (ngModelChange)="organisation.set($event)"
         placeholder="e.g. Northwind Retail"
-        class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink ring-1 ring-line ring-inset transition-all placeholder:text-ink-muted focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none"
+        class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink ring-1 ring-line ring-inset transition-all placeholder:text-ink-muted focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
         [class.ring-red-400]="orgInvalid()"
       />
       @if (orgInvalid()) {
@@ -29,7 +29,7 @@
         type="text"
         [ngModel]="name()"
         (ngModelChange)="name.set($event)"
-        class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink ring-1 ring-line ring-inset transition-all focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none"
+        class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink ring-1 ring-line ring-inset transition-all focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
         [class.ring-red-400]="nameInvalid()"
       />
       @if (nameInvalid()) {
@@ -45,7 +45,7 @@
         [ngModel]="email()"
         (ngModelChange)="email.set($event)"
         [disabled]="isEdit()"
-        class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink ring-1 ring-line ring-inset transition-all focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none disabled:cursor-not-allowed disabled:text-ink-muted"
+        class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink ring-1 ring-line ring-inset transition-all focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none disabled:cursor-not-allowed disabled:text-ink-muted"
         [class.ring-red-400]="emailInvalid()"
       />
       @if (emailInvalid()) {
@@ -61,7 +61,7 @@
         id="admin-plan"
         [ngModel]="plan()"
         (ngModelChange)="plan.set($event)"
-        class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink capitalize ring-1 ring-line ring-inset focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none"
+        class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink capitalize ring-1 ring-line ring-inset focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
       >
         @for (option of plans; track option) {
           <option [value]="option">{{ option }}</option>
@@ -79,7 +79,7 @@
           type="text"
           [ngModel]="password()"
           (ngModelChange)="password.set($event)"
-          class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 font-mono text-xs text-ink ring-1 ring-line ring-inset focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none"
+          class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 font-mono text-xs text-ink ring-1 ring-line ring-inset focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
           [class.ring-red-400]="passwordInvalid()"
         />
         @if (passwordInvalid()) {

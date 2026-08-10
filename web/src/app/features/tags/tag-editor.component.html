@@ -13,7 +13,7 @@
       (ngModelChange)="name.set($event)"
       placeholder="e.g. VIP"
       autocomplete="off"
-      class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink ring-1 ring-line ring-inset transition-all placeholder:text-ink-muted focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none"
+      class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink ring-1 ring-line ring-inset transition-all placeholder:text-ink-muted focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
       [class.ring-red-400]="nameInvalid() || nameError() !== null"
     />
     @if (nameError(); as message) {
@@ -37,7 +37,7 @@
           class="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all duration-150"
           [class]="
             color() === option.value
-              ? 'bg-white text-ink ring-2 ring-brand-500'
+              ? 'bg-surface text-ink ring-2 ring-brand-500'
               : 'bg-surface-sunken text-ink-soft ring-1 ring-line hover:ring-brand-300'
           "
           (click)="color.set(option.value)"

@@ -1,5 +1,7 @@
 import type { ApexOptions } from 'apexcharts';
 
+import { chartTheme } from './chart-theme';
+
 /** Palette and typography shared by every chart so they read as one system. */
 export const CHART_COLORS = {
   primary: '#16a34a',
@@ -12,19 +14,19 @@ export const CHART_COLORS = {
 
 const FONT_FAMILY = "'Inter', ui-sans-serif, system-ui, sans-serif";
 
-const BASE_GRID: ApexOptions['grid'] = {
-  borderColor: '#e5e7eb',
+function baseGrid(): ApexOptions['grid'] {
+  return {
+  borderColor: chartTheme().grid,
   strokeDashArray: 4,
   padding: { left: 4, right: 8, top: 0 },
   xaxis: { lines: { show: false } },
   yaxis: { lines: { show: true } },
-};
+  };
+}
 
-const AXIS_LABEL_STYLE = {
-  colors: '#6b7280',
-  fontSize: '11px',
-  fontFamily: FONT_FAMILY,
-};
+function axisLabelStyle(): { colors: string; fontSize: string; fontFamily: string } {
+  return { colors: chartTheme().label, fontSize: '11px', fontFamily: FONT_FAMILY };
+}
 
 function compact(value: number): string {
   if (value >= 1_000_000) {
@@ -65,11 +67,12 @@ export function areaTrendChart(input: TrendSeriesInput): ApexOptions {
       type: 'gradient',
       gradient: { shadeIntensity: 1, opacityFrom: 0.28, opacityTo: 0.02, stops: [0, 90, 100] },
     },
-    grid: BASE_GRID,
+    grid: baseGrid(),
     legend: {
       position: 'top',
       horizontalAlign: 'right',
       fontSize: '12px',
+      labels: { colors: chartTheme().label },
       markers: { size: 5 },
       itemMargin: { horizontal: 8 },
     },
@@ -77,11 +80,16 @@ export function areaTrendChart(input: TrendSeriesInput): ApexOptions {
       categories: [...input.categories],
       axisBorder: { show: false },
       axisTicks: { show: false },
-      labels: { style: AXIS_LABEL_STYLE, rotate: 0, hideOverlappingLabels: true },
+      labels: { style: axisLabelStyle(), rotate: 0, hideOverlappingLabels: true },
       tooltip: { enabled: false },
     },
-    yaxis: { labels: { style: AXIS_LABEL_STYLE, formatter: compact } },
-    tooltip: { shared: true, intersect: false, y: { formatter: (value) => compact(value) } },
+    yaxis: { labels: { style: axisLabelStyle(), formatter: compact } },
+    tooltip: {
+      theme: chartTheme().tooltip,
+      shared: true,
+      intersect: false,
+      y: { formatter: (value) => compact(value) },
+    },
   };
 }
 
@@ -111,15 +119,15 @@ export function funnelChart(input: FunnelInput): ApexOptions {
       offsetX: 24,
     },
     legend: { show: false },
-    grid: { ...BASE_GRID, xaxis: { lines: { show: true } }, yaxis: { lines: { show: false } } },
+    grid: { ...baseGrid(), xaxis: { lines: { show: true } }, yaxis: { lines: { show: false } } },
     xaxis: {
       categories: [...input.labels],
       axisBorder: { show: false },
       axisTicks: { show: false },
-      labels: { style: AXIS_LABEL_STYLE, formatter: (value) => compact(Number(value)) },
+      labels: { style: axisLabelStyle(), formatter: (value) => compact(Number(value)) },
     },
-    yaxis: { labels: { style: AXIS_LABEL_STYLE } },
-    tooltip: { y: { formatter: (value) => compact(value) } },
+    yaxis: { labels: { style: axisLabelStyle() } },
+    tooltip: { theme: chartTheme().tooltip, y: { formatter: (value) => compact(value) } },
   };
 }
 
@@ -134,6 +142,7 @@ export function deliveryDonutChart(delivered: number, failed: number, pending: n
     legend: {
       position: 'bottom',
       fontSize: '12px',
+      labels: { colors: chartTheme().label },
       markers: { size: 5 },
       itemMargin: { horizontal: 8, vertical: 4 },
     },
@@ -146,13 +155,13 @@ export function deliveryDonutChart(delivered: number, failed: number, pending: n
             value: {
               fontSize: '22px',
               fontWeight: 600,
-              color: '#1e293b',
+              color: chartTheme().valueText,
               formatter: (value) => compact(Number(value)),
             },
             total: {
               show: true,
               label: 'Total',
-              color: '#6b7280',
+              color: chartTheme().label,
               fontSize: '12px',
               formatter: (w) =>
                 compact(
@@ -163,7 +172,7 @@ export function deliveryDonutChart(delivered: number, failed: number, pending: n
         },
       },
     },
-    tooltip: { y: { formatter: (value) => compact(value) } },
+    tooltip: { theme: chartTheme().tooltip, y: { formatter: (value) => compact(value) } },
   };
 }
 
@@ -179,14 +188,14 @@ export function throughputChart(labels: readonly string[], values: readonly numb
     colors: [CHART_COLORS.accent],
     plotOptions: { bar: { borderRadius: 3, columnWidth: '58%' } },
     dataLabels: { enabled: false },
-    grid: BASE_GRID,
+    grid: baseGrid(),
     xaxis: {
       categories: [...labels],
       axisBorder: { show: false },
       axisTicks: { show: false },
-      labels: { style: AXIS_LABEL_STYLE, hideOverlappingLabels: true },
+      labels: { style: axisLabelStyle(), hideOverlappingLabels: true },
     },
-    yaxis: { labels: { style: AXIS_LABEL_STYLE, formatter: compact } },
-    tooltip: { y: { formatter: (value) => compact(value) } },
+    yaxis: { labels: { style: axisLabelStyle(), formatter: compact } },
+    tooltip: { theme: chartTheme().tooltip, y: { formatter: (value) => compact(value) } },
   };
 }

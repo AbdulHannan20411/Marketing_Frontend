@@ -14,6 +14,22 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
+    <script>
+      // Applied before first paint. Angular bootstraps too late to avoid a
+      // white flash for anyone on the dark theme, so the attribute is set here
+      // and ThemeService takes over once it starts.
+      (function () {
+        try {
+          var stored = localStorage.getItem('vd.theme');
+          document.documentElement.setAttribute(
+            'data-theme',
+            stored === 'light' || stored === 'dark' ? stored : 'system',
+          );
+        } catch (error) {
+          document.documentElement.setAttribute('data-theme', 'system');
+        }
+      })();
+    </script>
   </head>
   <body>
     <app-root></app-root>

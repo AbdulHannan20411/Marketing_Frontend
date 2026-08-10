@@ -31,7 +31,7 @@ const TONE_ACCENT: Record<ToastTone, string> = {
   template: `
     @for (toast of toasts(); track toast.id) {
       <div
-        class="pointer-events-auto flex items-start gap-3 rounded-xl bg-white p-3.5 ring-1 ring-line shadow-pop animate-rise"
+        class="pointer-events-auto flex items-start gap-3 rounded-xl bg-surface p-3.5 ring-1 ring-line shadow-pop animate-rise"
       >
         <app-icon [name]="icon(toast.tone)" [class]="accent(toast.tone)" [size]="20" />
         <div class="min-w-0 flex-1">

@@ -20,7 +20,7 @@ import { ChangeDetectionStrategy, Component, input, model } from '@angular/core'
       [class]="checked() ? 'bg-brand-600' : 'bg-slate-300'"
     >
       <span
-        class="pointer-events-none absolute top-0.5 left-0.5 h-4.5 w-4.5 rounded-full bg-white shadow-sm transition-transform duration-200 ease-out"
+        class="pointer-events-none absolute top-0.5 left-0.5 h-4.5 w-4.5 rounded-full bg-surface shadow-sm transition-transform duration-200 ease-out"
         [class]="checked() ? 'translate-x-4.5' : 'translate-x-0'"
       ></span>
     </button>

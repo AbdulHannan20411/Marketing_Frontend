@@ -18,7 +18,7 @@
       [class]="
         severity() === option.value
           ? 'bg-brand-600 text-white shadow-xs'
-          : 'bg-white text-ink-soft ring-1 ring-line hover:bg-surface-muted hover:ring-brand-300'
+          : 'bg-surface text-ink-soft ring-1 ring-line hover:bg-surface-muted hover:ring-brand-300'
       "
       (click)="severity.set(option.value)"
     >
@@ -28,7 +28,7 @@
 </div>
 
 @if (state() === 'loading') {
-  <div class="mt-5 rounded-xl bg-white p-5 ring-1 ring-line shadow-card">
+  <div class="mt-5 rounded-xl bg-surface p-5 ring-1 ring-line shadow-card">
     <div class="space-y-4">
       @for (item of skeletons; track item) {
         <app-skeleton height="2.5rem" />

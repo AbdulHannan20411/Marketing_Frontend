@@ -11,7 +11,7 @@ import { IconComponent } from '@shared/ui/icon/icon.component';
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [ReactiveFormsModule, RouterLink, ButtonDirective, IconComponent],
   template: `
-    <div class="flex min-h-dvh items-center justify-center bg-white px-6 py-12">
+    <div class="flex min-h-dvh items-center justify-center bg-surface px-6 py-12">
       <div class="w-full max-w-sm animate-rise">
         @if (sent()) {
           <div class="text-center">
@@ -46,7 +46,7 @@ import { IconComponent } from '@shared/ui/icon/icon.component';
                 autocomplete="email"
                 placeholder="you@company.com"
                 [attr.aria-invalid]="form.controls.email.touched && form.controls.email.invalid"
-                class="mt-1.5 h-11 w-full rounded-lg border-0 bg-white px-3 text-sm text-ink ring-1 ring-line ring-inset transition-shadow placeholder:text-ink-muted focus:ring-2 focus:ring-brand-500 focus:outline-none aria-[invalid=true]:ring-red-400"
+                class="mt-1.5 h-11 w-full rounded-lg border-0 bg-surface px-3 text-sm text-ink ring-1 ring-line ring-inset transition-shadow placeholder:text-ink-muted focus:ring-2 focus:ring-brand-500 focus:outline-none aria-[invalid=true]:ring-red-400"
               />
               @if (form.controls.email.touched && form.controls.email.invalid) {
                 <p class="mt-1.5 text-xs text-danger">Enter a valid email address.</p>

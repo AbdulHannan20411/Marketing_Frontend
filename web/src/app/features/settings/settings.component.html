@@ -1,0 +1,126 @@
+<app-page-header
+  title="Settings"
+  description="How this workspace looks and behaves for you."
+  [breadcrumbs]="[{ label: 'Home', route: '/dashboard' }, { label: 'Settings', route: null }]"
+/>
+
+<div class="mt-6 grid gap-4 lg:grid-cols-3">
+  <!-- Appearance -->
+  <app-card
+    class="lg:col-span-2"
+    title="Appearance"
+    subtitle="Applies to this browser only — it is not shared with your team."
+  >
+    <div class="grid gap-3 sm:grid-cols-3" role="radiogroup" aria-label="Colour theme">
+      @for (option of themeOptions; track option.value) {
+        <button
+          type="button"
+          role="radio"
+          [attr.aria-checked]="preference() === option.value"
+          class="group rounded-xl p-3 text-left transition-all duration-200 focus-visible:outline-none"
+          [class]="
+            preference() === option.value
+              ? 'bg-brand-50 ring-2 ring-brand-500'
+              : 'bg-surface-sunken ring-1 ring-line hover:ring-brand-300'
+          "
+          (click)="select(option.value)"
+        >
+          <!-- Miniature of the shell, drawn from the same tokens it previews -->
+          <span
+            class="block overflow-hidden rounded-lg ring-1 ring-line"
+            [class]="option.value === 'dark' ? 'bg-[#0d1420]' : option.value === 'light' ? 'bg-[#f6fff8]' : 'bg-gradient-to-r from-[#f6fff8] to-[#0d1420]'"
+          >
+            <span class="flex h-14 items-stretch gap-1 p-1.5">
+              <span
+                class="w-1/4 rounded"
+                [class]="option.value === 'dark' ? 'bg-[#161f2e]' : option.value === 'light' ? 'bg-white' : 'bg-gradient-to-r from-white to-[#161f2e]'"
+              ></span>
+              <span class="flex flex-1 flex-col gap-1">
+                <span
+                  class="h-3 rounded"
+                  [class]="option.value === 'dark' ? 'bg-[#161f2e]' : option.value === 'light' ? 'bg-white' : 'bg-gradient-to-r from-white to-[#161f2e]'"
+                ></span>
+                <span class="flex-1 rounded bg-brand-500/70"></span>
+              </span>
+            </span>
+          </span>
+
+          <span class="mt-2.5 flex items-center gap-2">
+            <app-icon
+              [name]="option.icon"
+              [size]="15"
+              [class]="preference() === option.value ? 'text-brand-700' : 'text-ink-muted'"
+            />
+            <span class="text-sm font-medium text-ink">{{ option.label }}</span>
+            @if (preference() === option.value) {
+              <app-icon name="checkCircle" [size]="15" class="ml-auto text-brand-600" />
+            }
+          </span>
+          <span class="mt-0.5 block text-xs text-ink-muted">{{ option.hint }}</span>
+        </button>
+      }
+    </div>
+
+    <p class="mt-4 flex items-center gap-2 border-t border-line pt-4 text-xs text-ink-muted">
+      <app-icon name="info" [size]="14" />
+      {{ resolvedLabel() }}
+    </p>
+  </app-card>
+
+  <!-- Account -->
+  <app-card title="Your account" subtitle="Signed in as">
+    @if (user(); as currentUser) {
+      <div class="flex items-center gap-3">
+        <app-avatar
+          [name]="currentUser.name"
+          [initials]="currentUser.initials"
+          [imageUrl]="currentUser.avatarUrl"
+          size="md"
+        />
+        <div class="min-w-0">
+          <p class="truncate text-sm font-medium text-ink">{{ currentUser.name }}</p>
+          <p class="truncate text-xs text-ink-muted">{{ currentUser.email }}</p>
+        </div>
+      </div>
+
+      <dl class="mt-4 space-y-2.5 border-t border-line pt-4">
+        <div class="flex items-center justify-between gap-3">
+          <dt class="text-xs text-ink-muted">Role</dt>
+          <dd><app-badge tone="brand">{{ roleLabel[currentUser.role] }}</app-badge></dd>
+        </div>
+        <div class="flex items-center justify-between gap-3">
+          <dt class="text-xs text-ink-muted">Workspace</dt>
+          <dd class="truncate text-xs font-medium text-ink">{{ currentUser.workspaceName }}</dd>
+        </div>
+        <div class="flex items-center justify-between gap-3">
+          <dt class="text-xs text-ink-muted">Permissions</dt>
+          <dd class="text-xs font-medium text-ink tabular-nums">
+            {{ currentUser.permissions.length }}
+          </dd>
+        </div>
+      </dl>
+    }
+  </app-card>
+</div>
+
+<!-- Sections the API does not expose yet -->
+<app-card
+  class="mt-4 block"
+  title="Coming next"
+  subtitle="These need endpoints that do not exist yet"
+>
+  <ul class="grid gap-2.5 sm:grid-cols-3">
+    <li class="flex items-center gap-2.5 rounded-lg bg-surface-sunken px-3 py-2.5 ring-1 ring-line">
+      <app-icon name="building" [size]="16" class="shrink-0 text-ink-muted" />
+      <span class="text-sm text-ink-muted">Company profile</span>
+    </li>
+    <li class="flex items-center gap-2.5 rounded-lg bg-surface-sunken px-3 py-2.5 ring-1 ring-line">
+      <app-icon name="key" [size]="16" class="shrink-0 text-ink-muted" />
+      <span class="text-sm text-ink-muted">API keys</span>
+    </li>
+    <li class="flex items-center gap-2.5 rounded-lg bg-surface-sunken px-3 py-2.5 ring-1 ring-line">
+      <app-icon name="share" [size]="16" class="shrink-0 text-ink-muted" />
+      <span class="text-sm text-ink-muted">Integrations</span>
+    </li>
+  </ul>
+</app-card>

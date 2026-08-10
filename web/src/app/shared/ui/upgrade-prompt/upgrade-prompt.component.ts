@@ -29,7 +29,7 @@ import type { IconName } from '@shared/ui/icon/icon.registry';
 
       <div class="relative mx-auto max-w-md">
         <span
-          class="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-white text-brand-600 shadow-sm ring-1 ring-brand-200"
+          class="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-surface text-brand-600 shadow-sm ring-1 ring-brand-200"
         >
           <app-icon [name]="icon()" [size]="26" />
         </span>
@@ -38,7 +38,7 @@ import type { IconName } from '@shared/ui/icon/icon.registry';
         <p class="mt-2 text-sm leading-relaxed text-ink-soft">{{ description() }}</p>
 
         @if (metric(); as usage) {
-          <div class="mt-5 rounded-xl bg-white/80 p-4 ring-1 ring-brand-200/70 backdrop-blur-sm">
+          <div class="mt-5 rounded-xl bg-surface/80 p-4 ring-1 ring-brand-200/70 backdrop-blur-sm">
             <div class="flex items-baseline justify-between gap-3">
               <span class="text-xs font-medium tracking-wide text-ink-muted uppercase">
                 {{ usage.label }}

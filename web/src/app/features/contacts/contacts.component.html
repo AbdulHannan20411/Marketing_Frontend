@@ -32,7 +32,7 @@
     <div class="ml-auto flex flex-wrap items-center gap-2">
       <!-- Governs both pickers below, so one control covers apply and strip -->
       <div
-        class="inline-flex rounded-lg bg-white p-0.5 ring-1 ring-brand-200"
+        class="inline-flex rounded-lg bg-surface p-0.5 ring-1 ring-brand-200"
         role="radiogroup"
         aria-label="Whether the pickers add or remove"
       >
@@ -64,7 +64,7 @@
         id="bulk-tag"
         [disabled]="busy() || tagPickerEmpty()"
         (change)="bulkApplyTag($any($event.target).value); $any($event.target).value = ''"
-        class="h-8 rounded-lg border-0 bg-white px-2.5 text-xs text-ink-soft ring-1 ring-brand-200 ring-inset focus:ring-2 focus:ring-brand-500 focus:outline-none disabled:opacity-50"
+        class="h-8 rounded-lg border-0 bg-surface px-2.5 text-xs text-ink-soft ring-1 ring-brand-200 ring-inset focus:ring-2 focus:ring-brand-500 focus:outline-none disabled:opacity-50"
       >
         <option value="" selected>
           {{
@@ -85,7 +85,7 @@
         id="bulk-group"
         [disabled]="busy() || groupPickerEmpty()"
         (change)="bulkApplyGroup($any($event.target).value); $any($event.target).value = ''"
-        class="h-8 rounded-lg border-0 bg-white px-2.5 text-xs text-ink-soft ring-1 ring-brand-200 ring-inset focus:ring-2 focus:ring-brand-500 focus:outline-none disabled:opacity-50"
+        class="h-8 rounded-lg border-0 bg-surface px-2.5 text-xs text-ink-soft ring-1 ring-brand-200 ring-inset focus:ring-2 focus:ring-brand-500 focus:outline-none disabled:opacity-50"
       >
         <option value="" selected>
           {{
@@ -138,7 +138,7 @@
         placeholder="Search name, phone or email"
         [value]="search()"
         (input)="onSearch($event)"
-        class="h-9 w-full rounded-lg border-0 bg-surface-sunken py-2 pr-3 pl-9 text-sm text-ink ring-1 ring-line ring-inset transition-all placeholder:text-ink-muted focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none"
+        class="h-9 w-full rounded-lg border-0 bg-surface-sunken py-2 pr-3 pl-9 text-sm text-ink ring-1 ring-line ring-inset transition-all placeholder:text-ink-muted focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
       />
     </div>
 
@@ -147,7 +147,7 @@
       id="status-filter"
       [value]="status()"
       (change)="onStatusChange($event)"
-      class="h-9 rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink-soft ring-1 ring-line ring-inset transition-all focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none"
+      class="h-9 rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink-soft ring-1 ring-line ring-inset transition-all focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
     >
       <option value="all">All statuses</option>
       <option value="subscribed">Subscribed</option>
@@ -160,7 +160,7 @@
       id="group-filter"
       [value]="groupId()"
       (change)="onGroupChange($event)"
-      class="h-9 rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink-soft ring-1 ring-line ring-inset transition-all focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none"
+      class="h-9 rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink-soft ring-1 ring-line ring-inset transition-all focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
     >
       <option value="all">All groups</option>
       @for (group of groups(); track group.id) {
@@ -173,7 +173,7 @@
       id="tag-filter"
       [value]="tagId()"
       (change)="onTagChange($event)"
-      class="h-9 rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink-soft ring-1 ring-line ring-inset transition-all focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none"
+      class="h-9 rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink-soft ring-1 ring-line ring-inset transition-all focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
     >
       <option value="all">All tags</option>
       @for (tag of tags(); track tag.id) {

@@ -23,7 +23,7 @@
       [class]="
         category() === option.value
           ? 'bg-brand-600 text-white shadow-xs'
-          : 'bg-white text-ink-soft ring-1 ring-line hover:bg-surface-muted hover:ring-brand-300'
+          : 'bg-surface text-ink-soft ring-1 ring-line hover:bg-surface-muted hover:ring-brand-300'
       "
       (click)="setCategory(option.value)"
     >
@@ -41,7 +41,7 @@
 @if (state() === 'loading') {
   <div class="mt-5 grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
     @for (item of skeletons; track item) {
-      <div class="rounded-xl bg-white p-5 ring-1 ring-line shadow-card">
+      <div class="rounded-xl bg-surface p-5 ring-1 ring-line shadow-card">
         <app-skeleton width="55%" height="1.125rem" />
         <div class="mt-4"><app-skeleton height="5rem" /></div>
         <div class="mt-4"><app-skeleton width="40%" height="0.75rem" /></div>
@@ -84,7 +84,7 @@
 
         <!-- Preview bubble -->
         <div class="mt-4 rounded-xl bg-surface-muted p-3 ring-1 ring-line">
-          <div class="rounded-lg rounded-tl-sm bg-white p-3 shadow-xs">
+          <div class="rounded-lg rounded-tl-sm bg-surface p-3 shadow-xs">
             @if (template.headerText !== null) {
               <p class="text-sm font-semibold text-ink">{{ template.headerText }}</p>
             }
@@ -114,7 +114,7 @@
             <div class="mt-1.5 grid gap-1.5">
               @for (button of template.buttons; track button) {
                 <span
-                  class="rounded-lg bg-white py-1.5 text-center text-xs font-medium text-info shadow-xs"
+                  class="rounded-lg bg-surface py-1.5 text-center text-xs font-medium text-info shadow-xs"
                   >{{ button }}</span
                 >
               }

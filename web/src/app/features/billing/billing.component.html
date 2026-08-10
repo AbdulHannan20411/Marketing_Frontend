@@ -36,7 +36,7 @@
 
 <!-- Summary -->
 <section class="mt-6 grid gap-4 sm:grid-cols-3" aria-label="Billing summary">
-  <div class="rounded-xl bg-white p-5 ring-1 ring-line shadow-card">
+  <div class="rounded-xl bg-surface p-5 ring-1 ring-line shadow-card">
     <p class="text-xs font-medium tracking-wide text-ink-muted uppercase">Outstanding</p>
     <p
       class="mt-1.5 text-2xl font-semibold tabular-nums"
@@ -47,7 +47,7 @@
     <p class="mt-1 text-xs text-ink-muted">Across unpaid invoices</p>
   </div>
 
-  <div class="rounded-xl bg-white p-5 ring-1 ring-line shadow-card">
+  <div class="rounded-xl bg-surface p-5 ring-1 ring-line shadow-card">
     <p class="text-xs font-medium tracking-wide text-ink-muted uppercase">Paid to date</p>
     <p class="mt-1.5 text-2xl font-semibold text-ink tabular-nums">
       ${{ totalPaid() | number: '1.2-2' }}
@@ -55,7 +55,7 @@
     <p class="mt-1 text-xs text-ink-muted">{{ payments().length }} payments recorded</p>
   </div>
 
-  <div class="rounded-xl bg-white p-5 ring-1 ring-line shadow-card">
+  <div class="rounded-xl bg-surface p-5 ring-1 ring-line shadow-card">
     <p class="text-xs font-medium tracking-wide text-ink-muted uppercase">Next charge</p>
     @if (subscription(); as sub) {
       <p class="mt-1.5 text-2xl font-semibold text-ink tabular-nums">
@@ -82,7 +82,7 @@
       [class]="
         tab() === option.value
           ? 'bg-brand-600 text-white shadow-xs'
-          : 'bg-white text-ink-soft ring-1 ring-line hover:bg-surface-muted hover:ring-brand-300'
+          : 'bg-surface text-ink-soft ring-1 ring-line hover:bg-surface-muted hover:ring-brand-300'
       "
       (click)="tab.set(option.value)"
     >

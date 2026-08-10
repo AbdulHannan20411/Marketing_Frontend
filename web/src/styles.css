@@ -2,7 +2,10 @@
 
 /* ------------------------------------------------------------------ *
  * Design tokens — white + light-green premium SaaS palette.
- * Light mode only; there is deliberately no dark variant.
+ *
+ * Light is the default. The dark variant below re-points the same tokens
+ * rather than adding `dark:` variants to every element, so components stay
+ * written once. `data-theme="dark"` on <html> is what switches them.
  * ------------------------------------------------------------------ */
 @theme {
   --color-brand-50: #f0fdf4;
@@ -40,6 +43,125 @@
   --animate-fade-in: fade-in 0.24s ease-out both;
   --animate-rise: rise 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
   --animate-shimmer: shimmer 1.6s ease-in-out infinite;
+}
+
+/* ------------------------------------------------------------------ *
+ * Dark theme
+ *
+ * Only the tokens change. Two groups matter beyond the obvious surfaces:
+ *
+ *  - The `-50`/`-100`/`-200` steps are used throughout as tinted panel
+ *    backgrounds (badges, callouts, icon chips). They become deep tints.
+ *  - The `-700`/`-800`/`-900` steps are the text sitting on those panels, so
+ *    they invert to light shades. Leaving either alone gives dark-on-dark.
+ *
+ * The `-500`/`-600` steps are solid fills — buttons, chart series, progress
+ * bars — and stay put, along with `text-white` on top of them.
+ * ------------------------------------------------------------------ */
+:root[data-theme='dark'] {
+  --color-surface: #161f2e;
+  --color-surface-muted: #0d1420;
+  --color-surface-sunken: #1e293b;
+  --color-line: #2a3648;
+  --color-line-strong: #3d4a5c;
+
+  --color-ink: #e8edf5;
+  --color-ink-soft: #b6c2d4;
+  --color-ink-muted: #8896aa;
+
+  --color-brand-50: #0f2a1c;
+  --color-brand-100: #16371f;
+  --color-brand-200: #1f5133;
+  --color-brand-700: #86efac;
+  --color-brand-800: #bbf7d0;
+  --color-brand-900: #dcfce7;
+
+  --color-red-50: #3a1416;
+  --color-red-100: #4a191c;
+  --color-red-200: #7f1d1d;
+  --color-red-700: #fca5a5;
+  --color-red-800: #fecaca;
+
+  --color-amber-50: #3a2a08;
+  --color-amber-100: #4a350a;
+  --color-amber-200: #92400e;
+  --color-amber-700: #fcd34d;
+  --color-amber-800: #fde68a;
+  --color-amber-900: #fef3c7;
+
+  --color-emerald-50: #06281f;
+  --color-emerald-100: #073529;
+  --color-emerald-200: #065f46;
+  --color-emerald-900: #a7f3d0;
+
+  --color-green-50: #0d2b18;
+  --color-green-700: #86efac;
+
+  --color-orange-700: #fdba74;
+
+  --color-slate-200: #334155;
+  --color-slate-300: #475569;
+
+  --color-info: #34d399;
+
+  /* Shadows read as depth on a dark surface only when much stronger. */
+  --shadow-card: 0 1px 2px 0 rgb(0 0 0 / 0.4), 0 1px 3px 0 rgb(0 0 0 / 0.3);
+  --shadow-card-hover: 0 4px 6px -2px rgb(0 0 0 / 0.4), 0 12px 16px -4px rgb(0 0 0 / 0.45);
+  --shadow-pop: 0 8px 8px -4px rgb(0 0 0 / 0.35), 0 20px 24px -4px rgb(0 0 0 / 0.5);
+}
+
+/* Follows the OS until the user picks a side explicitly. */
+@media (prefers-color-scheme: dark) {
+  :root[data-theme='system'] {
+    --color-surface: #161f2e;
+    --color-surface-muted: #0d1420;
+    --color-surface-sunken: #1e293b;
+    --color-line: #2a3648;
+    --color-line-strong: #3d4a5c;
+
+    --color-ink: #e8edf5;
+    --color-ink-soft: #b6c2d4;
+    --color-ink-muted: #8896aa;
+
+    --color-brand-50: #0f2a1c;
+    --color-brand-100: #16371f;
+    --color-brand-200: #1f5133;
+    --color-brand-700: #86efac;
+    --color-brand-800: #bbf7d0;
+    --color-brand-900: #dcfce7;
+
+    --color-red-50: #3a1416;
+    --color-red-100: #4a191c;
+    --color-red-200: #7f1d1d;
+    --color-red-700: #fca5a5;
+    --color-red-800: #fecaca;
+
+    --color-amber-50: #3a2a08;
+    --color-amber-100: #4a350a;
+    --color-amber-200: #92400e;
+    --color-amber-700: #fcd34d;
+    --color-amber-800: #fde68a;
+    --color-amber-900: #fef3c7;
+
+    --color-emerald-50: #06281f;
+    --color-emerald-100: #073529;
+    --color-emerald-200: #065f46;
+    --color-emerald-900: #a7f3d0;
+
+    --color-green-50: #0d2b18;
+    --color-green-700: #86efac;
+
+    --color-orange-700: #fdba74;
+
+    --color-slate-200: #334155;
+    --color-slate-300: #475569;
+
+    --color-info: #34d399;
+
+    --shadow-card: 0 1px 2px 0 rgb(0 0 0 / 0.4), 0 1px 3px 0 rgb(0 0 0 / 0.3);
+    --shadow-card-hover: 0 4px 6px -2px rgb(0 0 0 / 0.4), 0 12px 16px -4px rgb(0 0 0 / 0.45);
+    --shadow-pop: 0 8px 8px -4px rgb(0 0 0 / 0.35), 0 20px 24px -4px rgb(0 0 0 / 0.5);
+  }
 }
 
 @keyframes fade-in {
@@ -86,6 +208,19 @@
     color: var(--color-ink);
     font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
     -webkit-font-smoothing: antialiased;
+  }
+
+  /* Native controls — scrollbars, date pickers, autofill — follow the theme. */
+  :root[data-theme='dark'] {
+    color-scheme: dark;
+  }
+
+  :root[data-theme='light'] {
+    color-scheme: light;
+  }
+
+  :root[data-theme='system'] {
+    color-scheme: light dark;
   }
 
   /* Visible focus for keyboard users only — pointer clicks stay clean. */

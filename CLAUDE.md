@@ -13,7 +13,11 @@ Quality bar: Stripe Dashboard / Linear / Vercel / Intercom. Never ship plain CRU
 
 ## Design System
 
-Light mode only — never implement a dark theme.
+Light and dark. Light is the default; the user chooses Light, Dark or System in Settings, and the
+choice is stored per browser. Components are written once against the semantic tokens below —
+`surface`, `ink`, `line` and the tinted `-50`/`-200` steps — and `styles.css` re-points those under
+`[data-theme="dark"]`. Never hard-code `bg-white` or a literal hex in a component; use the token, or
+dark mode will not follow.
 
 | Token | Value |
 | --- | --- |
