@@ -52,12 +52,29 @@ export function isBusinessRule(error: ApiError): boolean {
 
 function toApiError(response: HttpErrorResponse): ApiError {
   const problem = (response.error ?? {}) as ProblemDetails;
+  const errorCode = problem.errorCode ?? '';
+
+  // The API scopes reads by `adminId` but refuses writes with it, so a Super
+  // Admin acting inside an admin's workspace gets "Tenant Not Resolved". That
+  // wording explains nothing to the person who clicked Save.
+  if (errorCode === 'tenant_not_resolved') {
+    return {
+      status: response.status,
+      title: 'Cannot save into this workspace',
+      detail:
+        'The API does not yet accept changes made on behalf of another admin. Viewing their data works; saving does not.',
+      errorCode,
+      fieldErrors: {},
+      traceId: problem.traceId ?? null,
+      exceptionId: problem.exceptionId ?? null,
+    };
+  }
 
   return {
     status: response.status,
     title: problem.title ?? defaultTitle(response.status),
     detail: problem.detail ?? defaultDetail(response.status, response.message),
-    errorCode: problem.errorCode ?? '',
+    errorCode,
     fieldErrors: problem.errors ?? {},
     traceId: problem.traceId ?? null,
     exceptionId: problem.exceptionId ?? null,

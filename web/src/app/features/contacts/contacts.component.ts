@@ -3,12 +3,14 @@ import { DecimalPipe } from '@angular/common';
 import { Subject, debounceTime, distinctUntilChanged } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
-import type { BulkOperationResult, LoadState } from '@core/models/api.model';
+import type { ApiError, BulkOperationResult, LoadState } from '@core/models/api.model';
+import { AuthService } from '@core/auth/auth.service';
 import type {
   Contact,
   ContactGroup,
   ContactStatus,
   ContactTag,
+  CreateContactRequest,
 } from '@core/models/contact.model';
 import { ContactsService } from '@core/services/contacts.service';
 import { ToastService } from '@core/services/toast.service';
@@ -23,6 +25,7 @@ import {
 import { TableRowDirective } from '@shared/ui/data-table/table-row.directive';
 import { IconComponent } from '@shared/ui/icon/icon.component';
 import { PageHeaderComponent } from '@shared/ui/page-header/page-header.component';
+import { ContactEditorComponent } from './contact-editor.component';
 
 const STATUS_TONE: Readonly<Record<ContactStatus, BadgeTone>> = {
   subscribed: 'success',
@@ -45,12 +48,14 @@ const PAGE_SIZE = 12;
     BadgeComponent,
     ButtonDirective,
     IconComponent,
+    ContactEditorComponent,
   ],
   templateUrl: './contacts.component.html',
 })
 export class ContactsComponent {
   private readonly contactsService = inject(ContactsService);
   private readonly toast = inject(ToastService);
+  private readonly auth = inject(AuthService);
   private readonly searchInput = new Subject<string>();
 
   protected readonly state = signal<LoadState>('loading');
@@ -65,6 +70,13 @@ export class ContactsComponent {
   protected readonly tagId = signal<string | 'all'>('all');
   protected readonly selectedIds = signal<ReadonlySet<string>>(new Set());
   protected readonly busy = signal(false);
+
+  protected readonly creating = signal(false);
+  protected readonly saving = signal(false);
+  protected readonly createFieldErrors = signal<Readonly<Record<string, readonly string[]>>>({});
+
+  /** The API rejects a create the user lacks the permission for; hide the button too. */
+  protected readonly canCreate = computed(() => this.auth.hasPermission('contacts.create'));
 
   protected readonly pageSize = PAGE_SIZE;
   protected readonly statusTone = STATUS_TONE;
@@ -302,5 +314,47 @@ export class ContactsComponent {
 
   protected announcePending(action: string): void {
     this.toast.info(`${action}`, 'This flow lands with the next milestone.');
+  }
+
+  /* ------------------------------ create ------------------------------ */
+
+  protected openCreate(): void {
+    this.createFieldErrors.set({});
+    this.creating.set(true);
+  }
+
+  protected closeCreate(): void {
+    this.creating.set(false);
+    this.createFieldErrors.set({});
+  }
+
+  protected createContact(request: CreateContactRequest): void {
+    if (this.saving()) {
+      return;
+    }
+    this.saving.set(true);
+    this.createFieldErrors.set({});
+
+    this.contactsService.create(request).subscribe({
+      next: (contact) => {
+        this.saving.set(false);
+        this.creating.set(false);
+        this.toast.success('Contact added', `${contact.fullName} is now in your audience.`);
+        // Show the newcomer rather than leaving the user on a stale page.
+        this.page.set(1);
+        this.load();
+      },
+      error: (error: ApiError) => {
+        this.saving.set(false);
+
+        // 422 binds to the fields; a duplicate number or plan limit is a 409
+        // carrying a sentence worth showing as-is.
+        if (Object.keys(error.fieldErrors).length > 0) {
+          this.createFieldErrors.set(error.fieldErrors);
+          return;
+        }
+        this.toast.error(error.title, error.detail);
+      },
+    });
   }
 }

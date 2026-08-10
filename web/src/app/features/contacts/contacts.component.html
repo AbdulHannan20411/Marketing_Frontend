@@ -7,10 +7,16 @@
     <app-icon name="download" [size]="16" />
     Export
   </button>
-  <button appButton size="md" (click)="announcePending('Import contacts')">
-    <app-icon name="plus" [size]="16" />
-    Import contacts
+  <button appButton variant="outline" size="md" (click)="announcePending('Import contacts')">
+    <app-icon name="download" [size]="16" class="rotate-180" />
+    Import
   </button>
+  @if (canCreate()) {
+    <button appButton size="md" (click)="openCreate()">
+      <app-icon name="plus" [size]="16" />
+      Add contact
+    </button>
+  }
 </app-page-header>
 
 <!-- Bulk action bar: appears only when rows are selected -->
@@ -142,9 +148,17 @@
     </p>
   </div>
 
-  <button tableEmptyAction appButton variant="outline" size="sm" (click)="clearFilters()">
-    Clear filters
-  </button>
+  <div tableEmptyAction class="flex flex-wrap justify-center gap-2">
+    @if (hasFilters()) {
+      <button appButton variant="outline" size="sm" (click)="clearFilters()">Clear filters</button>
+    }
+    @if (canCreate()) {
+      <button appButton size="sm" (click)="openCreate()">
+        <app-icon name="plus" [size]="15" />
+        Add contact
+      </button>
+    }
+  </div>
 
   <!-- Rows -->
   <ng-template [appTableRow]="contacts()" let-contact>
@@ -203,3 +217,14 @@
     </td>
   </ng-template>
 </app-data-table>
+
+@if (creating()) {
+  <app-contact-editor
+    [groups]="groups()"
+    [tags]="tags()"
+    [saving]="saving()"
+    [fieldErrors]="createFieldErrors()"
+    (save)="createContact($event)"
+    (cancel)="closeCreate()"
+  />
+}
