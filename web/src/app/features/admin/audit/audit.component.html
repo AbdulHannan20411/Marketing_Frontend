@@ -91,34 +91,12 @@
       }
     </ol>
 
-    <!-- Pagination -->
-    <div class="flex flex-wrap items-center justify-between gap-3 border-t border-line px-5 py-3">
-      <p class="text-xs text-ink-muted">
-        {{ totalItems() }} events recorded
-      </p>
-      <nav class="flex items-center gap-1" aria-label="Pagination">
-        <button
-          type="button"
-          class="rounded-lg p-1.5 text-ink-soft transition-colors hover:bg-surface-muted disabled:pointer-events-none disabled:opacity-40"
-          aria-label="Previous page"
-          [disabled]="page() <= 1"
-          (click)="goToPage(page() - 1)"
-        >
-          <app-icon name="chevronLeft" [size]="17" />
-        </button>
-        <span class="px-2 text-xs font-medium text-ink-soft">
-          Page {{ page() }} of {{ totalPages() }}
-        </span>
-        <button
-          type="button"
-          class="rounded-lg p-1.5 text-ink-soft transition-colors hover:bg-surface-muted disabled:pointer-events-none disabled:opacity-40"
-          aria-label="Next page"
-          [disabled]="page() >= totalPages()"
-          (click)="goToPage(page() + 1)"
-        >
-          <app-icon name="chevronRight" [size]="17" />
-        </button>
-      </nav>
-    </div>
+    <app-pagination
+      [page]="page()"
+      [pageSize]="pageSize()"
+      [totalItems]="totalItems()"
+      (pageChange)="goToPage($event)"
+      (pageSizeChange)="onPageSizeChange($event)"
+    />
   </app-card>
 }

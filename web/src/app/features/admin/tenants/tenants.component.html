@@ -46,11 +46,12 @@
   [rows]="tenants()"
   [state]="state()"
   [page]="page()"
-  [pageSize]="pageSize"
+  [pageSize]="pageSize()"
   [totalItems]="totalItems()"
   emptyTitle="No workspaces yet"
   emptyDescription="Workspaces appear here as soon as they are provisioned."
   (pageChange)="onPageChange($event)"
+  (pageSizeChange)="onPageSizeChange($event)"
   (retry)="load()"
 >
   <div tableToolbar class="flex w-full items-center justify-between gap-3">

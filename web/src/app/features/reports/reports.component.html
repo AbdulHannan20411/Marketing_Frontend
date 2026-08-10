@@ -103,11 +103,12 @@
       [rows]="failures()"
       [state]="failureState()"
       [page]="failurePage()"
-      [pageSize]="pageSize"
+      [pageSize]="pageSize()"
       [totalItems]="failureTotal()"
       emptyTitle="No delivery failures"
       emptyDescription="Every message in this period reached its recipient."
       (pageChange)="onFailurePageChange($event)"
+      (pageSizeChange)="onFailurePageSizeChange($event)"
       (retry)="load()"
     >
       <div tableToolbar class="flex w-full items-center justify-between gap-3">

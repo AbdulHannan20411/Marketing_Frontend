@@ -15,11 +15,12 @@ import { areaTrendChart, funnelChart } from '@shared/ui/chart/chart.presets';
 import { DataTableComponent, type TableColumn } from '@shared/ui/data-table/data-table.component';
 import { TableRowDirective } from '@shared/ui/data-table/table-row.directive';
 import { IconComponent } from '@shared/ui/icon/icon.component';
+import { DEFAULT_PAGE_SIZE } from '@shared/ui/pagination/pagination.component';
 import { PageHeaderComponent } from '@shared/ui/page-header/page-header.component';
 import { SkeletonComponent } from '@shared/ui/skeleton/skeleton.component';
 import { StatCardComponent } from '@shared/ui/stat-card/stat-card.component';
 
-const PAGE_SIZE = 10;
+
 
 @Component({
   selector: 'app-reports',
@@ -50,7 +51,7 @@ export class ReportsComponent {
   protected readonly failurePage = signal(1);
   protected readonly failureState = signal<LoadState>('loading');
 
-  protected readonly pageSize = PAGE_SIZE;
+  protected readonly pageSize = signal(DEFAULT_PAGE_SIZE);
 
   protected readonly columns: readonly TableColumn[] = [
     { key: 'contact', header: 'Recipient' },
@@ -128,7 +129,7 @@ export class ReportsComponent {
 
     forkJoin({
       snapshot: this.dashboardService.getSnapshot(),
-      failures: this.dashboardService.getFailures(this.failurePage(), PAGE_SIZE),
+      failures: this.dashboardService.getFailures(this.failurePage(), this.pageSize()),
     }).subscribe({
       next: ({ snapshot, failures }) => {
         this.snapshot.set(snapshot);
@@ -144,11 +145,17 @@ export class ReportsComponent {
     });
   }
 
+  protected onFailurePageSizeChange(size: number): void {
+    this.pageSize.set(size);
+    this.failurePage.set(1);
+    this.onFailurePageChange(1);
+  }
+
   protected onFailurePageChange(page: number): void {
     this.failurePage.set(page);
     this.failureState.set('loading');
 
-    this.dashboardService.getFailures(page, PAGE_SIZE).subscribe({
+    this.dashboardService.getFailures(page, this.pageSize()).subscribe({
       next: (result) => {
         this.failures.set(result.items);
         this.failureTotal.set(result.totalItems);

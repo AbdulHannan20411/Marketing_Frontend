@@ -12,6 +12,10 @@ import type { LoadState } from '@core/models/api.model';
 import { ButtonDirective } from '@shared/ui/button/button.directive';
 import { IconComponent } from '@shared/ui/icon/icon.component';
 import { SkeletonComponent } from '@shared/ui/skeleton/skeleton.component';
+import {
+  DEFAULT_PAGE_SIZE,
+  PaginationComponent,
+} from '@shared/ui/pagination/pagination.component';
 import { TableRowDirective } from './table-row.directive';
 
 export interface TableColumn {
@@ -32,7 +36,13 @@ export interface TableColumn {
 @Component({
   selector: 'app-data-table',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [NgTemplateOutlet, IconComponent, SkeletonComponent, ButtonDirective],
+  imports: [
+    NgTemplateOutlet,
+    IconComponent,
+    SkeletonComponent,
+    ButtonDirective,
+    PaginationComponent,
+  ],
   templateUrl: './data-table.component.html',
   host: { class: 'block' },
 })
@@ -41,29 +51,20 @@ export class DataTableComponent<TRow> {
   readonly rows = input.required<readonly TRow[]>();
   readonly state = input<LoadState>('ready');
   readonly page = input(1);
-  readonly pageSize = input(10);
+  readonly pageSize = input(DEFAULT_PAGE_SIZE);
   readonly totalItems = input(0);
+  readonly showPageSize = input(true);
   readonly emptyTitle = input('Nothing here yet');
   readonly emptyDescription = input('Once records exist they will appear in this table.');
 
   readonly pageChange = output<number>();
+  readonly pageSizeChange = output<number>();
   readonly retry = output<void>();
 
   private readonly rowDirective = contentChild.required(TableRowDirective);
   protected readonly rowTemplate = computed(() => this.rowDirective().template);
 
-  protected readonly totalPages = computed(() =>
-    Math.max(1, Math.ceil(this.totalItems() / this.pageSize())),
-  );
-
-  protected readonly rangeStart = computed(() =>
-    this.totalItems() === 0 ? 0 : (this.page() - 1) * this.pageSize() + 1,
-  );
-
-  protected readonly rangeEnd = computed(() =>
-    Math.min(this.page() * this.pageSize(), this.totalItems()),
-  );
-
+  /** Placeholder rows while loading; roughly a screenful. */
   protected readonly skeletonRows = computed(() => Array.from({ length: 6 }, (_, i) => i));
 
   protected alignClass(column: TableColumn): string {
@@ -77,9 +78,4 @@ export class DataTableComponent<TRow> {
     }
   }
 
-  protected goToPage(page: number): void {
-    if (page >= 1 && page <= this.totalPages() && page !== this.page()) {
-      this.pageChange.emit(page);
-    }
-  }
 }

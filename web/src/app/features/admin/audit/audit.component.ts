@@ -9,6 +9,7 @@ import { BadgeComponent, type BadgeTone } from '@shared/ui/badge/badge.component
 import { ButtonDirective } from '@shared/ui/button/button.directive';
 import { CardComponent } from '@shared/ui/card/card.component';
 import { IconComponent } from '@shared/ui/icon/icon.component';
+import { DEFAULT_PAGE_SIZE, PaginationComponent } from '@shared/ui/pagination/pagination.component';
 import { PageHeaderComponent } from '@shared/ui/page-header/page-header.component';
 import { SkeletonComponent } from '@shared/ui/skeleton/skeleton.component';
 import { EmptyStateComponent } from '@shared/ui/state/empty-state.component';
@@ -22,7 +23,6 @@ const SEVERITY_TONE: Readonly<Record<AuditSeverity, BadgeTone>> = {
 
 type SeverityFilter = AuditSeverity | 'all';
 
-const PAGE_SIZE = 12;
 
 @Component({
   selector: 'app-audit',
@@ -36,6 +36,7 @@ const PAGE_SIZE = 12;
     ButtonDirective,
     IconComponent,
     SkeletonComponent,
+    PaginationComponent,
     EmptyStateComponent,
     ErrorStateComponent,
   ],
@@ -66,9 +67,7 @@ export class AuditComponent {
     return filter === 'all' ? all : all.filter((entry) => entry.severity === filter);
   });
 
-  protected readonly totalPages = computed(() =>
-    Math.max(1, Math.ceil(this.totalItems() / PAGE_SIZE)),
-  );
+  protected readonly pageSize = signal(DEFAULT_PAGE_SIZE);
 
   constructor() {
     this.load();
@@ -76,7 +75,7 @@ export class AuditComponent {
 
   protected load(): void {
     this.state.set('loading');
-    this.platform.listAuditLogs(this.page(), PAGE_SIZE).subscribe({
+    this.platform.listAuditLogs(this.page(), this.pageSize()).subscribe({
       next: (result) => {
         this.entries.set(result.items);
         this.totalItems.set(result.totalItems);
@@ -87,9 +86,13 @@ export class AuditComponent {
   }
 
   protected goToPage(page: number): void {
-    if (page >= 1 && page <= this.totalPages()) {
-      this.page.set(page);
-      this.load();
-    }
+    this.page.set(page);
+    this.load();
+  }
+
+  protected onPageSizeChange(size: number): void {
+    this.pageSize.set(size);
+    this.page.set(1);
+    this.load();
   }
 }

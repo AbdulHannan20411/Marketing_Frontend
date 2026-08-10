@@ -14,12 +14,13 @@ import { ButtonDirective } from '@shared/ui/button/button.directive';
 import { DataTableComponent, type TableColumn } from '@shared/ui/data-table/data-table.component';
 import { TableRowDirective } from '@shared/ui/data-table/table-row.directive';
 import { IconComponent } from '@shared/ui/icon/icon.component';
+import { DEFAULT_PAGE_SIZE } from '@shared/ui/pagination/pagination.component';
 import { PageHeaderComponent } from '@shared/ui/page-header/page-header.component';
 import { StatCardComponent } from '@shared/ui/stat-card/stat-card.component';
 
 type StatusFilter = CampaignStatus | 'all';
 
-const PAGE_SIZE = 8;
+
 
 @Component({
   selector: 'app-campaigns',
@@ -48,7 +49,7 @@ export class CampaignsComponent {
   protected readonly search = signal('');
   protected readonly page = signal(1);
 
-  protected readonly pageSize = PAGE_SIZE;
+  protected readonly pageSize = signal(DEFAULT_PAGE_SIZE);
   protected readonly statusTone = CAMPAIGN_STATUS_TONE;
   protected readonly statusLabel = CAMPAIGN_STATUS_LABEL;
 
@@ -88,8 +89,9 @@ export class CampaignsComponent {
   protected readonly totalItems = computed(() => this.filtered().length);
 
   protected readonly visibleCampaigns = computed(() => {
-    const start = (this.page() - 1) * PAGE_SIZE;
-    return this.filtered().slice(start, start + PAGE_SIZE);
+    const size = this.pageSize();
+    const start = (this.page() - 1) * size;
+    return this.filtered().slice(start, start + size);
   });
 
   protected readonly tableState = computed<LoadState>(() => {
@@ -202,6 +204,11 @@ export class CampaignsComponent {
       campaign.status === 'sending' ||
       campaign.status === 'paused'
     );
+  }
+
+  protected onPageSizeChange(size: number): void {
+    this.pageSize.set(size);
+    this.page.set(1);
   }
 
   protected setStatus(value: StatusFilter): void {

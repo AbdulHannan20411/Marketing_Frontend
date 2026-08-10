@@ -50,11 +50,12 @@
   [rows]="visibleCampaigns()"
   [state]="tableState()"
   [page]="page()"
-  [pageSize]="pageSize"
+  [pageSize]="pageSize()"
   [totalItems]="totalItems()"
   emptyTitle="No campaigns match those filters"
   emptyDescription="Try another status, or clear the search to see everything."
   (pageChange)="page.set($event)"
+  (pageSizeChange)="onPageSizeChange($event)"
   (retry)="load()"
 >
   <div tableToolbar class="flex w-full flex-wrap items-center gap-2.5">

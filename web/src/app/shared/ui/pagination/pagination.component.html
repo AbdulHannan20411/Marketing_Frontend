@@ -1,0 +1,64 @@
+<div
+  class="flex flex-col gap-3 border-t border-line px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+>
+  <!-- Range + records per page -->
+  <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+    <p class="text-xs text-ink-muted">
+      @if (totalItems() === 0) {
+        No records
+      } @else {
+        Showing
+        <span class="font-medium text-ink-soft tabular-nums">
+          {{ rangeStart() | number }}–{{ rangeEnd() | number }}
+        </span>
+        of <span class="font-medium text-ink-soft tabular-nums">{{ totalItems() | number }}</span>
+      }
+    </p>
+
+    @if (showPageSize()) {
+      <div class="flex items-center gap-1.5">
+        <label for="page-size" class="text-xs whitespace-nowrap text-ink-muted">
+          Records per page
+        </label>
+        <select
+          id="page-size"
+          [value]="pageSize()"
+          (change)="onPageSizeChange($any($event.target).value)"
+          class="h-8 rounded-lg border-0 bg-surface-sunken px-2 pr-6 text-xs font-medium text-ink-soft ring-1 ring-line ring-inset transition-colors hover:ring-line-strong focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
+        >
+          @for (size of pageSizeOptions(); track size) {
+            <option [value]="size">{{ size }}</option>
+          }
+        </select>
+      </div>
+    }
+  </div>
+
+  <!-- Previous / page / next -->
+  <nav class="flex items-center justify-between gap-1 sm:justify-end" aria-label="Pagination">
+    <button
+      type="button"
+      class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-ink-soft ring-1 ring-line transition-all duration-150 hover:bg-surface-muted hover:text-ink hover:ring-line-strong active:scale-95 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-40"
+      aria-label="Previous page"
+      [disabled]="isFirst()"
+      (click)="goTo(page() - 1)"
+    >
+      <app-icon name="chevronLeft" [size]="17" />
+    </button>
+
+    <p class="px-3 text-xs whitespace-nowrap text-ink-muted" aria-live="polite">
+      Page <span class="font-semibold text-ink tabular-nums">{{ page() }}</span>
+      of <span class="font-medium text-ink-soft tabular-nums">{{ totalPages() }}</span>
+    </p>
+
+    <button
+      type="button"
+      class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-ink-soft ring-1 ring-line transition-all duration-150 hover:bg-surface-muted hover:text-ink hover:ring-line-strong active:scale-95 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-40"
+      aria-label="Next page"
+      [disabled]="isLast()"
+      (click)="goTo(page() + 1)"
+    >
+      <app-icon name="chevronRight" [size]="17" />
+    </button>
+  </nav>
+</div>

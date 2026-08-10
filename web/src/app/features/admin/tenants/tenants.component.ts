@@ -9,6 +9,7 @@ import { ButtonDirective } from '@shared/ui/button/button.directive';
 import { DataTableComponent, type TableColumn } from '@shared/ui/data-table/data-table.component';
 import { TableRowDirective } from '@shared/ui/data-table/table-row.directive';
 import { IconComponent } from '@shared/ui/icon/icon.component';
+import { DEFAULT_PAGE_SIZE } from '@shared/ui/pagination/pagination.component';
 import { PageHeaderComponent } from '@shared/ui/page-header/page-header.component';
 import { StatCardComponent } from '@shared/ui/stat-card/stat-card.component';
 
@@ -25,7 +26,7 @@ const PLAN_TONE: Readonly<Record<TenantPlan, BadgeTone>> = {
   enterprise: 'warning',
 };
 
-const PAGE_SIZE = 10;
+
 
 @Component({
   selector: 'app-tenants',
@@ -50,7 +51,7 @@ export class TenantsComponent {
   protected readonly totalItems = signal(0);
   protected readonly page = signal(1);
 
-  protected readonly pageSize = PAGE_SIZE;
+  protected readonly pageSize = signal(DEFAULT_PAGE_SIZE);
   protected readonly statusTone = STATUS_TONE;
   protected readonly planTone = PLAN_TONE;
 
@@ -79,7 +80,7 @@ export class TenantsComponent {
 
   protected load(): void {
     this.state.set('loading');
-    this.platform.listTenants(this.page(), PAGE_SIZE).subscribe({
+    this.platform.listTenants(this.page(), this.pageSize()).subscribe({
       next: (result) => {
         this.tenants.set(result.items);
         this.totalItems.set(result.totalItems);
@@ -87,6 +88,12 @@ export class TenantsComponent {
       },
       error: () => this.state.set('error'),
     });
+  }
+
+  protected onPageSizeChange(size: number): void {
+    this.pageSize.set(size);
+    this.page.set(1);
+    this.load();
   }
 
   protected onPageChange(page: number): void {

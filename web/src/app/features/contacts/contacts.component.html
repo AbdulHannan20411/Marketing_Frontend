@@ -116,11 +116,12 @@
   [rows]="contacts()"
   [state]="state()"
   [page]="page()"
-  [pageSize]="pageSize"
+  [pageSize]="pageSize()"
   [totalItems]="totalItems()"
   emptyTitle="No contacts match those filters"
   emptyDescription="Try a different search term, or clear the filters to see everyone."
   (pageChange)="onPageChange($event)"
+  (pageSizeChange)="onPageSizeChange($event)"
   (retry)="load()"
 >
   <!-- Toolbar -->

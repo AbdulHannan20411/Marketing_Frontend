@@ -25,6 +25,7 @@ import {
 } from '@shared/ui/data-table/data-table.component';
 import { TableRowDirective } from '@shared/ui/data-table/table-row.directive';
 import { IconComponent } from '@shared/ui/icon/icon.component';
+import { DEFAULT_PAGE_SIZE } from '@shared/ui/pagination/pagination.component';
 import { PageHeaderComponent } from '@shared/ui/page-header/page-header.component';
 import { ContactEditorComponent } from './contact-editor.component';
 
@@ -34,7 +35,7 @@ const STATUS_TONE: Readonly<Record<ContactStatus, BadgeTone>> = {
   blocked: 'danger',
 };
 
-const PAGE_SIZE = 12;
+
 
 @Component({
   selector: 'app-contacts',
@@ -97,7 +98,7 @@ export class ContactsComponent {
   /** The API rejects a create the user lacks the permission for; hide the button too. */
   protected readonly canCreate = computed(() => this.auth.hasPermission('contacts.create'));
 
-  protected readonly pageSize = PAGE_SIZE;
+  protected readonly pageSize = signal(DEFAULT_PAGE_SIZE);
   protected readonly statusTone = STATUS_TONE;
 
   protected readonly columns: readonly TableColumn[] = [
@@ -185,7 +186,7 @@ export class ContactsComponent {
     this.contactsService
       .list({
         page: this.page(),
-        pageSize: PAGE_SIZE,
+        pageSize: this.pageSize(),
         search: this.search(),
         status: this.status(),
         groupId: this.groupId(),
@@ -213,6 +214,13 @@ export class ContactsComponent {
 
   protected onGroupChange(event: Event): void {
     this.groupId.set((event.target as HTMLSelectElement).value);
+    this.page.set(1);
+    this.load();
+  }
+
+  /** A different page size makes the old page number meaningless. */
+  protected onPageSizeChange(size: number): void {
+    this.pageSize.set(size);
     this.page.set(1);
     this.load();
   }

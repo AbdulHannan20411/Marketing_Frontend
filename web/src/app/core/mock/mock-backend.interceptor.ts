@@ -4,12 +4,17 @@ import {
   type HttpEvent,
   type HttpInterceptorFn,
   type HttpParams,
+  type HttpRequest,
 } from '@angular/common/http';
 import { Observable, delay, of, throwError } from 'rxjs';
 
 import { environment } from '@env/environment';
 import type { ApiResponse, PagedResult } from '@core/models/api.model';
-import type { AuthTokens, LoginRequest } from '@core/models/auth.model';
+import type {
+  AuthTokens,
+  CurrentUserResponse,
+  LoginRequest,
+} from '@core/models/auth.model';
 import type { Contact } from '@core/models/contact.model';
 import type { AppNotification } from '@core/models/notification.model';
 import type { SubscriptionPlan } from '@core/models/subscription.model';
@@ -43,8 +48,14 @@ import {
   dashboardForAdmin,
   employeesForAdmin,
 } from './mock-platform-data';
+import { decodeJwt } from '@core/auth/jwt.util';
 import { searchEverything } from './mock-search';
-import { MOCK_ACCOUNTS, accountFromRefreshToken, issueMockTokens } from './mock-tokens';
+import {
+  MOCK_ACCOUNTS,
+  accountFromRefreshToken,
+  issueMockTokens,
+  permissionsForRole,
+} from './mock-tokens';
 
 /** Simulated round-trip latency. Set to 0 to make mock responses synchronous. */
 const LATENCY_MS: number = 380;
@@ -124,13 +135,39 @@ function handleAuth(
   path: string,
   method: string,
   body: unknown,
+  request: HttpRequest<unknown>,
 ): Observable<HttpEvent<unknown>> | null {
+  // The profile lives behind /auth/me, not in the token, so the mock has to
+  // serve it too — the app initializer calls it before the first route runs.
+  if (method === 'GET' && path === '/auth/me') {
+    const bearer = request.headers.get('Authorization') ?? '';
+    const claims = decodeJwt(bearer.replace(/^Bearer\s+/i, ''));
+    const account =
+      claims === null
+        ? undefined
+        : MOCK_ACCOUNTS.find((candidate) => candidate.name === claims.name);
+
+    if (account === undefined) {
+      return fail(401, 'Session expired', 'Please sign in again.');
+    }
+
+    return ok<CurrentUserResponse>({
+      id: MOCK_ACCOUNTS.indexOf(account) + 1,
+      email: account.email,
+      displayName: account.name,
+      tenantName: account.role === 'SuperAdmin' ? null : account.workspaceName,
+      isSuperAdmin: account.role === 'SuperAdmin',
+      roles: [account.role],
+      permissions: [...permissionsForRole(account.role)],
+    });
+  }
+
   if (method === 'POST' && path === '/auth/login') {
-    const request = body as LoginRequest;
+    const credentials = body as LoginRequest;
     const account = MOCK_ACCOUNTS.find(
       (candidate) =>
-        candidate.email.toLowerCase() === request.email.trim().toLowerCase() &&
-        candidate.password === request.password,
+        candidate.email.toLowerCase() === credentials.email.trim().toLowerCase() &&
+        candidate.password === credentials.password,
     );
 
     return account === undefined
@@ -252,7 +289,7 @@ export const mockBackendInterceptor: HttpInterceptorFn = (request, next) => {
   const method = request.method.toUpperCase();
   const params = request.params;
 
-  const authResponse = handleAuth(path, method, request.body);
+  const authResponse = handleAuth(path, method, request.body, request);
   if (authResponse !== null) {
     return authResponse;
   }
