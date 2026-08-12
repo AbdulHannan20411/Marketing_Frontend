@@ -28,6 +28,26 @@ export const routes: Routes = [
             (m) => m.ForgotPasswordComponent,
           ),
       },
+      // Both are reached from an emailed link carrying `?token=`. The API's
+      // `Email:ClientBaseUrl` must point here rather than at its dev helper.
+      {
+        path: 'accept-invitation',
+        title: 'Accept your invitation · Verdant',
+        data: { mode: 'invitation' },
+        loadComponent: () =>
+          import('@features/auth/set-password/set-password.component').then(
+            (m) => m.SetPasswordComponent,
+          ),
+      },
+      {
+        path: 'reset-password',
+        title: 'Choose a new password · Verdant',
+        data: { mode: 'reset' },
+        loadComponent: () =>
+          import('@features/auth/set-password/set-password.component').then(
+            (m) => m.SetPasswordComponent,
+          ),
+      },
       { path: '', pathMatch: 'full', redirectTo: 'login' },
     ],
   },
