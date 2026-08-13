@@ -1,0 +1,448 @@
+<div class="animate-fade-in space-y-6">
+  @switch (state()) {
+    @case ('loading') {
+      <div class="space-y-6">
+        <app-skeleton height="3rem" width="22rem" />
+        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          @for (card of skeletons; track card) {
+            <app-skeleton height="6.5rem" />
+          }
+        </div>
+        <app-skeleton height="18rem" />
+      </div>
+    }
+
+    @case ('error') {
+      <app-error-state
+        title="Could not load this import"
+        description="The batch is temporarily unavailable, or it does not belong to this workspace."
+        (retry)="reload()"
+      />
+    }
+
+    @default {
+      @if (batch(); as current) {
+        <app-page-header [title]="current.fileName" [breadcrumbs]="breadcrumbs()">
+          @if (canCancel()) {
+            <button
+              appButton
+              variant="outline"
+              size="md"
+              [disabled]="cancelling()"
+              (click)="cancel()"
+            >
+              <app-icon name="stop" [size]="16" />
+              {{ cancelling() ? 'Cancelling…' : 'Cancel import' }}
+            </button>
+          }
+          <button appButton variant="ghost" size="md" (click)="backToHistory()">
+            Back to history
+          </button>
+        </app-page-header>
+
+        <!-- Status -->
+        <app-card>
+          <div class="flex flex-wrap items-start justify-between gap-4">
+            <div class="flex items-start gap-3.5">
+              <span
+                class="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-surface-sunken text-ink-muted ring-1 ring-line"
+              >
+                <app-icon name="tableCells" [size]="21" [strokeWidth]="1.7" />
+              </span>
+              <div>
+                <div class="flex flex-wrap items-center gap-2.5">
+                  <app-import-status-badge [status]="current.status" />
+                  <span class="text-xs text-ink-muted">
+                    {{ describe(current.fileSizeBytes) }} · uploaded
+                    {{ current.uploadedAt | timeAgo }} by {{ current.uploadedBy }}
+                  </span>
+                </div>
+
+                <p class="mt-2 max-w-xl text-sm leading-relaxed text-ink-soft">
+                  @switch (current.status) {
+                    @case ('pending') {
+                      Queued. A worker will pick this file up shortly — you can safely leave this
+                      page.
+                    }
+                    @case ('processing') {
+                      Reading and validating rows in the background. We'll notify you when it's
+                      ready.
+                    }
+                    @case ('awaitingMapping') {
+                      The file is parsed. Confirm which column feeds which field, then start the
+                      import.
+                    }
+                    @case ('committing') {
+                      Importing your contacts in the background. You can leave this page safely.
+                    }
+                    @case ('completed') {
+                      Every row was processed successfully.
+                    }
+                    @case ('completedWithErrors') {
+                      Finished, but some rows could not be imported. Download them below to fix and
+                      re-upload.
+                    }
+                    @case ('failed') {
+                      {{ current.failureReason ?? 'The file could not be processed.' }}
+                    }
+                    @case ('cancelled') {
+                      Cancelled. Anything already imported was kept.
+                    }
+                  }
+                </p>
+
+                @if (inFlight()) {
+                  <div class="mt-3 flex items-center gap-3">
+                    <div class="h-1.5 w-48 overflow-hidden rounded-full bg-surface-sunken">
+                      <div
+                        class="h-full rounded-full bg-brand-500 transition-all duration-500"
+                        [style.width.%]="current.progressPercent"
+                      ></div>
+                    </div>
+                    <span class="text-xs font-medium text-ink-muted">
+                      {{ current.progressPercent }}%
+                    </span>
+                    <span class="text-xs text-ink-muted">
+                      {{ isLive() ? 'Live' : 'Checking periodically' }}
+                    </span>
+                  </div>
+                }
+              </div>
+            </div>
+
+            @if (current.planLimit; as limit) {
+              @if (limit.skippedForLimit > 0) {
+                <div
+                  class="flex max-w-sm items-start gap-2.5 rounded-lg bg-amber-50 px-3.5 py-3 ring-1 ring-amber-200"
+                >
+                  <app-icon name="warning" [size]="16" class="mt-px shrink-0 text-warning" />
+                  <p class="text-xs leading-relaxed text-amber-900">
+                    <span class="font-medium">
+                      {{ limit.skippedForLimit | number }} rows were skipped
+                    </span>
+                    because your plan allows {{ limit.contactLimit | number }} contacts and you
+                    already have {{ limit.currentContacts | number }}.
+                    <a routerLink="/subscription" class="font-medium underline">Upgrade</a>
+                    to import the rest.
+                  </p>
+                </div>
+              }
+            }
+          </div>
+        </app-card>
+
+        <!-- Statistics -->
+        @if (statistics(); as stats) {
+          <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+            <app-card>
+              <p class="text-xs font-medium tracking-wide text-ink-muted uppercase">Total</p>
+              <p class="mt-1.5 text-2xl font-semibold tabular-nums text-ink">
+                {{ stats.totalRows | number }}
+              </p>
+            </app-card>
+
+            <app-card>
+              <p class="text-xs font-medium tracking-wide text-ink-muted uppercase">Successful</p>
+              <p class="mt-1.5 text-2xl font-semibold tabular-nums text-brand-700">
+                {{ stats.successful | number }}
+              </p>
+            </app-card>
+
+            <app-card>
+              <p class="text-xs font-medium tracking-wide text-ink-muted uppercase">Updated</p>
+              <p class="mt-1.5 text-2xl font-semibold tabular-nums text-ink">
+                {{ stats.updated | number }}
+              </p>
+            </app-card>
+
+            <app-card>
+              <p class="text-xs font-medium tracking-wide text-ink-muted uppercase">Duplicates</p>
+              <p class="mt-1.5 text-2xl font-semibold tabular-nums text-ink">
+                {{ stats.duplicates | number }}
+              </p>
+            </app-card>
+
+            <!-- The failed count is the handle for the export; a plain number would
+                 leave the only route to those rows undiscoverable. -->
+            @if (stats.failed > 0 && current.hasFailedRecords) {
+              <button
+                type="button"
+                class="group rounded-xl bg-surface p-5 text-left shadow-xs ring-1 ring-line transition-all hover:-translate-y-0.5 hover:shadow-md hover:ring-red-300 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none"
+                [disabled]="exporting()"
+                (click)="exportFailed()"
+              >
+                <p class="text-xs font-medium tracking-wide text-ink-muted uppercase">Failed</p>
+                <p class="mt-1.5 text-2xl font-semibold tabular-nums text-danger">
+                  {{ stats.failed | number }}
+                </p>
+                <p
+                  class="mt-1 flex items-center gap-1 text-xs font-medium text-danger/80 group-hover:text-danger"
+                >
+                  @if (exporting()) {
+                    <app-icon name="refresh" [size]="13" class="animate-spin" />
+                    {{ exportLabel() }}
+                  } @else {
+                    <app-icon name="download" [size]="13" />
+                    Download failed rows
+                  }
+                </p>
+              </button>
+            } @else {
+              <app-card>
+                <p class="text-xs font-medium tracking-wide text-ink-muted uppercase">Failed</p>
+                <p
+                  class="mt-1.5 text-2xl font-semibold tabular-nums"
+                  [class]="stats.failed > 0 ? 'text-danger' : 'text-ink'"
+                >
+                  {{ stats.failed | number }}
+                </p>
+              </app-card>
+            }
+          </div>
+        }
+
+        <!-- Error breakdown -->
+        @if (current.errorGroups.length > 0) {
+          <app-card title="What went wrong" subtitle="Grouped by cause, across the whole file.">
+            <ul class="grid gap-2 sm:grid-cols-2">
+              @for (group of current.errorGroups; track group.code) {
+                <li
+                  class="flex items-center justify-between gap-3 rounded-lg bg-surface-sunken px-3.5 py-2.5 ring-1 ring-line"
+                >
+                  <span class="text-sm text-ink-soft">{{ errorLabel(group.code) }}</span>
+                  <span class="text-sm font-semibold tabular-nums text-ink">
+                    {{ group.count | number }}
+                  </span>
+                </li>
+              }
+            </ul>
+          </app-card>
+        }
+
+        <!-- Mapping -->
+        @if (hasParsedRows()) {
+          <app-card
+            title="Column mapping"
+            [subtitle]="
+              canEditMapping()
+                ? 'Match each field to a column from your file. Required fields must be mapped before importing.'
+                : 'The mapping used for this import.'
+            "
+          >
+            <div class="grid gap-4 sm:grid-cols-2">
+              @for (field of targetFields; track field.key) {
+                <div>
+                  <label
+                    [attr.for]="'map-' + field.key"
+                    class="flex items-center gap-1.5 text-sm font-medium text-ink-soft"
+                  >
+                    {{ field.label }}
+                    @if (field.required) {
+                      <span class="text-xs font-normal text-danger">Required</span>
+                    }
+                  </label>
+                  <select
+                    [id]="'map-' + field.key"
+                    [disabled]="!canEditMapping()"
+                    (change)="setMapping(field.key, $any($event.target).value)"
+                    class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink ring-1 ring-line ring-inset transition-all focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none disabled:cursor-not-allowed disabled:text-ink-muted"
+                  >
+                    <!-- `[selected]` rather than `[value]` on the select: the value
+                         property is applied before the options exist, so the
+                         suggestion would silently show as unmapped. -->
+                    <option value="" [selected]="mappedColumn(field.key) === ''">
+                      — Not mapped —
+                    </option>
+                    @for (column of previewColumns(); track column) {
+                      <option [value]="column" [selected]="mappedColumn(field.key) === column">
+                        {{ column }}
+                      </option>
+                    }
+                  </select>
+                  <p class="mt-1 text-xs text-ink-muted">{{ field.hint }}</p>
+                </div>
+              }
+            </div>
+
+            @if (canEditMapping()) {
+              <div class="mt-5 flex flex-wrap items-center justify-between gap-3">
+                @if (missingRequired().length > 0) {
+                  <p class="flex items-center gap-1.5 text-xs text-danger">
+                    <app-icon name="warning" [size]="14" />
+                    Map
+                    @for (field of missingRequired(); track field.key; let last = $last) {
+                      <span class="font-medium">{{ field.label }}{{ last ? '' : ', ' }}</span>
+                    }
+                    to continue.
+                  </p>
+                } @else {
+                  <p class="text-xs text-ink-muted">All required fields are mapped.</p>
+                }
+
+                <button
+                  appButton
+                  variant="outline"
+                  size="md"
+                  [disabled]="savingMapping()"
+                  (click)="saveMapping()"
+                >
+                  {{ savingMapping() ? 'Saving…' : 'Save mapping' }}
+                </button>
+              </div>
+            }
+          </app-card>
+        }
+
+        <!-- Confirm -->
+        @if (canEditMapping()) {
+          <app-card>
+            <div class="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <h2 class="text-sm font-semibold text-ink">Ready to import</h2>
+                <p class="mt-0.5 max-w-xl text-xs leading-relaxed text-ink-muted">
+                  Status, tags and groups come from the columns you mapped above — tags and groups
+                  that don't exist yet are created. We'll queue the import and let you know when it
+                  finishes; you don't have to wait here.
+                </p>
+              </div>
+              <button appButton size="lg" [disabled]="!canCommit()" (click)="commit()">
+                @if (committing()) {
+                  <app-icon name="refresh" [size]="17" class="animate-spin" />
+                  Starting…
+                } @else {
+                  Start import
+                  <app-icon name="arrowRight" [size]="16" />
+                }
+              </button>
+            </div>
+          </app-card>
+        }
+
+        <!-- Preview / rows -->
+        <app-card [padded]="false">
+          <div
+            class="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4"
+          >
+            <div>
+              <h2 class="text-sm font-semibold text-ink">
+                {{ isSettled() ? 'Rows' : 'Preview' }}
+              </h2>
+              <p class="mt-0.5 text-xs text-ink-muted">
+                {{
+                  isSettled()
+                    ? 'Every row as the worker recorded it.'
+                    : 'The first rows as we read them, before anything is imported.'
+                }}
+              </p>
+            </div>
+
+            <div class="flex gap-1 rounded-lg bg-surface-sunken p-0.5 ring-1 ring-line">
+              <button
+                type="button"
+                class="rounded-md px-3 py-1.5 text-xs font-medium transition-colors"
+                [class]="
+                  rowFilter() === 'all' ? 'bg-surface text-ink shadow-xs' : 'text-ink-muted hover:text-ink'
+                "
+                (click)="setRowFilter('all')"
+              >
+                All rows
+              </button>
+              <button
+                type="button"
+                class="rounded-md px-3 py-1.5 text-xs font-medium transition-colors"
+                [class]="
+                  rowFilter() === 'failed'
+                    ? 'bg-surface text-ink shadow-xs'
+                    : 'text-ink-muted hover:text-ink'
+                "
+                (click)="setRowFilter('failed')"
+              >
+                Failed only
+              </button>
+            </div>
+          </div>
+
+          @switch (rowsState()) {
+            @case ('loading') {
+              <div class="space-y-3 p-5">
+                @for (row of skeletons; track row) {
+                  <app-skeleton height="2.25rem" />
+                }
+              </div>
+            }
+
+            @case ('error') {
+              <div class="p-6">
+                <app-error-state
+                  title="Could not load rows"
+                  description="The rows for this batch are temporarily unavailable."
+                  (retry)="loadRows()"
+                />
+              </div>
+            }
+
+            @case ('empty') {
+              <div class="p-6">
+                <app-empty-state
+                  icon="inbox"
+                  [title]="rowFilter() === 'failed' ? 'No failed rows' : 'Nothing to show yet'"
+                  [description]="
+                    rowFilter() === 'failed'
+                      ? 'Every row in this file was handled without error.'
+                      : 'Rows appear here once the file has been read.'
+                  "
+                />
+              </div>
+            }
+
+            @default {
+              <div class="overflow-x-auto">
+                <table class="w-full min-w-[48rem] text-sm">
+                  <thead>
+                    <tr
+                      class="border-b border-line text-left text-xs tracking-wide text-ink-muted uppercase"
+                    >
+                      <th scope="col" class="px-5 py-3 font-medium">Row</th>
+                      <th scope="col" class="px-3 py-3 font-medium">Status</th>
+                      @for (column of previewColumns(); track column) {
+                        <th scope="col" class="px-3 py-3 font-medium">{{ column }}</th>
+                      }
+                      <th scope="col" class="px-5 py-3 font-medium">Issue</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (row of rows(); track row.rowNumber) {
+                      <tr
+                        class="border-b border-line/70 last:border-0"
+                        [class.bg-red-50]="row.errors.length > 0"
+                      >
+                        <td class="px-5 py-2.5 tabular-nums text-ink-muted">{{ row.rowNumber }}</td>
+                        <td class="px-3 py-2.5 capitalize text-ink-soft">{{ row.status }}</td>
+                        @for (column of previewColumns(); track column) {
+                          <td class="max-w-[14rem] truncate px-3 py-2.5 text-ink-soft">
+                            {{ row.values[column] }}
+                          </td>
+                        }
+                        <td class="px-5 py-2.5 text-xs text-danger">{{ errorText(row) }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+
+              <div class="border-t border-line px-5 py-3">
+                <app-pagination
+                  [page]="rowPage()"
+                  [pageSize]="rowPageSize()"
+                  [totalItems]="rowTotal()"
+                  (pageChange)="onRowPageChange($event)"
+                  (pageSizeChange)="onRowPageSizeChange($event)"
+                />
+              </div>
+            }
+          }
+        </app-card>
+      }
+    }
+  }
+</div>

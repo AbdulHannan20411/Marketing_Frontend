@@ -8,10 +8,19 @@ import { environment } from '@env/environment';
 const DEFAULT_TIMEOUT_MS = 30_000;
 
 /**
- * Long-running by design: the CSV import commit processes up to 50,000 rows
- * synchronously, and exports stream the whole result set.
+ * Long-running by design.
+ *
+ * Contact-import calls are not slow because they do the work — upload only
+ * transfers the file and commit only queues it — but a 25 MB upload over a
+ * poor connection can still outlast the default, and downloads stream the
+ * whole result set.
  */
-const LONG_RUNNING = ['/contacts/import/commit', '/contacts/export', '/templates/sync'];
+const LONG_RUNNING = [
+  '/contact-imports',
+  '/contacts/import/commit',
+  '/contacts/export',
+  '/templates/sync',
+];
 const LONG_TIMEOUT_MS = 300_000;
 
 /**

@@ -1,4 +1,4 @@
-import type { AppEnvironment } from './environment';
+import type { AppEnvironment } from './environment.model';
 
 export const environment: AppEnvironment = {
   production: true,
@@ -6,5 +6,5 @@ export const environment: AppEnvironment = {
   apiBaseUrl: '/api/v1',
   realtimeUrl: '/hubs/realtime',
   useMockApi: false,
-  appName: 'Verdant',
+  appName: 'NextReach',
 };

@@ -67,7 +67,7 @@ npm --prefix web run start
 ```
 
 Demo sign-ins (mock only), all with password `Password1!`:
-`owner@verdant.io` (TenantOwner) · `agent@verdant.io` (TenantUser) · `admin@verdant.io` (PlatformAdmin).
+`admin@nextreach.io` (Admin) · `employee@nextreach.io` (Employee) · `superadmin@nextreach.io` (SuperAdmin).
 
 ## Modules
 

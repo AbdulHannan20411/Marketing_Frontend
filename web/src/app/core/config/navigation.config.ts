@@ -22,6 +22,13 @@ export const NAVIGATION: readonly NavSection[] = [
         module: 'crm',
       },
       {
+        label: 'Import',
+        route: '/contacts/import',
+        icon: 'upload',
+        permissions: ['contacts.import'],
+        module: 'crm',
+      },
+      {
         label: 'Groups',
         route: '/groups',
         icon: 'userGroup',

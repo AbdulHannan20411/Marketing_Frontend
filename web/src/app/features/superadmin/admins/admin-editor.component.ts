@@ -11,8 +11,8 @@ export interface AdminEditorResult {
   readonly name: string;
   readonly email: string;
   readonly organisation: string;
-  readonly password: string;
-  readonly plan: TenantPlan;
+  /** Edit only. Creation lands on the default band; the owner picks their own. */
+  readonly plan: TenantPlan | null;
 }
 
 const PLANS: readonly TenantPlan[] = ['starter', 'growth', 'scale', 'enterprise'];
@@ -20,10 +20,11 @@ const PLANS: readonly TenantPlan[] = ['starter', 'growth', 'scale', 'enterprise'
 /**
  * Create or edit an Admin account.
  *
- * On create the API also provisions the organisation and emails an invitation;
- * the password here is only a placeholder hash, because the admin sets their
- * own when they accept. On edit the email is fixed — the API has no route for
- * changing it.
+ * Creation takes name, email and organisation and nothing else: the API emails
+ * an invitation, the owner sets their own password when they accept, and the
+ * organisation chooses its plan once they are in. The plan band stays editable
+ * here afterwards as a platform-side override. On edit the email is fixed —
+ * the API has no route for changing it.
  */
 @Component({
   selector: 'app-admin-editor',
@@ -43,7 +44,6 @@ export class AdminEditorComponent {
   protected readonly name = signal('');
   protected readonly email = signal('');
   protected readonly organisation = signal('');
-  protected readonly password = signal('');
   protected readonly plan = signal<TenantPlan>('starter');
 
   protected readonly isEdit = computed(() => this.admin() !== null);
@@ -55,7 +55,7 @@ export class AdminEditorComponent {
   protected readonly subtitle = computed(() =>
     this.isEdit()
       ? 'Update the organisation name, contact name and plan band.'
-      : 'Creates the organisation and its first administrator, and emails them an invitation.',
+      : 'Creates the organisation and invites its first administrator by email.',
   );
 
   protected readonly nameInvalid = computed(() => this.name().trim().length === 0);
@@ -65,18 +65,8 @@ export class AdminEditorComponent {
     () => !this.isEdit() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(this.email().trim()),
   );
 
-  /** Matches the API policy: at least 12 characters, a letter and a digit. */
-  protected readonly passwordInvalid = computed(() => {
-    if (this.isEdit()) {
-      return false;
-    }
-    const value = this.password();
-    return value.length < 12 || !/[a-zA-Z]/.test(value) || !/\d/.test(value);
-  });
-
   protected readonly invalid = computed(
-    () =>
-      this.nameInvalid() || this.orgInvalid() || this.emailInvalid() || this.passwordInvalid(),
+    () => this.nameInvalid() || this.orgInvalid() || this.emailInvalid(),
   );
 
   constructor() {
@@ -86,7 +76,6 @@ export class AdminEditorComponent {
         this.name.set('');
         this.email.set('');
         this.organisation.set('');
-        this.password.set(crypto.randomUUID().replace(/-/g, '').slice(0, 20) + '7a');
         this.plan.set('starter');
         return;
       }
@@ -95,7 +84,6 @@ export class AdminEditorComponent {
       this.email.set(source.email);
       this.organisation.set(source.organisation);
       this.plan.set(source.plan);
-      this.password.set('');
     });
   }
 
@@ -108,8 +96,7 @@ export class AdminEditorComponent {
       name: this.name().trim(),
       email: this.email().trim(),
       organisation: this.organisation().trim(),
-      password: this.password(),
-      plan: this.plan(),
+      plan: this.isEdit() ? this.plan() : null,
     });
   }
 }

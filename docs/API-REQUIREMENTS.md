@@ -111,7 +111,7 @@ from it. These claims are mandatory:
 ```jsonc
 {
   "sub":           "usr_amara",
-  "email":         "admin@verdant.io",
+  "email":         "admin@nextreach.io",
   "name":          "Amara Chen",
   "role":          "Admin",                       // SuperAdmin | Admin | Employee
   "permissions":   ["dashboard.view", "contacts.view", … ],  // see §4

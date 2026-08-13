@@ -7,10 +7,10 @@
     <app-icon name="download" [size]="16" />
     Export
   </button>
-  <button appButton variant="outline" size="md" (click)="announcePending('Import contacts')">
-    <app-icon name="download" [size]="16" class="rotate-180" />
+  <a appButton variant="outline" size="md" routerLink="/contacts/import">
+    <app-icon name="upload" [size]="16" />
     Import
-  </button>
+  </a>
   @if (canCreate()) {
     <button appButton size="md" (click)="openCreate()">
       <app-icon name="plus" [size]="16" />

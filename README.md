@@ -26,17 +26,20 @@ npm --prefix web run start
 
 Then open <http://localhost:4200>.
 
-The app boots against an in-memory mock backend, so **no API server is needed** to run it.
+The app talks to the real API by default. Set `useMockApi: true` in
+`web/src/environments/environment.ts` to boot against the in-memory mock backend instead, so
+**no API server is needed** to run it.
 
 ### Demo sign-ins
 
-All three accounts use the password `Password1!`. The login screen has one-click buttons for each.
+Mock backend only. All three accounts use the password `Password1!`, and the login screen has
+one-click buttons for each.
 
 | Email | Role | What they can see |
 | --- | --- | --- |
-| `owner@verdant.io` | `TenantOwner` | Everything except the Platform section |
-| `agent@verdant.io` | `TenantUser` | Read-mostly access; no settings or team management |
-| `admin@verdant.io` | `PlatformAdmin` | Adds Tenants, Audit Logs and Monitoring |
+| `admin@nextreach.io` | `Admin` | Their whole workspace, including settings and team management |
+| `employee@nextreach.io` | `Employee` | Read-mostly access; no settings or team management |
+| `superadmin@nextreach.io` | `SuperAdmin` | The `/superadmin` portal: every admin, plans, tenants, audit |
 
 Signing in as different roles is the fastest way to see the permission-driven navigation and
 route guards at work.

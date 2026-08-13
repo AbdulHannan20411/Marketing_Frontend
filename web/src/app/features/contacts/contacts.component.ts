@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { DecimalPipe } from '@angular/common';
 import { Subject, debounceTime, distinctUntilChanged } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { RouterLink } from '@angular/router';
 
 import type { ApiError, BulkOperationResult, LoadState } from '@core/models/api.model';
 import { AuthService } from '@core/auth/auth.service';
@@ -42,6 +43,7 @@ const STATUS_TONE: Readonly<Record<ContactStatus, BadgeTone>> = {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     DecimalPipe,
+    RouterLink,
     TimeAgoPipe,
     PageHeaderComponent,
     DataTableComponent,

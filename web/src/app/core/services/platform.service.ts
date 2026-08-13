@@ -12,16 +12,15 @@ import type {
 } from '@core/models/platform.model';
 import { ApiService } from './api.service';
 
+/**
+ * The whole payload. No password — the owner sets their own through the
+ * invitation link — and no plan, because the tenant is created on the default
+ * band and the organisation picks its own after signing in.
+ */
 export interface CreateAdminAccountRequest {
   readonly name: string;
   readonly email: string;
   readonly organisation: string;
-  /**
-   * Placeholder hash only — the invitation email is what actually lets the
-   * admin in, and it overwrites this when they set their own password.
-   */
-  readonly password: string;
-  readonly plan?: TenantPlan;
 }
 
 export interface UpdateAdminAccountRequest {

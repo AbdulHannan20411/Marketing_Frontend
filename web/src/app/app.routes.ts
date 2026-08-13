@@ -15,14 +15,14 @@ export const routes: Routes = [
     children: [
       {
         path: 'login',
-        title: 'Sign in · Verdant',
+        title: 'Sign in',
         data: { portal: 'admin' },
         loadComponent: () =>
           import('@features/auth/login/login.component').then((m) => m.LoginComponent),
       },
       {
         path: 'forgot-password',
-        title: 'Reset password · Verdant',
+        title: 'Reset password',
         loadComponent: () =>
           import('@features/auth/forgot-password/forgot-password.component').then(
             (m) => m.ForgotPasswordComponent,
@@ -32,7 +32,7 @@ export const routes: Routes = [
       // `Email:ClientBaseUrl` must point here rather than at its dev helper.
       {
         path: 'accept-invitation',
-        title: 'Accept your invitation · Verdant',
+        title: 'Accept your invitation',
         data: { mode: 'invitation' },
         loadComponent: () =>
           import('@features/auth/set-password/set-password.component').then(
@@ -41,7 +41,7 @@ export const routes: Routes = [
       },
       {
         path: 'reset-password',
-        title: 'Choose a new password · Verdant',
+        title: 'Choose a new password',
         data: { mode: 'reset' },
         loadComponent: () =>
           import('@features/auth/set-password/set-password.component').then(
@@ -62,7 +62,7 @@ export const routes: Routes = [
   {
     path: 'superadmin/login',
     canActivate: [guestGuard],
-    title: 'Super Admin sign-in · Verdant',
+    title: 'Super Admin sign-in',
     data: { portal: 'superadmin' },
     loadComponent: () =>
       import('@features/auth/login/login.component').then((m) => m.LoginComponent),
@@ -75,7 +75,7 @@ export const routes: Routes = [
     children: [
       {
         path: 'dashboard',
-        title: 'Platform overview · Verdant',
+        title: 'Platform overview',
         loadComponent: () =>
           import('@features/superadmin/dashboard/dashboard-switch.component').then(
             (m) => m.SuperAdminDashboardComponent,
@@ -83,7 +83,7 @@ export const routes: Routes = [
       },
       {
         path: 'admins',
-        title: 'Admins · Verdant',
+        title: 'Admins',
         loadComponent: () =>
           import('@features/superadmin/admins/admins.component').then(
             (m) => m.SuperAdminAdminsComponent,
@@ -91,7 +91,7 @@ export const routes: Routes = [
       },
       {
         path: 'reports',
-        title: 'Global reports · Verdant',
+        title: 'Global reports',
         loadComponent: () =>
           import('@features/superadmin/reports/reports-switch.component').then(
             (m) => m.SuperAdminReportsComponent,
@@ -101,48 +101,66 @@ export const routes: Routes = [
       /* Scoped modules — the picker stands in until an admin is chosen. */
       {
         path: 'contacts',
-        title: 'Contacts · Verdant',
+        title: 'Contacts',
         canActivate: [scopeGuard],
         loadComponent: () =>
           import('@features/contacts/contacts.component').then((m) => m.ContactsComponent),
       },
       {
+        path: 'contacts/import',
+        title: 'Import contacts',
+        canActivate: [scopeGuard],
+        loadComponent: () =>
+          import('@features/contacts/import/contact-import.component').then(
+            (m) => m.ContactImportComponent,
+          ),
+      },
+      {
+        path: 'contacts/import/:batchId',
+        title: 'Import details',
+        canActivate: [scopeGuard],
+        loadComponent: () =>
+          import('@features/contacts/import/import-detail.component').then(
+            (m) => m.ImportDetailComponent,
+          ),
+      },
+      {
         path: 'groups',
-        title: 'Groups · Verdant',
+        title: 'Groups',
         canActivate: [scopeGuard],
         loadComponent: () =>
           import('@features/groups/groups.component').then((m) => m.GroupsComponent),
       },
       {
         path: 'tags',
-        title: 'Tags · Verdant',
+        title: 'Tags',
         canActivate: [scopeGuard],
         loadComponent: () => import('@features/tags/tags.component').then((m) => m.TagsComponent),
       },
       {
         path: 'campaigns',
-        title: 'Campaigns · Verdant',
+        title: 'Campaigns',
         canActivate: [scopeGuard],
         loadComponent: () =>
           import('@features/campaigns/campaigns.component').then((m) => m.CampaignsComponent),
       },
       {
         path: 'templates',
-        title: 'Templates · Verdant',
+        title: 'Templates',
         canActivate: [scopeGuard],
         loadComponent: () =>
           import('@features/templates/templates.component').then((m) => m.TemplatesComponent),
       },
       {
         path: 'whatsapp',
-        title: 'WhatsApp · Verdant',
+        title: 'WhatsApp',
         canActivate: [scopeGuard],
         loadComponent: () =>
           import('@features/whatsapp/whatsapp.component').then((m) => m.WhatsAppComponent),
       },
       {
         path: 'employees',
-        title: 'Employees · Verdant',
+        title: 'Employees',
         canActivate: [scopeGuard],
         loadComponent: () =>
           import('@features/employees/employees.component').then((m) => m.EmployeesComponent),
@@ -151,25 +169,25 @@ export const routes: Routes = [
       /* Platform-level administration */
       {
         path: 'plans',
-        title: 'Plans · Verdant',
+        title: 'Plans',
         loadComponent: () =>
           import('@features/admin/plans/plans.component').then((m) => m.PlansComponent),
       },
       {
         path: 'tenants',
-        title: 'Tenants · Verdant',
+        title: 'Tenants',
         loadComponent: () =>
           import('@features/admin/tenants/tenants.component').then((m) => m.TenantsComponent),
       },
       {
         path: 'audit',
-        title: 'Audit Logs · Verdant',
+        title: 'Audit Logs',
         loadComponent: () =>
           import('@features/admin/audit/audit.component').then((m) => m.AuditComponent),
       },
       {
         path: 'monitoring',
-        title: 'Monitoring · Verdant',
+        title: 'Monitoring',
         loadComponent: () =>
           import('@features/admin/monitoring/monitoring.component').then(
             (m) => m.MonitoringComponent,
@@ -177,13 +195,13 @@ export const routes: Routes = [
       },
       {
         path: 'settings',
-        title: 'Settings · Verdant',
+        title: 'Settings',
         loadComponent: () =>
           import('@features/settings/settings.component').then((m) => m.SettingsComponent),
       },
       {
         path: 'notifications',
-        title: 'Notifications · Verdant',
+        title: 'Notifications',
         loadComponent: () =>
           import('@features/notifications/notifications.component').then(
             (m) => m.NotificationsComponent,
@@ -203,7 +221,7 @@ export const routes: Routes = [
     children: [
       {
         path: 'dashboard',
-        title: 'Dashboard · Verdant',
+        title: 'Dashboard',
         loadComponent: () =>
           import('@features/dashboard/dashboard.component').then((m) => m.DashboardComponent),
       },
@@ -211,15 +229,36 @@ export const routes: Routes = [
       /* ---------------- Audience ---------------- */
       {
         path: 'contacts',
-        title: 'Contacts · Verdant',
+        title: 'Contacts',
         canActivate: [permissionGuard, featureGuard],
         data: { permissions: ['contacts.view'], module: 'crm' },
         loadComponent: () =>
           import('@features/contacts/contacts.component').then((m) => m.ContactsComponent),
       },
+      // Declared before `contacts/:id` would be, so the literal wins the match.
+      {
+        path: 'contacts/import',
+        title: 'Import contacts',
+        canActivate: [permissionGuard, featureGuard],
+        data: { permissions: ['contacts.import'], module: 'crm' },
+        loadComponent: () =>
+          import('@features/contacts/import/contact-import.component').then(
+            (m) => m.ContactImportComponent,
+          ),
+      },
+      {
+        path: 'contacts/import/:batchId',
+        title: 'Import details',
+        canActivate: [permissionGuard, featureGuard],
+        data: { permissions: ['contacts.import'], module: 'crm' },
+        loadComponent: () =>
+          import('@features/contacts/import/import-detail.component').then(
+            (m) => m.ImportDetailComponent,
+          ),
+      },
       {
         path: 'groups',
-        title: 'Groups · Verdant',
+        title: 'Groups',
         canActivate: [permissionGuard, featureGuard],
         data: { permissions: ['groups.manage'], module: 'crm' },
         loadComponent: () =>
@@ -227,7 +266,7 @@ export const routes: Routes = [
       },
       {
         path: 'tags',
-        title: 'Tags · Verdant',
+        title: 'Tags',
         canActivate: [permissionGuard, featureGuard],
         data: { permissions: ['tags.manage'], module: 'crm' },
         loadComponent: () => import('@features/tags/tags.component').then((m) => m.TagsComponent),
@@ -236,7 +275,7 @@ export const routes: Routes = [
       /* ---------------- Messaging ---------------- */
       {
         path: 'whatsapp',
-        title: 'WhatsApp · Verdant',
+        title: 'WhatsApp',
         canActivate: [permissionGuard, featureGuard],
         data: { permissions: ['whatsapp.templates.view', 'whatsapp.connect'], module: 'whatsapp' },
         loadComponent: () =>
@@ -244,7 +283,7 @@ export const routes: Routes = [
       },
       {
         path: 'templates',
-        title: 'Templates · Verdant',
+        title: 'Templates',
         canActivate: [permissionGuard, featureGuard],
         data: { permissions: ['whatsapp.templates.view'], module: 'whatsapp' },
         loadComponent: () =>
@@ -252,7 +291,7 @@ export const routes: Routes = [
       },
       {
         path: 'campaigns',
-        title: 'Campaigns · Verdant',
+        title: 'Campaigns',
         canActivate: [permissionGuard, featureGuard],
         data: {
           permissions: ['whatsapp.campaigns.reports', 'whatsapp.campaigns.create'],
@@ -265,7 +304,7 @@ export const routes: Routes = [
       /* ---------------- Insights ---------------- */
       {
         path: 'reports',
-        title: 'Reports · Verdant',
+        title: 'Reports',
         canActivate: [permissionGuard, featureGuard],
         data: { permissions: ['reports.view'], module: 'reporting' },
         loadComponent: () =>
@@ -275,7 +314,7 @@ export const routes: Routes = [
       /* ---------------- Workspace ---------------- */
       {
         path: 'employees',
-        title: 'Employees · Verdant',
+        title: 'Employees',
         canActivate: [permissionGuard, featureGuard],
         data: { permissions: ['settings.employees'], module: 'employees' },
         loadComponent: () =>
@@ -283,7 +322,7 @@ export const routes: Routes = [
       },
       {
         path: 'subscription',
-        title: 'Subscription · Verdant',
+        title: 'Subscription',
         canActivate: [permissionGuard],
         data: { permissions: ['settings.subscription'] },
         loadComponent: () =>
@@ -293,7 +332,7 @@ export const routes: Routes = [
       },
       {
         path: 'billing',
-        title: 'Billing · Verdant',
+        title: 'Billing',
         canActivate: [permissionGuard],
         data: { permissions: ['settings.billing'] },
         loadComponent: () =>
@@ -301,13 +340,13 @@ export const routes: Routes = [
       },
       {
         path: 'pricing',
-        title: 'Plans & pricing · Verdant',
+        title: 'Plans & pricing',
         loadComponent: () =>
           import('@features/pricing/pricing.component').then((m) => m.PricingComponent),
       },
       {
         path: 'notifications',
-        title: 'Notifications · Verdant',
+        title: 'Notifications',
         loadComponent: () =>
           import('@features/notifications/notifications.component').then(
             (m) => m.NotificationsComponent,
@@ -315,13 +354,13 @@ export const routes: Routes = [
       },
       {
         path: 'upgrade',
-        title: 'Upgrade · Verdant',
+        title: 'Upgrade',
         loadComponent: () =>
           import('@features/upgrade/upgrade.component').then((m) => m.UpgradeComponent),
       },
       {
         path: 'settings',
-        title: 'Settings · Verdant',
+        title: 'Settings',
         loadComponent: () =>
           import('@features/settings/settings.component').then((m) => m.SettingsComponent),
       },
@@ -330,7 +369,7 @@ export const routes: Routes = [
 
       {
         path: 'forbidden',
-        title: 'No access · Verdant',
+        title: 'No access',
         loadComponent: () =>
           import('@features/errors/forbidden.component').then((m) => m.ForbiddenComponent),
       },

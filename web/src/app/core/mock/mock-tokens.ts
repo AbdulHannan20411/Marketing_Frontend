@@ -49,25 +49,25 @@ export interface MockAccount {
 
 export const MOCK_ACCOUNTS: readonly MockAccount[] = [
   {
-    email: 'admin@verdant.io',
+    email: 'admin@nextreach.io',
     password: 'Password1!',
     name: 'Amara Chen',
     role: 'Admin',
     workspaceName: 'Northwind Retail',
   },
   {
-    email: 'employee@verdant.io',
+    email: 'employee@nextreach.io',
     password: 'Password1!',
     name: 'Diego Rivera',
     role: 'Employee',
     workspaceName: 'Northwind Retail',
   },
   {
-    email: 'superadmin@verdant.io',
+    email: 'superadmin@nextreach.io',
     password: 'Password1!',
     name: 'Priya Raman',
     role: 'SuperAdmin',
-    workspaceName: 'Verdant Platform',
+    workspaceName: 'NextReach Platform',
   },
 ];
 

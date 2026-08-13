@@ -55,53 +55,42 @@
       }
     </div>
 
-    <div [class.sm:col-span-2]="isEdit()">
-      <label for="admin-plan" class="block text-sm font-medium text-ink-soft">Plan band</label>
-      <select
-        id="admin-plan"
-        [ngModel]="plan()"
-        (ngModelChange)="plan.set($event)"
-        class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink capitalize ring-1 ring-line ring-inset focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
-      >
-        @for (option of plans; track option) {
-          <option [value]="option">{{ option }}</option>
-        }
-      </select>
-    </div>
-
-    @if (!isEdit()) {
-      <div>
-        <label for="admin-password" class="block text-sm font-medium text-ink-soft">
-          Placeholder password
-        </label>
-        <input
-          id="admin-password"
-          type="text"
-          [ngModel]="password()"
-          (ngModelChange)="password.set($event)"
-          class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 font-mono text-xs text-ink ring-1 ring-line ring-inset focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
-          [class.ring-red-400]="passwordInvalid()"
-        />
-        @if (passwordInvalid()) {
-          <p class="mt-1 text-xs text-danger">
-            At least 12 characters, including a letter and a digit.
-          </p>
-        } @else {
-          <p class="mt-1 text-xs text-ink-muted">
-            Generated for you. The admin sets their own when they accept the invitation.
-          </p>
-        }
+    <!-- Plan is a platform-side override, so it only appears once the account exists.
+         A new organisation lands on the default band and chooses its own after sign-in. -->
+    @if (isEdit()) {
+      <div class="sm:col-span-2">
+        <label for="admin-plan" class="block text-sm font-medium text-ink-soft">Plan band</label>
+        <select
+          id="admin-plan"
+          [ngModel]="plan()"
+          (ngModelChange)="plan.set($event)"
+          class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink capitalize ring-1 ring-line ring-inset focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
+        >
+          @for (option of plans; track option) {
+            <option [value]="option">{{ option }}</option>
+          }
+        </select>
+        <p class="mt-1 text-xs text-ink-muted">
+          Overrides whatever the organisation selected for itself.
+        </p>
       </div>
     }
   </div>
 
   @if (!isEdit()) {
-    <div class="mt-5 flex items-start gap-2.5 rounded-lg bg-emerald-50 px-3.5 py-3 ring-1 ring-emerald-200">
-      <app-icon name="info" [size]="16" class="mt-px shrink-0 text-info" />
-      <p class="text-xs leading-relaxed text-emerald-900">
-        The account is created <span class="font-medium">pending</span> and the administrator is
-        invited by email. Activate it from the account's menu once they are ready to start.
-      </p>
+    <div class="mt-5 rounded-lg bg-emerald-50 px-3.5 py-3 ring-1 ring-emerald-200">
+      <div class="flex items-start gap-2.5">
+        <app-icon name="info" [size]="16" class="mt-px shrink-0 text-info" />
+        <p class="text-xs leading-relaxed text-emerald-900">
+          You set nothing else. The administrator gets an emailed invitation, chooses their own
+          password, and picks a plan once they are signed in.
+        </p>
+      </div>
+      <ol class="mt-2.5 ml-6.5 space-y-1 text-xs text-emerald-900/80">
+        <li>1. Invitation emailed to the address above</li>
+        <li>2. They open the link and set a password</li>
+        <li>3. The account activates and they choose a plan</li>
+      </ol>
     </div>
   }
 

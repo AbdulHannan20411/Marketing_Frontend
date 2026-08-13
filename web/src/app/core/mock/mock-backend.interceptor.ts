@@ -49,6 +49,19 @@ import {
   employeesForAdmin,
 } from './mock-platform-data';
 import { decodeJwt } from '@core/auth/jwt.util';
+import {
+  IMPORT_TEMPLATE_CSV,
+  allMockBatches,
+  createMockBatch,
+  exportCsv,
+  exportStatus,
+  findMockBatch,
+  rowsOf,
+  startExport,
+  statusOf,
+  toDetails,
+  toListItem,
+} from './mock-import-data';
 import { searchEverything } from './mock-search';
 import {
   MOCK_ACCOUNTS,
@@ -81,9 +94,29 @@ function ok<T>(data: T, message: string | null = null): Observable<HttpResponse<
   return LATENCY_MS === 0 ? response : response.pipe(delay(LATENCY_MS));
 }
 
-function fail(status: number, title: string, detail: string): Observable<never> {
+/**
+ * A file download. Unlike every other response this one is *not* enveloped —
+ * `ApiService.download` asks for a blob and hands it straight to the caller.
+ */
+function okFile(content: string, mimeType: string): Observable<HttpResponse<Blob>> {
+  const response = of(
+    new HttpResponse({ status: 200, body: new Blob([content], { type: mimeType }) }),
+  );
+  return LATENCY_MS === 0 ? response : response.pipe(delay(LATENCY_MS));
+}
+
+function fail(
+  status: number,
+  title: string,
+  detail: string,
+  errorCode?: string,
+): Observable<never> {
   return throwError(
-    () => new HttpErrorResponse({ status, error: { title, detail, traceId: crypto.randomUUID() } }),
+    () =>
+      new HttpErrorResponse({
+        status,
+        error: { title, detail, errorCode, traceId: crypto.randomUUID() },
+      }),
   );
 }
 
@@ -277,6 +310,180 @@ function handleNotifications(path: string, method: string): Observable<HttpEvent
 }
 
 /**
+ * Contact import.
+ *
+ * The batch's status is derived from elapsed time rather than driven by a
+ * worker, so uploading a file walks the UI through queued → processing →
+ * needs review, and committing walks it through importing → completed, at a
+ * pace that exercises both the push path and the polling fallback.
+ */
+function handleContactImports(
+  path: string,
+  method: string,
+  body: unknown,
+  params: HttpParams,
+): Observable<HttpEvent<unknown>> | null {
+  if (!path.startsWith('/contact-imports')) {
+    return null;
+  }
+
+  if (method === 'GET' && path === '/contact-imports/template') {
+    return okFile(IMPORT_TEMPLATE_CSV, 'text/csv');
+  }
+
+  if (method === 'GET' && path === '/contact-imports') {
+    return ok(paginate(allMockBatches().map(toListItem), params));
+  }
+
+  if (method === 'POST' && path === '/contact-imports') {
+    const file = body instanceof FormData ? body.get('file') : null;
+    if (!(file instanceof File)) {
+      return fail(422, 'No file', 'Attach a CSV or XLSX file.');
+    }
+    // Fixed at upload, exactly as the API fixes it — the parse classifies against it.
+    const strategy = (body instanceof FormData ? body.get('duplicateStrategy') : null) ?? 'Skip';
+    const batch = createMockBatch(file.name, file.size, String(strategy));
+    return ok(
+      {
+        batchId: batch.batchId,
+        fileName: batch.fileName,
+        fileSizeBytes: batch.fileSizeBytes,
+        status: statusOf(batch),
+        uploadedAt: new Date(batch.uploadedAt).toISOString(),
+      },
+      'File accepted and queued.',
+    );
+  }
+
+  const exportDownload = /^\/contact-imports\/exports\/([^/]+)\/download$/.exec(path);
+  if (method === 'GET' && exportDownload !== null) {
+    return okFile(exportCsv(exportDownload[1]), 'text/csv');
+  }
+
+  const exportPoll = /^\/contact-imports\/exports\/([^/]+)$/.exec(path);
+  if (method === 'GET' && exportPoll !== null) {
+    const job = exportStatus(exportPoll[1]);
+    return job === null
+      ? fail(404, 'Export not found', 'That export has expired.')
+      : ok(job);
+  }
+
+  const rowsMatch = /^\/contact-imports\/([^/]+)\/rows$/.exec(path);
+  if (method === 'GET' && rowsMatch !== null) {
+    const batch = findMockBatch(rowsMatch[1]);
+    return batch === undefined
+      ? fail(404, 'Import not found', 'That batch does not exist in this workspace.')
+      : ok(paginate(rowsOf(batch, params.get('status') ?? 'all'), params));
+  }
+
+  const detailMatch = /^\/contact-imports\/([^/]+)$/.exec(path);
+  if (method === 'GET' && detailMatch !== null) {
+    const batch = findMockBatch(detailMatch[1]);
+    return batch === undefined
+      ? fail(404, 'Import not found', 'That batch does not exist in this workspace.')
+      : ok(toDetails(batch));
+  }
+
+  const mappingMatch = /^\/contact-imports\/([^/]+)\/mapping$/.exec(path);
+  if (method === 'PUT' && mappingMatch !== null) {
+    const batch = findMockBatch(mappingMatch[1]);
+    if (batch === undefined) {
+      return fail(404, 'Import not found', 'That batch does not exist in this workspace.');
+    }
+    batch.mapping = (body as { mapping: never }).mapping;
+    return ok(toDetails(batch), 'Mapping saved.');
+  }
+
+  const commitMatch = /^\/contact-imports\/([^/]+)\/commit$/.exec(path);
+  if (method === 'POST' && commitMatch !== null) {
+    const batch = findMockBatch(commitMatch[1]);
+    if (batch === undefined) {
+      return fail(404, 'Import not found', 'That batch does not exist in this workspace.');
+    }
+    if (batch.mapping === null) {
+      return fail(
+        409,
+        'Business rule violated',
+        'Choose which column holds each field before importing.',
+        'import_not_mapped',
+      );
+    }
+    if (batch.committedAt !== null) {
+      // Redelivery is expected of a queue; committing twice must not re-import.
+      return ok({
+        batchId: batch.batchId,
+        status: statusOf(batch),
+        queuedAt: new Date(batch.committedAt).toISOString(),
+      });
+    }
+    if (statusOf(batch) !== 'AwaitingMapping') {
+      return fail(
+        409,
+        'Business rule violated',
+        'This import is not waiting to be confirmed.',
+        'import_not_committable',
+      );
+    }
+    batch.committedAt = Date.now();
+    return ok(
+      {
+        batchId: batch.batchId,
+        status: statusOf(batch),
+        queuedAt: new Date(batch.committedAt).toISOString(),
+      },
+      'Import queued.',
+    );
+  }
+
+  const cancelMatch = /^\/contact-imports\/([^/]+)\/cancel$/.exec(path);
+  if (method === 'POST' && cancelMatch !== null) {
+    const batch = findMockBatch(cancelMatch[1]);
+    if (batch === undefined) {
+      return fail(404, 'Import not found', 'That batch does not exist in this workspace.');
+    }
+    // Once contacts are being written, calling it "cancelled" would misdescribe it.
+    const current = statusOf(batch);
+    if (current === 'Committing') {
+      return fail(
+        409,
+        'Business rule violated',
+        'This import is already writing contacts and can no longer be cancelled.',
+        'import_not_cancellable',
+      );
+    }
+    if (current === 'Completed' || current === 'CompletedWithErrors' || current === 'Failed') {
+      return fail(
+        409,
+        'Business rule violated',
+        'This import has already finished.',
+        'import_not_cancellable',
+      );
+    }
+    batch.cancelled = true;
+    return ok(toDetails(batch), 'Import cancelled.');
+  }
+
+  const failedExport = /^\/contact-imports\/([^/]+)\/failed-records\/export$/.exec(path);
+  if (method === 'POST' && failedExport !== null) {
+    const batch = findMockBatch(failedExport[1]);
+    if (batch === undefined) {
+      return fail(404, 'Import not found', 'That batch does not exist in this workspace.');
+    }
+    if (!toListItem(batch).hasFailedRecords) {
+      return fail(
+        409,
+        'Business rule violated',
+        'Every row in this import was used.',
+        'import_has_no_failures',
+      );
+    }
+    return ok(startExport(batch));
+  }
+
+  return null;
+}
+
+/**
  * In-memory stand-in for the ASP.NET Core API. Enabled by `environment.useMockApi`;
  * flipping that flag is the only change needed to talk to the real backend.
  */
@@ -292,6 +499,11 @@ export const mockBackendInterceptor: HttpInterceptorFn = (request, next) => {
   const authResponse = handleAuth(path, method, request.body, request);
   if (authResponse !== null) {
     return authResponse;
+  }
+
+  const importResponse = handleContactImports(path, method, request.body, params);
+  if (importResponse !== null) {
+    return importResponse;
   }
 
   if (method === 'GET') {

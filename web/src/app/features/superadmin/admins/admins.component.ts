@@ -186,11 +186,15 @@ export class SuperAdminAdminsComponent {
 
     const request$ =
       target === 'new'
-        ? this.platform.createAdmin(result)
+        ? this.platform.createAdmin({
+            name: result.name,
+            email: result.email,
+            organisation: result.organisation,
+          })
         : this.platform.updateAdmin(target.id, {
             name: result.name,
             organisation: result.organisation,
-            plan: result.plan,
+            plan: result.plan ?? target.plan,
           });
 
     request$.subscribe({
@@ -200,7 +204,7 @@ export class SuperAdminAdminsComponent {
         this.toast.success(
           target === 'new' ? 'Admin account created' : 'Account updated',
           target === 'new'
-            ? `${admin.organisation} is pending. An invitation was emailed to ${admin.email}.`
+            ? `Invitation emailed to ${admin.email}. ${admin.organisation} activates once they set a password.`
             : admin.organisation,
         );
         this.load();
