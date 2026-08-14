@@ -1,0 +1,424 @@
+<div class="animate-fade-in mx-auto max-w-4xl space-y-6">
+  <app-page-header
+    title="Complete your payment"
+    description="Transfer the amount using any method below, then upload the receipt. A team member reviews it and activates your plan."
+    [breadcrumbs]="breadcrumbs"
+  />
+
+  @switch (state()) {
+    @case ('loading') {
+      <div class="space-y-4">
+        <app-skeleton height="4rem" />
+        <app-skeleton height="16rem" />
+      </div>
+    }
+
+    @case ('error') {
+      <app-error-state
+        title="We couldn't start checkout"
+        description="That plan is unavailable, or the payment details could not be loaded."
+        (retry)="retry()"
+      />
+    }
+
+    @case ('empty') {
+      <app-error-state
+        title="No payment methods available"
+        description="Payment details have not been configured yet. Please contact support to complete your purchase."
+        (retry)="retry()"
+      />
+    }
+
+    @default {
+      @if (plan(); as chosen) {
+        <!-- Order summary: visible at every step, so the amount is never in doubt. -->
+        <app-card>
+          <div class="flex flex-wrap items-center justify-between gap-4">
+            <div class="flex items-center gap-3.5">
+              <span
+                class="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-brand-600 text-white"
+              >
+                <app-icon name="rocket" [size]="20" [strokeWidth]="1.8" />
+              </span>
+              <div>
+                <p class="text-sm font-semibold text-ink">{{ chosen.name }}</p>
+                <p class="text-xs text-ink-muted">
+                  Billed {{ cycle() === 'yearly' ? 'yearly' : 'monthly' }} · {{ chosen.tagline }}
+                </p>
+              </div>
+            </div>
+            <div class="text-right">
+              <p class="text-2xl font-semibold tabular-nums text-ink">
+                {{ chosen.currency }} {{ amount() | number }}
+              </p>
+              <p class="text-xs text-ink-muted">Total due now</p>
+            </div>
+          </div>
+        </app-card>
+
+        <!-- Progress -->
+        @if (step() !== 'submitted') {
+          <ol class="flex flex-wrap items-center gap-2 text-xs">
+            @for (entry of steps; track entry.key; let i = $index; let last = $last) {
+              <li class="flex items-center gap-2">
+                <span
+                  class="grid h-6 w-6 place-items-center rounded-full text-[11px] font-semibold transition-colors"
+                  [class]="
+                    i < stepIndex()
+                      ? 'bg-brand-600 text-white'
+                      : i === stepIndex()
+                        ? 'bg-brand-100 text-brand-700 ring-1 ring-brand-300'
+                        : 'bg-surface-sunken text-ink-muted ring-1 ring-line'
+                  "
+                >
+                  @if (i < stepIndex()) {
+                    <app-icon name="checkCircle" [size]="13" />
+                  } @else {
+                    {{ i + 1 }}
+                  }
+                </span>
+                <span [class]="i === stepIndex() ? 'font-medium text-ink' : 'text-ink-muted'">
+                  {{ entry.label }}
+                </span>
+                @if (!last) {
+                  <app-icon name="chevronRight" [size]="13" class="text-line-strong" />
+                }
+              </li>
+            }
+          </ol>
+        }
+
+        @switch (step()) {
+          <!-- 1 · Choose a method -->
+          @case ('method') {
+            <app-card
+              title="How would you like to pay?"
+              subtitle="Pick a method and we'll show you where to send the money."
+            >
+              <div class="grid gap-3 sm:grid-cols-3">
+                @for (channel of activeChannels(); track channel.channel) {
+                  <button
+                    type="button"
+                    class="group flex flex-col items-start gap-2 rounded-xl bg-surface-sunken p-4 text-left ring-1 ring-line transition-all hover:-translate-y-0.5 hover:shadow-md hover:ring-brand-300 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none"
+                    (click)="choose(channel)"
+                  >
+                    <span
+                      class="grid h-10 w-10 place-items-center rounded-lg bg-surface text-brand-600 ring-1 ring-line"
+                    >
+                      <app-icon [name]="channelIcon[channel.channel]" [size]="19" />
+                    </span>
+                    <span class="text-sm font-medium text-ink">{{ channel.displayName }}</span>
+                    <span class="text-xs text-ink-muted">{{ channel.accountTitle }}</span>
+                    <span
+                      class="mt-1 flex items-center gap-1 text-xs font-medium text-brand-700 opacity-0 transition-opacity group-hover:opacity-100"
+                    >
+                      Continue
+                      <app-icon name="arrowRight" [size]="13" />
+                    </span>
+                  </button>
+                }
+              </div>
+            </app-card>
+          }
+
+          <!-- 2 · Pay -->
+          @case ('pay') {
+            @if (selected(); as channel) {
+              <app-card
+                [title]="'Pay with ' + channel.displayName"
+                subtitle="Scan the code in your app, or copy the account details."
+              >
+                <!-- A channel may have no QR uploaded. The account details are
+                     sufficient on their own, so the column is dropped rather
+                     than showing a broken frame. -->
+                <div
+                  class="grid gap-6"
+                  [class]="channel.qrImageUrl === '' ? '' : 'md:grid-cols-[auto_1fr]'"
+                >
+                  @if (channel.qrImageUrl !== '') {
+                    <div class="mx-auto w-full max-w-[15rem]">
+                      <div class="rounded-xl bg-white p-3 ring-1 ring-line">
+                        <app-secure-image
+                          [src]="channel.qrImageUrl"
+                          [alt]="'QR code for ' + channel.displayName"
+                          fallback="QR unavailable — use the details beside it"
+                          class="aspect-square"
+                        />
+                      </div>
+                      <p class="mt-2 text-center text-xs text-ink-muted">
+                        Scan with your {{ channel.displayName }} app
+                      </p>
+                    </div>
+                  }
+
+                  <div class="space-y-4">
+                    <dl class="space-y-2.5">
+                      <div class="rounded-lg bg-surface-sunken px-3.5 py-2.5 ring-1 ring-line">
+                        <dt class="text-xs text-ink-muted">Account title</dt>
+                        <dd class="mt-0.5 text-sm font-medium text-ink">
+                          {{ channel.accountTitle }}
+                        </dd>
+                      </div>
+
+                      @if (channel.bankName !== '') {
+                        <div class="rounded-lg bg-surface-sunken px-3.5 py-2.5 ring-1 ring-line">
+                          <dt class="text-xs text-ink-muted">Bank</dt>
+                          <dd class="mt-0.5 text-sm font-medium text-ink">{{ channel.bankName }}</dd>
+                        </div>
+                      }
+
+                      <div class="rounded-lg bg-surface-sunken px-3.5 py-2.5 ring-1 ring-line">
+                        <dt class="text-xs text-ink-muted">
+                          {{ channel.bankName === '' ? 'Mobile number' : 'Account number' }}
+                        </dt>
+                        <dd class="mt-0.5 flex items-center justify-between gap-3">
+                          <span class="font-mono text-sm font-medium tracking-tight text-ink">
+                            {{ channel.accountNumber }}
+                          </span>
+                          <button
+                            appButton
+                            variant="ghost"
+                            size="sm"
+                            [attr.aria-label]="'Copy ' + channel.accountNumber"
+                            (click)="copy(channel.accountNumber)"
+                          >
+                            <app-icon
+                              [name]="copied() === channel.accountNumber ? 'checkCircle' : 'duplicate'"
+                              [size]="14"
+                            />
+                            {{ copied() === channel.accountNumber ? 'Copied' : 'Copy' }}
+                          </button>
+                        </dd>
+                      </div>
+                    </dl>
+
+                    @if (channel.instructions.length > 0) {
+                      <ol class="space-y-1.5 rounded-lg bg-brand-50 p-3.5 ring-1 ring-brand-200">
+                        @for (line of channel.instructions; track line; let i = $index) {
+                          <li class="flex gap-2 text-xs leading-relaxed text-brand-900">
+                            <span class="font-semibold">{{ i + 1 }}.</span>
+                            <span>{{ line }}</span>
+                          </li>
+                        }
+                      </ol>
+                    }
+                  </div>
+                </div>
+
+                <ng-container>
+                  <div
+                    class="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-5"
+                  >
+                    <button appButton variant="ghost" size="md" (click)="backToMethod()">
+                      <app-icon name="chevronLeft" [size]="16" />
+                      Change method
+                    </button>
+                    <button appButton size="lg" (click)="confirmPaid()">
+                      I've sent the payment
+                      <app-icon name="arrowRight" [size]="16" />
+                    </button>
+                  </div>
+                </ng-container>
+              </app-card>
+            }
+          }
+
+          <!-- 3 · Proof -->
+          @case ('proof') {
+            <app-card
+              title="Upload your payment proof"
+              subtitle="A screenshot of the confirmation is enough. We check it against the amount above."
+            >
+              <input
+                #proofInput
+                type="file"
+                class="sr-only"
+                [accept]="acceptAttr"
+                (change)="onProofInput($event)"
+              />
+
+              @if (proofFile(); as file) {
+                <div class="flex flex-wrap items-start gap-4 rounded-xl bg-surface-sunken p-4 ring-1 ring-line">
+                  @if (proofPreview(); as preview) {
+                    <img
+                      [src]="preview"
+                      alt="Payment proof preview"
+                      class="h-32 w-32 rounded-lg object-cover ring-1 ring-line"
+                    />
+                  } @else {
+                    <span
+                      class="grid h-32 w-32 place-items-center rounded-lg bg-surface ring-1 ring-line"
+                    >
+                      <app-icon name="document" [size]="26" class="text-ink-muted" />
+                    </span>
+                  }
+
+                  <div class="min-w-0 flex-1">
+                    <p class="truncate text-sm font-medium text-ink">{{ file.name }}</p>
+                    <p class="mt-0.5 text-xs text-ink-muted">{{ describe(file.size) }}</p>
+                    <button appButton variant="ghost" size="sm" class="mt-2" (click)="clearProof()">
+                      <app-icon name="trash" [size]="14" />
+                      Choose a different file
+                    </button>
+                  </div>
+                </div>
+              } @else {
+                <div
+                  class="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-line bg-surface-sunken px-6 py-10 text-center transition-colors hover:border-brand-400 hover:bg-brand-50/40"
+                  (dragover)="allowDrop($event)"
+                  (drop)="onProofDrop($event)"
+                >
+                  <span
+                    class="grid h-12 w-12 place-items-center rounded-full bg-surface text-ink-muted ring-1 ring-line"
+                  >
+                    <app-icon name="upload" [size]="21" [strokeWidth]="1.7" />
+                  </span>
+                  <p class="mt-3 text-sm font-medium text-ink">Drop your receipt here</p>
+                  <button
+                    appButton
+                    variant="outline"
+                    size="md"
+                    type="button"
+                    class="mt-3"
+                    aria-describedby="proof-constraints"
+                    (click)="browse()"
+                  >
+                    Browse files
+                  </button>
+                  <p id="proof-constraints" class="mt-3 text-xs text-ink-muted">
+                    PNG, JPG, WEBP or PDF · Max {{ maxProofLabel }}
+                  </p>
+                </div>
+              }
+
+              @if (proofError(); as message) {
+                <div
+                  role="alert"
+                  class="animate-fade-in mt-3 flex items-start gap-2.5 rounded-lg bg-red-50 p-3 ring-1 ring-red-200"
+                >
+                  <app-icon name="xCircle" [size]="17" class="mt-px shrink-0 text-danger" />
+                  <p class="text-sm text-red-700">{{ message }}</p>
+                </div>
+              }
+
+              <div class="mt-5 grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label for="reference" class="block text-sm font-medium text-ink-soft">
+                    Transaction ID <span class="font-normal text-ink-muted">(optional)</span>
+                  </label>
+                  <input
+                    id="reference"
+                    type="text"
+                    [value]="reference()"
+                    (input)="reference.set($any($event.target).value)"
+                    placeholder="e.g. TXN-84920113"
+                    class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink ring-1 ring-line ring-inset transition-all placeholder:text-ink-muted focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                  />
+                  <p class="mt-1 text-xs text-ink-muted">Speeds up the review.</p>
+                </div>
+
+                <div>
+                  <label for="note" class="block text-sm font-medium text-ink-soft">
+                    Note <span class="font-normal text-ink-muted">(optional)</span>
+                  </label>
+                  <input
+                    id="note"
+                    type="text"
+                    [value]="note()"
+                    (input)="note.set($any($event.target).value)"
+                    placeholder="Anything we should know"
+                    class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink ring-1 ring-line ring-inset transition-all placeholder:text-ink-muted focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div
+                class="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-5"
+              >
+                <button appButton variant="ghost" size="md" (click)="backToPay()">
+                  <app-icon name="chevronLeft" [size]="16" />
+                  Back
+                </button>
+                <button appButton size="lg" [disabled]="!canSubmit()" (click)="submit()">
+                  @if (submitting()) {
+                    <app-icon name="refresh" [size]="17" class="animate-spin" />
+                    Submitting…
+                  } @else {
+                    Submit for approval
+                  }
+                </button>
+              </div>
+            </app-card>
+          }
+
+          <!-- 4 · Submitted -->
+          @case ('submitted') {
+            <app-card>
+              <div class="py-4 text-center">
+                <span
+                  class="mx-auto grid h-14 w-14 place-items-center rounded-full bg-brand-50 text-brand-600 ring-1 ring-brand-200"
+                >
+                  <app-icon name="clock" [size]="26" [strokeWidth]="1.7" />
+                </span>
+                <h2 class="mt-4 text-lg font-semibold text-ink">
+                  {{ alreadyOpen() ? 'You already have a payment under review' : 'Payment submitted for review' }}
+                </h2>
+                <p class="mx-auto mt-1.5 max-w-md text-sm leading-relaxed text-ink-muted">
+                  @if (alreadyOpen()) {
+                    Only one payment can be reviewed at a time. Withdraw the one below if you need to
+                    submit a different receipt — nothing has been charged twice.
+                  } @else {
+                    We've received your receipt. A team member will confirm it shortly — you'll get an
+                    email and an in-app notification either way. Your plan changes only once it's
+                    approved.
+                  }
+                </p>
+
+                @if (submitted(); as request) {
+                  <dl
+                    class="mx-auto mt-5 grid max-w-md gap-2 rounded-lg bg-surface-sunken p-4 text-left ring-1 ring-line"
+                  >
+                    <div class="flex justify-between gap-4 text-sm">
+                      <dt class="text-ink-muted">Reference</dt>
+                      <dd class="font-mono text-xs text-ink">{{ request.id }}</dd>
+                    </div>
+                    <div class="flex justify-between gap-4 text-sm">
+                      <dt class="text-ink-muted">Plan</dt>
+                      <dd class="text-ink">{{ request.planName }}</dd>
+                    </div>
+                    <div class="flex justify-between gap-4 text-sm">
+                      <dt class="text-ink-muted">Amount</dt>
+                      <dd class="tabular-nums text-ink">
+                        {{ request.currency }} {{ request.amount | number }}
+                      </dd>
+                    </div>
+                    <div class="flex justify-between gap-4 text-sm">
+                      <dt class="text-ink-muted">Paid via</dt>
+                      <dd class="text-ink">{{ label(request.channel) }}</dd>
+                    </div>
+                  </dl>
+                }
+
+                <div class="mt-6 flex flex-wrap justify-center gap-2.5">
+                  @if (submitted() !== null && submitted()!.status === 'pending') {
+                    <button
+                      appButton
+                      variant="ghost"
+                      size="md"
+                      [disabled]="withdrawing()"
+                      (click)="withdraw()"
+                    >
+                      {{ withdrawing() ? 'Withdrawing…' : 'Withdraw and start over' }}
+                    </button>
+                  }
+                  <a appButton variant="outline" size="md" routerLink="/pricing">Back to plans</a>
+                  <button appButton size="md" (click)="done()">Go to subscription</button>
+                </div>
+              </div>
+            </app-card>
+          }
+        }
+      }
+    }
+  }
+</div>

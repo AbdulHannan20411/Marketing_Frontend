@@ -73,4 +73,22 @@ export class ApiService {
       responseType: 'blob',
     });
   }
+
+  /**
+   * Downloads a URL the API handed back rather than one we composed.
+   *
+   * Payloads carry links in whichever form the server prefers — absolute, or
+   * rooted at `/api/v1` — so both are accepted and only a bare resource path
+   * gets the base URL prepended. Anything already carrying it would otherwise
+   * end up doubled.
+   */
+  downloadAbsolute(url: string): Observable<Blob> {
+    const resolved = /^https?:\/\//i.test(url)
+      ? url
+      : url.startsWith(this.baseUrl) || url.startsWith('/api/')
+        ? url
+        : `${this.baseUrl}${url}`;
+
+    return this.http.get(resolved, { responseType: 'blob' });
+  }
 }

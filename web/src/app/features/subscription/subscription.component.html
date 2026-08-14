@@ -13,6 +13,55 @@
   </a>
 </app-page-header>
 
+<!-- The plan above does not move until a payment is approved, so an outstanding
+     one is stated here rather than left to the notification bell. -->
+@if (latestPayment(); as payment) {
+  @if (paymentPending()) {
+    <div
+      class="animate-rise mt-5 flex flex-wrap items-start gap-3 rounded-xl bg-amber-50 px-4 py-3.5 ring-1 ring-amber-200"
+    >
+      <app-icon name="clock" [size]="18" class="mt-px shrink-0 text-warning" />
+      <div class="min-w-0 flex-1">
+        <p class="text-sm font-medium text-amber-900">Payment under review</p>
+        <p class="mt-0.5 text-sm leading-relaxed text-amber-900/80">
+          We've received your receipt for <span class="font-medium">{{ payment.planName }}</span>
+          ({{ payment.currency }} {{ payment.amount | number }}). Your plan changes once it's
+          approved — you'll be notified either way.
+        </p>
+      </div>
+      <div class="flex shrink-0 items-center gap-2">
+        <span class="text-xs whitespace-nowrap text-amber-900/70">
+          {{ payment.submittedAt | timeAgo }}
+        </span>
+        <button
+          appButton
+          variant="ghost"
+          size="sm"
+          [disabled]="withdrawing()"
+          (click)="withdrawPayment()"
+        >
+          {{ withdrawing() ? 'Withdrawing…' : 'Withdraw' }}
+        </button>
+      </div>
+    </div>
+  } @else if (paymentRejected()) {
+    <div
+      class="animate-rise mt-5 flex flex-wrap items-start gap-3 rounded-xl bg-red-50 px-4 py-3.5 ring-1 ring-red-200"
+    >
+      <app-icon name="xCircle" [size]="18" class="mt-px shrink-0 text-danger" />
+      <div class="min-w-0 flex-1">
+        <p class="text-sm font-medium text-red-800">Your last payment was rejected</p>
+        <p class="mt-0.5 text-sm leading-relaxed text-red-700">
+          {{ payment.rejectionReason }}
+        </p>
+        <a appButton variant="outline" size="sm" class="mt-2.5" routerLink="/pricing">
+          Try again
+        </a>
+      </div>
+    </div>
+  }
+}
+
 @if (!isLoaded()) {
   <div class="mt-6 space-y-4">
     <div class="rounded-xl bg-surface p-6 ring-1 ring-line shadow-card">

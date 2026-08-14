@@ -1,0 +1,152 @@
+<app-modal
+  [title]="request().organisation"
+  [subtitle]="'Payment for ' + request().planName"
+  size="xl"
+  (closed)="closed.emit()"
+>
+  <div class="grid gap-6 lg:grid-cols-[1.1fr_1fr]">
+    <!-- Proof: the thing the decision actually rests on, so it leads. -->
+    <div>
+      <p class="text-xs font-medium tracking-wide text-ink-muted uppercase">Payment proof</p>
+      <div class="mt-2 rounded-xl bg-surface-sunken p-3 ring-1 ring-line">
+        <app-secure-image
+          [src]="request().proofUrl"
+          [alt]="'Payment proof from ' + request().organisation"
+          fallback="The receipt could not be loaded"
+          class="min-h-[16rem]"
+        />
+      </div>
+      <p class="mt-1.5 truncate text-xs text-ink-muted">{{ request().proofFileName }}</p>
+    </div>
+
+    <!-- What is being claimed -->
+    <div class="space-y-4">
+      <div class="flex items-center gap-2">
+        <app-badge
+          [tone]="
+            request().status === 'pending'
+              ? 'warning'
+              : request().status === 'approved'
+                ? 'success'
+                : request().status === 'rejected'
+                  ? 'danger'
+                  : 'neutral'
+          "
+          [dot]="true"
+        >
+          {{ request().status === 'pending' ? 'Awaiting review' : request().status }}
+        </app-badge>
+        <span class="text-xs text-ink-muted">
+          submitted {{ request().submittedAt | timeAgo }}
+        </span>
+      </div>
+
+      <dl class="space-y-2">
+        <div class="flex justify-between gap-4 rounded-lg bg-surface-sunken px-3.5 py-2.5 ring-1 ring-line">
+          <dt class="text-sm text-ink-muted">Amount claimed</dt>
+          <dd class="text-sm font-semibold tabular-nums text-ink">
+            {{ request().currency }} {{ request().amount | number }}
+          </dd>
+        </div>
+        <div class="flex justify-between gap-4 rounded-lg bg-surface-sunken px-3.5 py-2.5 ring-1 ring-line">
+          <dt class="text-sm text-ink-muted">Plan</dt>
+          <dd class="text-sm text-ink">
+            {{ request().planName }} · {{ request().billingCycle }}
+          </dd>
+        </div>
+        <div class="flex justify-between gap-4 rounded-lg bg-surface-sunken px-3.5 py-2.5 ring-1 ring-line">
+          <dt class="text-sm text-ink-muted">Paid via</dt>
+          <dd class="text-sm text-ink">{{ channel() }}</dd>
+        </div>
+        @if (request().reference !== '') {
+          <div class="flex justify-between gap-4 rounded-lg bg-surface-sunken px-3.5 py-2.5 ring-1 ring-line">
+            <dt class="text-sm text-ink-muted">Transaction ID</dt>
+            <dd class="font-mono text-xs text-ink">{{ request().reference }}</dd>
+          </div>
+        }
+        <div class="rounded-lg bg-surface-sunken px-3.5 py-2.5 ring-1 ring-line">
+          <dt class="text-sm text-ink-muted">Submitted by</dt>
+          <dd class="mt-0.5 text-sm text-ink">
+            {{ request().submittedByName }}
+            <span class="block text-xs text-ink-muted">{{ request().submittedByEmail }}</span>
+          </dd>
+        </div>
+      </dl>
+
+      @if (request().note !== '') {
+        <div class="rounded-lg bg-brand-50 px-3.5 py-3 ring-1 ring-brand-200">
+          <p class="text-xs font-medium text-brand-900">Customer note</p>
+          <p class="mt-1 text-sm leading-relaxed text-brand-900/90">{{ request().note }}</p>
+        </div>
+      }
+
+      @if (request().status === 'rejected' && request().rejectionReason !== null) {
+        <div class="rounded-lg bg-red-50 px-3.5 py-3 ring-1 ring-red-200">
+          <p class="text-xs font-medium text-red-800">Rejected</p>
+          <p class="mt-1 text-sm leading-relaxed text-red-700">{{ request().rejectionReason }}</p>
+        </div>
+      }
+
+      @if (request().reviewedAt !== null) {
+        <p class="text-xs text-ink-muted">
+          Reviewed {{ request().reviewedAt! | timeAgo }}
+          @if (request().reviewedBy !== null) {
+            by {{ request().reviewedBy }}
+          }
+        </p>
+      }
+
+      <!-- Rejection reason, revealed only when rejecting -->
+      @if (rejecting()) {
+        <div class="animate-rise rounded-lg bg-surface-sunken p-3.5 ring-1 ring-line">
+          <label for="reject-reason" class="block text-sm font-medium text-ink-soft">
+            Why are you rejecting this?
+          </label>
+          <textarea
+            id="reject-reason"
+            rows="3"
+            [value]="reason()"
+            (input)="reason.set($any($event.target).value)"
+            placeholder="e.g. The screenshot shows PKR 4,000 but the plan costs PKR 12,000."
+            class="mt-1.5 w-full resize-y rounded-lg border-0 bg-surface px-3 py-2 text-sm text-ink ring-1 ring-line ring-inset transition-all placeholder:text-ink-muted focus:ring-2 focus:ring-brand-500 focus:outline-none"
+          ></textarea>
+          <p class="mt-1 text-xs text-ink-muted">
+            Sent to the customer word for word, so say what they need to fix.
+            @if (reasonTooShort()) {
+              <span class="text-danger">At least {{ minLength }} characters.</span>
+            }
+          </p>
+        </div>
+      }
+    </div>
+  </div>
+
+  <ng-container modalFooter>
+    @if (!isPending()) {
+      <button appButton variant="ghost" size="md" (click)="closed.emit()">Close</button>
+    } @else if (rejecting()) {
+      <button appButton variant="ghost" size="md" [disabled]="deciding()" (click)="cancelRejecting()">
+        Back
+      </button>
+      <button
+        appButton
+        variant="danger"
+        size="md"
+        [disabled]="reasonTooShort() || deciding()"
+        (click)="confirmReject()"
+      >
+        <app-icon name="xCircle" [size]="16" [class.animate-spin]="deciding()" />
+        {{ deciding() ? 'Rejecting…' : 'Confirm rejection' }}
+      </button>
+    } @else {
+      <button appButton variant="ghost" size="md" (click)="closed.emit()">Cancel</button>
+      <button appButton variant="outline" size="md" [disabled]="deciding()" (click)="startRejecting()">
+        Reject
+      </button>
+      <button appButton size="md" [disabled]="deciding()" (click)="confirmApprove()">
+        <app-icon name="checkCircle" [size]="16" [class.animate-spin]="deciding()" />
+        {{ deciding() ? 'Approving…' : 'Approve & activate plan' }}
+      </button>
+    }
+  </ng-container>
+</app-modal>

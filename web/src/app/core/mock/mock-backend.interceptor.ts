@@ -62,6 +62,18 @@ import {
   toDetails,
   toListItem,
 } from './mock-import-data';
+import type { MockPaymentRequest } from './mock-payment-data';
+import {
+  activeChannels,
+  channelDetails,
+  createPaymentRequest,
+  decidePaymentRequest,
+  findPaymentRequest,
+  paymentChannelStore,
+  paymentRequestStore,
+  proofBlobFor,
+  updateChannel,
+} from './mock-payment-data';
 import { searchEverything } from './mock-search';
 import {
   MOCK_ACCOUNTS,
@@ -99,9 +111,11 @@ function ok<T>(data: T, message: string | null = null): Observable<HttpResponse<
  * `ApiService.download` asks for a blob and hands it straight to the caller.
  */
 function okFile(content: string, mimeType: string): Observable<HttpResponse<Blob>> {
-  const response = of(
-    new HttpResponse({ status: 200, body: new Blob([content], { type: mimeType }) }),
-  );
+  return okBlob(new Blob([content], { type: mimeType }));
+}
+
+function okBlob(blob: Blob): Observable<HttpResponse<Blob>> {
+  const response = of(new HttpResponse({ status: 200, body: blob }));
   return LATENCY_MS === 0 ? response : response.pipe(delay(LATENCY_MS));
 }
 
@@ -484,6 +498,225 @@ function handleContactImports(
 }
 
 /**
+ * Manual payments.
+ *
+ * The customer's own submissions and the platform review queue are the same
+ * store seen from two sides. Approving is the only thing that would change a
+ * plan; the mock records the decision without touching the subscription, since
+ * the real grant happens server-side.
+ */
+/** The single mock customer identity, standing in for tenant scoping. */
+const MOCK_CUSTOMER_EMAIL = 'admin@nextreach.io';
+
+function ownRequests(): readonly MockPaymentRequest[] {
+  return paymentRequestStore.filter(
+    (request) => request.submittedByEmail === MOCK_CUSTOMER_EMAIL,
+  );
+}
+
+function handlePayments(
+  path: string,
+  method: string,
+  body: unknown,
+  params: HttpParams,
+): Observable<HttpEvent<unknown>> | null {
+  // Customers see active channels only; the platform sees all of them.
+  if (method === 'GET' && path === '/billing/payment-channels') {
+    return ok(activeChannels());
+  }
+
+  if (method === 'GET' && path === '/superadmin/payment-channels') {
+    return ok([...paymentChannelStore]);
+  }
+
+  const channelSave = /^\/superadmin\/payment-channels\/([^/]+)$/.exec(path);
+  if (method === 'PUT' && channelSave !== null) {
+    const patch = body as { accountTitle?: string; accountNumber?: string };
+    if ((patch.accountTitle ?? '').trim() === '' || (patch.accountNumber ?? '').trim() === '') {
+      return fail(
+        422,
+        'Missing details',
+        'An account title and number are required.',
+        'validation_failed',
+      );
+    }
+    const updated = updateChannel(
+      channelSave[1] as 'JazzCash' | 'EasyPaisa' | 'BankTransfer',
+      body as Partial<typeof paymentChannelStore[number]>,
+    );
+    return updated === undefined
+      ? fail(404, 'Unknown channel', 'That payment method does not exist.')
+      : ok(updated, 'Payment method saved.');
+  }
+
+  const qrUpload = /^\/superadmin\/payment-channels\/([^/]+)\/qr$/.exec(path);
+  if (method === 'POST' && qrUpload !== null) {
+    const image = body instanceof FormData ? body.get('qr') : null;
+    if (!(image instanceof File)) {
+      return fail(422, 'No image', 'Attach a PNG, JPG or WEBP.', 'validation_failed');
+    }
+    const updated = updateChannel(qrUpload[1] as 'JazzCash' | 'EasyPaisa' | 'BankTransfer', {
+      qrImageUrl: URL.createObjectURL(image),
+    });
+    return updated === undefined
+      ? fail(404, 'Unknown channel', 'That payment method does not exist.')
+      : ok(updated, 'QR code updated.');
+  }
+
+  const channelQr = /^\/billing\/payment-channels\/([^/]+)\/qr$/.exec(path);
+  if (method === 'GET' && channelQr !== null) {
+    const details = channelDetails(channelQr[1] as 'JazzCash' | 'EasyPaisa' | 'BankTransfer');
+    return details === undefined || details.qrImageUrl === ''
+      ? fail(404, 'No QR', 'This channel has no QR image.')
+      : okFile('placeholder', 'image/svg+xml');
+  }
+
+  const proofMatch = /^\/billing\/payment-requests\/([^/]+)\/proof$/.exec(path);
+  if (method === 'GET' && proofMatch !== null) {
+    const request = findPaymentRequest(proofMatch[1]);
+    return request === undefined
+      ? fail(404, 'Not found', 'That payment no longer exists.')
+      : okBlob(proofBlobFor(request));
+  }
+
+  // The API scopes these to the caller's tenant. The mock has one customer
+  // identity, so it filters by that — without it, a workspace would see (and be
+  // blocked by) another organisation's payments.
+  if (method === 'GET' && path === '/billing/payment-requests') {
+    return ok(paginate(ownRequests(), params));
+  }
+
+  if (method === 'POST' && path === '/billing/payment-requests') {
+    const form = body instanceof FormData ? body : null;
+    const proof = form?.get('proof');
+    if (form === null || !(proof instanceof File)) {
+      return fail(422, 'No proof attached', 'Attach a screenshot of your payment.');
+    }
+
+    // One open request per workspace, as the API enforces.
+    if (ownRequests().some((entry) => entry.status === 'Pending')) {
+      return fail(
+        409,
+        'Business rule violated',
+        'You already have a payment awaiting review. Withdraw it before submitting another.',
+        'payment_request_pending',
+      );
+    }
+
+    const planId = String(form.get('planId') ?? '');
+    const plan = planStore.find((entry) => entry.id === planId);
+    if (plan === undefined) {
+      return fail(404, 'Unknown plan', 'That plan is no longer available.');
+    }
+
+    const cycle = String(form.get('billingCycle') ?? 'Monthly');
+    const created = createPaymentRequest({
+      planId,
+      planName: plan.name,
+      billingCycle: cycle === 'Yearly' ? 'Yearly' : 'Monthly',
+      amount: cycle === 'Yearly' ? plan.yearlyPrice : plan.monthlyPrice,
+      currency: plan.currency,
+      channel: (String(form.get('channel') ?? 'JazzCash') as 'JazzCash' | 'EasyPaisa' | 'BankTransfer'),
+      reference: String(form.get('reference') ?? ''),
+      note: String(form.get('note') ?? ''),
+      proofFileName: proof.name,
+      proofContentType: proof.type,
+      organisation: 'Northwind Retail',
+      submittedByName: 'Amara Chen',
+      submittedByEmail: 'admin@nextreach.io',
+      adminId: 'adm_1',
+      // The real API stores the file; the mock keeps it inline so the reviewer
+      // sees the actual upload rather than a stand-in.
+      proofDataUrl: URL.createObjectURL(proof),
+    });
+
+    return ok(created, 'Payment submitted for review.');
+  }
+
+  const cancelMatch = /^\/billing\/payment-requests\/([^/]+)\/cancel$/.exec(path);
+  if (method === 'POST' && cancelMatch !== null) {
+    const updated = decidePaymentRequest(cancelMatch[1], 'Cancelled', null);
+    return updated === undefined
+      ? fail(404, 'Not found', 'That payment no longer exists.')
+      : ok(updated, 'Payment withdrawn.');
+  }
+
+  const mineMatch = /^\/billing\/payment-requests\/([^/]+)$/.exec(path);
+  if (method === 'GET' && mineMatch !== null) {
+    const request = findPaymentRequest(mineMatch[1]);
+    return request === undefined
+      ? fail(404, 'Not found', 'That payment no longer exists.')
+      : ok(request);
+  }
+
+  /* ---------------------------- platform ---------------------------- */
+
+  if (method === 'GET' && path === '/superadmin/payment-requests') {
+    const status = params.get('status') ?? 'all';
+    const search = (params.get('search') ?? '').trim().toLowerCase();
+
+    const filtered = paymentRequestStore.filter((request) => {
+      const matchesStatus = status === 'all' || request.status === status;
+      const matchesSearch =
+        search === '' ||
+        request.organisation.toLowerCase().includes(search) ||
+        request.submittedByEmail.toLowerCase().includes(search);
+      return matchesStatus && matchesSearch;
+    });
+
+    return ok(paginate(filtered, params));
+  }
+
+  const approveMatch = /^\/superadmin\/payment-requests\/([^/]+)\/approve$/.exec(path);
+  if (method === 'POST' && approveMatch !== null) {
+    const existing = findPaymentRequest(approveMatch[1]);
+    if (existing === undefined) {
+      return fail(404, 'Not found', 'That payment no longer exists.');
+    }
+    if (existing.status !== 'Pending') {
+      return fail(
+        409,
+        'Business rule violated',
+        'This payment has already been decided.',
+        'payment_already_decided',
+      );
+    }
+    return ok(decidePaymentRequest(existing.id, 'Approved', null), 'Payment approved.');
+  }
+
+  const rejectMatch = /^\/superadmin\/payment-requests\/([^/]+)\/reject$/.exec(path);
+  if (method === 'POST' && rejectMatch !== null) {
+    const existing = findPaymentRequest(rejectMatch[1]);
+    if (existing === undefined) {
+      return fail(404, 'Not found', 'That payment no longer exists.');
+    }
+    if (existing.status !== 'Pending') {
+      return fail(
+        409,
+        'Business rule violated',
+        'This payment has already been decided.',
+        'payment_already_decided',
+      );
+    }
+    const reason = (body as { reason?: string })?.reason ?? '';
+    if (reason.trim().length < 10) {
+      return fail(422, 'Reason required', 'Tell the customer what to fix.', 'validation_failed');
+    }
+    return ok(decidePaymentRequest(existing.id, 'Rejected', reason.trim()), 'Payment rejected.');
+  }
+
+  const reviewMatch = /^\/superadmin\/payment-requests\/([^/]+)$/.exec(path);
+  if (method === 'GET' && reviewMatch !== null) {
+    const request = findPaymentRequest(reviewMatch[1]);
+    return request === undefined
+      ? fail(404, 'Not found', 'That payment no longer exists.')
+      : ok(request);
+  }
+
+  return null;
+}
+
+/**
  * In-memory stand-in for the ASP.NET Core API. Enabled by `environment.useMockApi`;
  * flipping that flag is the only change needed to talk to the real backend.
  */
@@ -504,6 +737,11 @@ export const mockBackendInterceptor: HttpInterceptorFn = (request, next) => {
   const importResponse = handleContactImports(path, method, request.body, params);
   if (importResponse !== null) {
     return importResponse;
+  }
+
+  const paymentResponse = handlePayments(path, method, request.body, params);
+  if (paymentResponse !== null) {
+    return paymentResponse;
   }
 
   if (method === 'GET') {

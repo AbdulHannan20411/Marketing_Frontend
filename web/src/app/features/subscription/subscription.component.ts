@@ -1,10 +1,14 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { DatePipe, DecimalPipe } from '@angular/common';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
 
+import type { PaymentRequest } from '@core/models/payment-request.model';
 import { FEATURE_MODULE_LABEL, type FeatureModule } from '@core/models/permission.model';
 import type { SubscriptionStatus } from '@core/models/subscription.model';
 import { EntitlementService, type UsageView } from '@core/services/entitlement.service';
+import { PaymentRequestService } from '@core/services/payment-request.service';
+import { RealtimeService } from '@core/services/realtime.service';
 import { TimeAgoPipe } from '@shared/pipes/time-ago.pipe';
 import { BadgeComponent, type BadgeTone } from '@shared/ui/badge/badge.component';
 import { ButtonDirective } from '@shared/ui/button/button.directive';
@@ -55,6 +59,26 @@ const HEADLINE_METRICS = ['contacts', 'campaigns', 'employees', 'storage'] as co
 })
 export class SubscriptionComponent {
   private readonly entitlements = inject(EntitlementService);
+  private readonly payments = inject(PaymentRequestService);
+  private readonly realtime = inject(RealtimeService);
+
+  /**
+   * The most recent manual payment, if any.
+   *
+   * Worth surfacing here because the plan above is unchanged until it is
+   * approved — without this, a customer who has paid sees no acknowledgement
+   * anywhere and pays again.
+   */
+  protected readonly latestPayment = signal<PaymentRequest | null>(null);
+  protected readonly withdrawing = signal(false);
+
+  protected readonly paymentPending = computed(
+    () => this.latestPayment()?.status === 'pending',
+  );
+
+  protected readonly paymentRejected = computed(
+    () => this.latestPayment()?.status === 'rejected',
+  );
 
   protected readonly isLoaded = this.entitlements.isLoaded;
   protected readonly subscription = this.entitlements.subscription;
@@ -114,6 +138,47 @@ export class SubscriptionComponent {
     }
     return (Object.keys(plan.modules) as FeatureModule[]).filter((key) => !plan.modules[key]);
   });
+
+  constructor() {
+    this.loadLatestPayment();
+
+    // A decision arrives while the customer is looking at this page.
+    this.realtime.paymentRequests$
+      .pipe(takeUntilDestroyed())
+      .subscribe(() => {
+        this.loadLatestPayment();
+        this.entitlements.load();
+      });
+  }
+
+  /** Withdraws the open request, freeing the workspace to submit another. */
+  protected withdrawPayment(): void {
+    const request = this.latestPayment();
+    if (request === null || this.withdrawing()) {
+      return;
+    }
+    this.withdrawing.set(true);
+
+    this.payments.cancel(request.id).subscribe({
+      next: (updated) => {
+        this.withdrawing.set(false);
+        this.latestPayment.set(updated);
+      },
+      error: () => {
+        this.withdrawing.set(false);
+        // Most likely it was decided a moment ago; showing the truth beats an error.
+        this.loadLatestPayment();
+      },
+    });
+  }
+
+  private loadLatestPayment(): void {
+    this.payments.latestMine().subscribe({
+      next: (request) => this.latestPayment.set(request),
+      // A missing payment history is not an error worth showing here.
+      error: () => this.latestPayment.set(null),
+    });
+  }
 
   protected ringTone(metric: UsageView): RingTone {
     switch (metric.severity) {

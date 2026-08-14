@@ -1,11 +1,11 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { Router } from '@angular/router';
 
-import type { ApiError, LoadState } from '@core/models/api.model';
+import type { LoadState } from '@core/models/api.model';
 import { FEATURE_MODULE_LABEL, type FeatureModule } from '@core/models/permission.model';
 import type { BillingCycle, SubscriptionPlan, SupportLevel } from '@core/models/subscription.model';
 import { EntitlementService } from '@core/services/entitlement.service';
 import { SubscriptionService } from '@core/services/subscription.service';
-import { ToastService } from '@core/services/toast.service';
 import { BadgeComponent } from '@shared/ui/badge/badge.component';
 import { ButtonDirective } from '@shared/ui/button/button.directive';
 import { CardComponent } from '@shared/ui/card/card.component';
@@ -43,12 +43,11 @@ export interface LimitRow {
 export class PricingComponent {
   private readonly subscriptionService = inject(SubscriptionService);
   private readonly entitlements = inject(EntitlementService);
-  private readonly toast = inject(ToastService);
+  private readonly router = inject(Router);
 
   protected readonly state = signal<LoadState>('loading');
   protected readonly plans = signal<readonly SubscriptionPlan[]>([]);
   protected readonly cycle = signal<BillingCycle>('monthly');
-  protected readonly changing = signal<string | null>(null);
   protected readonly skeletons = [1, 2, 3, 4];
 
   protected readonly moduleLabel = FEATURE_MODULE_LABEL;
@@ -126,27 +125,18 @@ export class PricingComponent {
     return plan.id === this.currentPlanId();
   }
 
+  /**
+   * Payment is manual, so choosing a plan starts a checkout rather than
+   * switching straight away. The plan changes only once a platform
+   * administrator approves the uploaded proof.
+   */
   protected choose(plan: SubscriptionPlan): void {
-    if (this.isCurrent(plan) || this.changing() !== null) {
+    if (this.isCurrent(plan)) {
       return;
     }
-    this.changing.set(plan.id);
 
-    this.subscriptionService.changePlan({ planId: plan.id, billingCycle: this.cycle() }).subscribe({
-      next: (snapshot) => {
-        this.changing.set(null);
-        // Re-read entitlements so gating, gauges and the sidebar follow at once.
-        this.entitlements.load();
-        this.toast.success(
-          `Now on ${snapshot.plan.name}`,
-          'Your plan has been updated for this workspace.',
-        );
-      },
-      // A downgrade below current usage returns 409 naming the blocking metric.
-      error: (error: ApiError) => {
-        this.changing.set(null);
-        this.toast.error(error.title, error.detail);
-      },
+    void this.router.navigate(['/checkout'], {
+      queryParams: { planId: plan.id, cycle: this.cycle() },
     });
   }
 }

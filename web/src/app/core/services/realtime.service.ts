@@ -12,9 +12,12 @@ import { environment } from '@env/environment';
 import { AuthService } from '@core/auth/auth.service';
 import type { ImportNotificationDto } from '@core/dto/contact-import.dto';
 import { toImportProgress } from '@core/dto/contact-import.dto';
+import type { PaymentRequestNotificationDto } from '@core/dto/payment-request.dto';
+import { toPaymentRequestEvent } from '@core/dto/payment-request.dto';
 import type { Campaign } from '@core/models/campaign.model';
 import type { ImportProgressEvent } from '@core/models/contact-import.model';
 import type { AppNotification } from '@core/models/notification.model';
+import type { PaymentRequestEvent } from '@core/models/payment-request.model';
 
 export type RealtimeState = 'disconnected' | 'connecting' | 'connected';
 
@@ -35,6 +38,7 @@ export class RealtimeService {
 
   private readonly campaignProgress = new Subject<Campaign>();
   private readonly importProgress = new Subject<ImportProgressEvent>();
+  private readonly paymentRequests = new Subject<PaymentRequestEvent>();
   private readonly notifications = new Subject<AppNotification>();
   /** Fires after a reconnect: events missed while offline are never replayed. */
   private readonly resynced = new Subject<void>();
@@ -44,6 +48,11 @@ export class RealtimeService {
   readonly campaignProgress$: Observable<Campaign> = this.campaignProgress.asObservable();
   /** Contact-import batch moved on. See `ImportNotificationService`. */
   readonly importProgress$: Observable<ImportProgressEvent> = this.importProgress.asObservable();
+  /**
+   * A manual payment was submitted or decided. Both audiences listen: the
+   * platform queue gains a row, and the customer sees their own status change.
+   */
+  readonly paymentRequests$: Observable<PaymentRequestEvent> = this.paymentRequests.asObservable();
   readonly notifications$: Observable<AppNotification> = this.notifications.asObservable();
   readonly resynced$: Observable<void> = this.resynced.asObservable();
 
@@ -77,6 +86,9 @@ export class RealtimeService {
     connection.on('campaignProgress', (campaign: Campaign) => this.campaignProgress.next(campaign));
     connection.on('importProgress', (event: ImportNotificationDto) =>
       this.importProgress.next(toImportProgress(event)),
+    );
+    connection.on('paymentRequestUpdated', (event: PaymentRequestNotificationDto) =>
+      this.paymentRequests.next(toPaymentRequestEvent(event)),
     );
     connection.on('notificationReceived', (notification: AppNotification) =>
       this.notifications.next(notification),

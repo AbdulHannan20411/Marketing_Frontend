@@ -1,0 +1,192 @@
+@switch (state()) {
+  @case ('loading') {
+    <div class="grid gap-4 lg:grid-cols-3">
+      @for (card of skeletons; track card) {
+        <app-skeleton height="22rem" />
+      }
+    </div>
+  }
+
+  @case ('error') {
+    <app-error-state
+      title="Could not load payment channels"
+      description="The account details are temporarily unavailable."
+      (retry)="load()"
+    />
+  }
+
+  @default {
+    @if (activeCount() === 0) {
+      <div
+        class="mb-4 flex items-start gap-2.5 rounded-xl bg-amber-50 px-4 py-3.5 ring-1 ring-amber-200"
+      >
+        <app-icon name="warning" [size]="18" class="mt-px shrink-0 text-warning" />
+        <p class="text-sm leading-relaxed text-amber-900">
+          <span class="font-medium">No channel is active.</span>
+          Customers reaching checkout have no way to pay. Fill in an account title and number below,
+          then switch a channel on.
+        </p>
+      </div>
+    }
+
+    <div class="grid gap-4 lg:grid-cols-3">
+      @for (draft of drafts(); track draft.channel; let i = $index) {
+        <app-card>
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <h3 class="text-sm font-semibold text-ink">{{ draft.displayName }}</h3>
+              <p class="mt-0.5 text-xs text-ink-muted">
+                {{ draft.isActive ? 'Shown at checkout' : 'Hidden from customers' }}
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              [attr.aria-checked]="draft.isActive"
+              [attr.aria-label]="'Activate ' + draft.displayName"
+              class="relative h-6 w-11 shrink-0 rounded-full transition-colors focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none"
+              [class]="draft.isActive ? 'bg-brand-600' : 'bg-line-strong'"
+              (click)="toggleActive(draft)"
+            >
+              <span
+                class="absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform"
+                [class]="draft.isActive ? 'translate-x-5.5' : 'translate-x-0.5'"
+              ></span>
+            </button>
+          </div>
+
+          <!-- QR -->
+          <input
+            #qrInput
+            type="file"
+            class="sr-only"
+            [accept]="acceptAttr"
+            (change)="onQrInput($event, draft.channel)"
+          />
+
+          <div class="mt-4">
+            @if (draft.qrImageUrl !== '') {
+              <div class="mx-auto w-full max-w-[11rem] rounded-xl bg-white p-2.5 ring-1 ring-line">
+                <app-secure-image
+                  [src]="draft.qrImageUrl"
+                  [alt]="'QR code for ' + draft.displayName"
+                  fallback="Could not load"
+                  class="aspect-square"
+                />
+              </div>
+            } @else {
+              <div
+                class="mx-auto flex aspect-square w-full max-w-[11rem] flex-col items-center justify-center gap-1.5 rounded-xl bg-surface-sunken text-center ring-1 ring-dashed ring-line"
+              >
+                <app-icon name="photo" [size]="22" class="text-ink-muted" />
+                <p class="px-3 text-xs text-ink-muted">No QR uploaded</p>
+              </div>
+            }
+
+            <button
+              appButton
+              variant="outline"
+              size="sm"
+              class="mt-2.5 w-full justify-center"
+              [disabled]="uploadingChannel() === draft.channel"
+              (click)="browseQr(i)"
+            >
+              @if (uploadingChannel() === draft.channel) {
+                <app-icon name="refresh" [size]="14" class="animate-spin" />
+                Uploading…
+              } @else {
+                <app-icon name="upload" [size]="14" />
+                {{ draft.qrImageUrl === '' ? 'Upload QR' : 'Replace QR' }}
+              }
+            </button>
+            <p class="mt-1 text-center text-xs text-ink-muted">
+              PNG, JPG or WEBP · Max {{ maxQrLabel }}
+            </p>
+          </div>
+
+          <!-- Account details -->
+          <div class="mt-4 space-y-3 border-t border-line pt-4">
+            <div>
+              <label [attr.for]="'title-' + draft.channel" class="block text-xs font-medium text-ink-soft">
+                Account title
+              </label>
+              <input
+                [id]="'title-' + draft.channel"
+                type="text"
+                [value]="draft.accountTitle"
+                (input)="update(draft.channel, { accountTitle: $any($event.target).value })"
+                placeholder="Who the account belongs to"
+                class="mt-1 h-9 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink ring-1 ring-line ring-inset transition-all placeholder:text-ink-muted focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label [attr.for]="'number-' + draft.channel" class="block text-xs font-medium text-ink-soft">
+                {{ draft.bankName.trim() === '' ? 'Mobile number' : 'Account number / IBAN' }}
+              </label>
+              <input
+                [id]="'number-' + draft.channel"
+                type="text"
+                [value]="draft.accountNumber"
+                (input)="update(draft.channel, { accountNumber: $any($event.target).value })"
+                class="mt-1 h-9 w-full rounded-lg border-0 bg-surface-sunken px-3 font-mono text-sm text-ink ring-1 ring-line ring-inset transition-all focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label [attr.for]="'bank-' + draft.channel" class="block text-xs font-medium text-ink-soft">
+                Bank <span class="font-normal text-ink-muted">(leave blank for a wallet)</span>
+              </label>
+              <input
+                [id]="'bank-' + draft.channel"
+                type="text"
+                [value]="draft.bankName"
+                (input)="update(draft.channel, { bankName: $any($event.target).value })"
+                class="mt-1 h-9 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink ring-1 ring-line ring-inset transition-all focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <p class="text-xs font-medium text-ink-soft">Instructions</p>
+              <div class="mt-1 space-y-1.5">
+                @for (line of draft.instructions; track $index; let index = $index; let last = $last) {
+                  <div class="flex items-center gap-1.5">
+                    <span class="w-4 shrink-0 text-xs text-ink-muted">{{ index + 1 }}.</span>
+                    <input
+                      type="text"
+                      [value]="line"
+                      (input)="setInstruction(draft.channel, index, $any($event.target).value)"
+                      [attr.aria-label]="'Instruction ' + (index + 1)"
+                      [placeholder]="last ? 'Add a step…' : ''"
+                      class="h-8 min-w-0 flex-1 rounded-lg border-0 bg-surface-sunken px-2.5 text-xs text-ink ring-1 ring-line ring-inset transition-all placeholder:text-ink-muted focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                    />
+                    @if (!last) {
+                      <button
+                        type="button"
+                        class="shrink-0 rounded p-1 text-ink-muted transition-colors hover:text-danger"
+                        [attr.aria-label]="'Remove instruction ' + (index + 1)"
+                        (click)="removeInstruction(draft.channel, index)"
+                      >
+                        <app-icon name="close" [size]="13" />
+                      </button>
+                    }
+                  </div>
+                }
+              </div>
+            </div>
+          </div>
+
+          <button
+            appButton
+            size="md"
+            class="mt-4 w-full justify-center"
+            [disabled]="savingChannel() === draft.channel"
+            (click)="save(draft)"
+          >
+            {{ savingChannel() === draft.channel ? 'Saving…' : 'Save ' + draft.displayName }}
+          </button>
+        </app-card>
+      }
+    </div>
+  }
+}

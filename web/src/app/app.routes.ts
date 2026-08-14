@@ -174,6 +174,14 @@ export const routes: Routes = [
           import('@features/admin/plans/plans.component').then((m) => m.PlansComponent),
       },
       {
+        path: 'payments',
+        title: 'Payments',
+        loadComponent: () =>
+          import('@features/superadmin/payments/payments.component').then(
+            (m) => m.SuperAdminPaymentsComponent,
+          ),
+      },
+      {
         path: 'tenants',
         title: 'Tenants',
         loadComponent: () =>
@@ -343,6 +351,18 @@ export const routes: Routes = [
         title: 'Plans & pricing',
         loadComponent: () =>
           import('@features/pricing/pricing.component').then((m) => m.PricingComponent),
+      },
+      // Manual checkout. Reached from a plan; the plan itself changes only once
+      // a platform administrator approves the uploaded proof.
+      {
+        path: 'checkout',
+        title: 'Checkout',
+        canActivate: [permissionGuard],
+        data: { permissions: ['settings.subscription'] },
+        loadComponent: () =>
+          import('@features/subscription/checkout/checkout.component').then(
+            (m) => m.CheckoutComponent,
+          ),
       },
       {
         path: 'notifications',
