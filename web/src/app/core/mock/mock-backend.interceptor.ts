@@ -16,7 +16,11 @@ import type {
   LoginRequest,
 } from '@core/models/auth.model';
 import type { Contact } from '@core/models/contact.model';
+import type { Employee } from '@core/models/employee.model';
+import type { ConversationMessage, MessageTemplate } from '@core/models/whatsapp.model';
+import { isWindowOpen } from '@core/models/whatsapp.model';
 import type { AppNotification } from '@core/models/notification.model';
+import { PERMISSIONS, type Permission } from '@core/models/permission.model';
 import type { SubscriptionPlan } from '@core/models/subscription.model';
 import {
   AUDIT_LOGS,
@@ -74,6 +78,14 @@ import {
   proofBlobFor,
   updateChannel,
 } from './mock-payment-data';
+import {
+  appendMessage,
+  conversationStore,
+  createMediaAsset,
+  findConversation,
+  messageStore,
+  replaceConversation,
+} from './mock-inbox-data';
 import { searchEverything } from './mock-search';
 import {
   MOCK_ACCOUNTS,
@@ -92,6 +104,8 @@ const LATENCY_MS: number = 380;
  */
 const planStore: SubscriptionPlan[] = PLANS.map((plan) => ({ ...plan }));
 const notificationStore: AppNotification[] = NOTIFICATIONS.map((entry) => ({ ...entry }));
+const employeeStore: Employee[] = EMPLOYEES.map((entry) => ({ ...entry }));
+const templateStore: MessageTemplate[] = TEMPLATES.map((entry) => ({ ...entry }));
 
 function nextPlanId(): string {
   return `plan_${crypto.randomUUID().slice(0, 8)}`;
@@ -505,6 +519,295 @@ function handleContactImports(
  * plan; the mock records the decision without touching the subscription, since
  * the real grant happens server-side.
  */
+/**
+ * Employee lifecycle.
+ *
+ * Stateful for the life of the page, because the permission matrix and the
+ * seat gauge are only meaningful if a change sticks long enough to see it
+ * reflected everywhere.
+ */
+function handleEmployees(
+  path: string,
+  method: string,
+  body: unknown,
+): Observable<HttpEvent<unknown>> | null {
+  if (!path.startsWith('/employees')) {
+    return null;
+  }
+
+  if (method === 'POST' && path === '/employees/invite') {
+    const request = body as {
+      name: string;
+      email: string;
+      jobTitle?: string;
+      role?: 'Admin' | 'Employee';
+      permissionSetId?: string;
+    };
+
+    if (employeeStore.some((e) => e.email.toLowerCase() === request.email.toLowerCase())) {
+      // Platform-wide, matching the API: the address may belong to another
+      // customer entirely, which is why the wording is not workspace-scoped.
+      return fail(
+        409,
+        'That address is already registered',
+        'An account already exists for that email address.',
+        'email_taken',
+      );
+    }
+
+    const set =
+      request.permissionSetId === undefined
+        ? undefined
+        : PERMISSION_SETS.find((entry) => entry.id === request.permissionSetId);
+
+    const invited: Employee = {
+      id: `emp_${crypto.randomUUID().slice(0, 8)}`,
+      name: request.name,
+      initials: request.name
+        .split(' ')
+        .map((part) => part[0])
+        .join('')
+        .slice(0, 2)
+        .toUpperCase(),
+      email: request.email,
+      jobTitle: request.jobTitle ?? '',
+      role: request.role ?? 'Employee',
+      status: 'invited',
+      // A co-admin's access comes from the role, not the matrix.
+      permissions: request.role === 'Admin' ? [...PERMISSIONS] : [...(set?.permissions ?? [])],
+      lastActiveAt: null,
+      invitedAt: new Date().toISOString(),
+    };
+
+    employeeStore.unshift(invited);
+    return ok(invited, `Invitation sent to ${invited.email}.`);
+  }
+
+  const withId = /^\/employees\/([^/]+)(\/[a-z-]+)?$/.exec(path);
+  if (withId === null) {
+    return null;
+  }
+
+  const [, id, suffix] = withId;
+  const index = employeeStore.findIndex((employee) => employee.id === id);
+  if (index === -1) {
+    return fail(404, 'Not found', 'That employee is no longer in this workspace.');
+  }
+
+  const current = employeeStore[index];
+  // Replaced rather than mutated, so a signal `set()` is not a no-op.
+  const replace = (patch: Partial<Employee>): Employee => {
+    employeeStore[index] = { ...current, ...patch };
+    return employeeStore[index];
+  };
+
+  if (method === 'PUT' && suffix === '/permissions') {
+    const permissions = (body as { permissions: Permission[] }).permissions ?? [];
+    return ok(replace({ permissions }), 'Permissions updated.');
+  }
+
+  if (method === 'PUT' && suffix === '/role') {
+    const role = (body as { role: 'Admin' | 'Employee' }).role;
+    return ok(
+      replace({
+        role,
+        permissions: role === 'Admin' ? [...PERMISSIONS] : current.permissions,
+      }),
+      'Role updated.',
+    );
+  }
+
+  if (method === 'PUT' && suffix === '/status') {
+    const status = (body as { status: Employee['status'] }).status;
+    return ok(replace({ status }), 'Status updated.');
+  }
+
+  if (method === 'POST' && suffix === '/resend-invite') {
+    return ok(null, `Invitation resent to ${current.email}.`);
+  }
+
+  if (method === 'DELETE' && suffix === '/invite') {
+    employeeStore.splice(index, 1);
+    return ok(null, 'Invitation revoked.');
+  }
+
+  if (method === 'DELETE' && suffix === undefined) {
+    employeeStore.splice(index, 1);
+    return ok(null, 'Employee removed.');
+  }
+
+  if (method === 'PUT' && suffix === undefined) {
+    return ok(replace(body as Partial<Employee>), 'Employee updated.');
+  }
+
+  return null;
+}
+
+/**
+ * WhatsApp: template authoring, media and the inbox.
+ *
+ * The window rule is enforced here as well as in the UI, so the closed-window
+ * path can actually be exercised rather than only reasoned about.
+ */
+function handleWhatsApp(
+  path: string,
+  method: string,
+  body: unknown,
+  params: HttpParams,
+): Observable<HttpEvent<unknown>> | null {
+  /* ---------------------------- templates ---------------------------- */
+
+  if (method === 'POST' && path === '/templates') {
+    const draft = body as {
+      name: string;
+      category: MessageTemplate['category'];
+      language: string;
+      headerText: string;
+      bodyText: string;
+      footerText: string;
+      buttons: { label: string }[];
+    };
+
+    if (templateStore.some((entry) => entry.name === draft.name)) {
+      return fail(
+        409,
+        'Name already used',
+        'A template with that name already exists in this account.',
+        'template_name_taken',
+      );
+    }
+
+    const created: MessageTemplate = {
+      id: `tpl_${crypto.randomUUID().slice(0, 8)}`,
+      name: draft.name,
+      category: draft.category,
+      status: 'pending',
+      language: draft.language,
+      headerText: draft.headerText === '' ? null : draft.headerText,
+      bodyText: draft.bodyText,
+      footerText: draft.footerText === '' ? null : draft.footerText,
+      variables: [...(draft.bodyText.match(/\{\{\s*\d+\s*\}\}/g) ?? [])],
+      buttons: draft.buttons.map((button) => button.label),
+      qualityScore: 'green',
+      timesUsed: 0,
+      updatedAt: new Date().toISOString(),
+      rejectionReason: null,
+    };
+
+    templateStore.unshift(created);
+    return ok(created, 'Submitted to Meta for review.');
+  }
+
+  const templateMatch = /^\/templates\/([^/]+)$/.exec(path);
+  if (templateMatch !== null) {
+    const index = templateStore.findIndex((entry) => entry.id === templateMatch[1]);
+    if (index === -1) {
+      return fail(404, 'Not found', 'That template no longer exists.');
+    }
+
+    if (method === 'DELETE') {
+      templateStore.splice(index, 1);
+      return ok(null, 'Template deleted.');
+    }
+
+    if (method === 'PUT') {
+      const draft = body as { bodyText: string; category: MessageTemplate['category'] };
+      // Resubmitting sends it back to review; Meta does not keep the rejection.
+      templateStore[index] = {
+        ...templateStore[index],
+        ...(body as Partial<MessageTemplate>),
+        category: draft.category,
+        bodyText: draft.bodyText,
+        status: 'pending',
+        rejectionReason: null,
+        updatedAt: new Date().toISOString(),
+      };
+      return ok(templateStore[index], 'Resubmitted to Meta.');
+    }
+  }
+
+  /* ---------------------------- media ---------------------------- */
+
+  if (method === 'POST' && path === '/whatsapp/media') {
+    const form = body instanceof FormData ? body : null;
+    const file = form?.get('file');
+    if (!(file instanceof File)) {
+      return fail(422, 'No file', 'Attach a file to upload.', 'validation_failed');
+    }
+    return ok(createMediaAsset(file, String(form?.get('kind') ?? 'image')));
+  }
+
+  /* ---------------------------- conversations ---------------------------- */
+
+  if (method === 'GET' && path === '/whatsapp/conversations') {
+    const search = (params.get('search') ?? '').trim().toLowerCase();
+    const filtered =
+      search === ''
+        ? conversationStore
+        : conversationStore.filter(
+            (entry) =>
+              entry.contactName.toLowerCase().includes(search) ||
+              entry.phoneNumber.includes(search),
+          );
+    return ok(paginate(filtered, params));
+  }
+
+  const messagesMatch = /^\/whatsapp\/conversations\/([^/]+)\/messages$/.exec(path);
+  if (messagesMatch !== null) {
+    const conversation = findConversation(messagesMatch[1]);
+    if (conversation === undefined) {
+      return fail(404, 'Not found', 'That conversation no longer exists.');
+    }
+
+    if (method === 'GET') {
+      return ok(paginate(messageStore[conversation.id] ?? [], params));
+    }
+
+    if (method === 'POST') {
+      // The server owns the clock: a UI that has drifted must still be refused.
+      if (!isWindowOpen(conversation)) {
+        return fail(
+          409,
+          'The 24-hour window has closed',
+          'This customer has not messaged in 24 hours. Send an approved template instead.',
+          'window_closed',
+        );
+      }
+
+      const request = body as { kind: ConversationMessage['kind']; body: string; mediaId: string | null };
+      return ok(
+        appendMessage(conversation.id, {
+          direction: 'outbound',
+          kind: request.kind,
+          body: request.body,
+          media: null,
+          status: 'sent',
+          failureReason: null,
+          templateName: null,
+        }),
+      );
+    }
+  }
+
+  const readMatch = /^\/whatsapp\/conversations\/([^/]+)\/read$/.exec(path);
+  if (method === 'POST' && readMatch !== null) {
+    const conversation = findConversation(readMatch[1]);
+    return conversation === undefined
+      ? fail(404, 'Not found', 'That conversation no longer exists.')
+      : ok(replaceConversation({ ...conversation, unreadCount: 0 }));
+  }
+
+  const conversationMatch = /^\/whatsapp\/conversations\/([^/]+)$/.exec(path);
+  if (method === 'GET' && conversationMatch !== null) {
+    const conversation = findConversation(conversationMatch[1]);
+    return conversation === undefined
+      ? fail(404, 'Not found', 'That conversation no longer exists.')
+      : ok(conversation);
+  }
+
+  return null;
+}
+
 /** The single mock customer identity, standing in for tenant scoping. */
 const MOCK_CUSTOMER_EMAIL = 'admin@nextreach.io';
 
@@ -744,6 +1047,16 @@ export const mockBackendInterceptor: HttpInterceptorFn = (request, next) => {
     return paymentResponse;
   }
 
+  const employeeResponse = handleEmployees(path, method, request.body);
+  if (employeeResponse !== null) {
+    return employeeResponse;
+  }
+
+  const whatsappResponse = handleWhatsApp(path, method, request.body, params);
+  if (whatsappResponse !== null) {
+    return whatsappResponse;
+  }
+
   if (method === 'GET') {
     switch (path) {
       case '/dashboard': {
@@ -765,7 +1078,7 @@ export const mockBackendInterceptor: HttpInterceptorFn = (request, next) => {
         return ok(adminId === null ? WHATSAPP_CONNECTION : connectionForAdmin(adminId));
       }
       case '/templates':
-        return ok(TEMPLATES);
+        return ok([...templateStore]);
       case '/campaigns': {
         const adminId = scopeOf(params);
         return ok(adminId === null ? CAMPAIGNS : campaignsForAdmin(adminId));

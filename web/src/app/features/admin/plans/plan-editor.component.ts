@@ -14,6 +14,7 @@ import type {
   SupportLevel,
 } from '@core/models/subscription.model';
 import type { PlanDraft } from '@core/services/plan-admin.service';
+import { PositiveNumberDirective } from '@shared/directives/positive-number.directive';
 import { ButtonDirective } from '@shared/ui/button/button.directive';
 import { IconComponent } from '@shared/ui/icon/icon.component';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
@@ -71,7 +72,14 @@ const EMPTY_MODULES: PlanModules = {
 @Component({
   selector: 'app-plan-editor',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, ModalComponent, ToggleComponent, ButtonDirective, IconComponent],
+  imports: [
+    FormsModule,
+    ModalComponent,
+    ToggleComponent,
+    ButtonDirective,
+    IconComponent,
+    PositiveNumberDirective,
+  ],
   templateUrl: './plan-editor.component.html',
 })
 export class PlanEditorComponent {

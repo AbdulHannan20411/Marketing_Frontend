@@ -13,6 +13,33 @@
   </a>
 </app-page-header>
 
+<!-- Landing here having been redirected needs an explanation, or it reads as
+     the app being broken rather than the account being locked. -->
+@if (isLocked()) {
+  <div
+    class="animate-rise mt-5 flex flex-wrap items-start gap-3 rounded-xl bg-red-50 px-4 py-3.5 ring-1 ring-red-200"
+    role="alert"
+  >
+    <app-icon name="lock" [size]="18" class="mt-px shrink-0 text-danger" />
+    <div class="min-w-0 flex-1">
+      <p class="text-sm font-medium text-red-800">
+        {{ lockReason() === 'expired' ? 'Your subscription has expired' : 'This workspace is suspended' }}
+      </p>
+      <p class="mt-0.5 text-sm leading-relaxed text-red-700">
+        {{
+          lockReason() === 'expired'
+            ? 'Contacts, campaigns and reports are unavailable until it is renewed. Nothing has been deleted — choose a plan to pick up where you left off.'
+            : 'Access to the rest of the workspace is paused. Your data is safe. Settle the outstanding payment, or contact support if you think this is a mistake.'
+        }}
+      </p>
+      <a appButton size="sm" class="mt-2.5" routerLink="/pricing">
+        <app-icon name="rocket" [size]="14" />
+        {{ lockReason() === 'expired' ? 'Renew now' : 'Choose a plan' }}
+      </a>
+    </div>
+  </div>
+}
+
 <!-- The plan above does not move until a payment is approved, so an outstanding
      one is stated here rather than left to the notification bell. -->
 @if (latestPayment(); as payment) {

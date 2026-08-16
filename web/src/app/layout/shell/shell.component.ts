@@ -1,6 +1,15 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject } from '@angular/core';
-import { RouterOutlet } from '@angular/router';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  computed,
+  effect,
+  inject,
+} from '@angular/core';
+import { Router, RouterOutlet } from '@angular/router';
 
+import { AuthService } from '@core/auth/auth.service';
+import { UNLOCKED_ROUTES } from '@core/guards/subscription.guard';
 import { EntitlementService } from '@core/services/entitlement.service';
 import { LayoutService } from '@core/services/layout.service';
 import { NotificationsService } from '@core/services/notifications.service';
@@ -47,6 +56,8 @@ import { TopbarComponent } from '@layout/topbar/topbar.component';
 export class ShellComponent {
   private readonly layout = inject(LayoutService);
   private readonly entitlements = inject(EntitlementService);
+  private readonly auth = inject(AuthService);
+  private readonly router = inject(Router);
   private readonly notifications = inject(NotificationsService);
   private readonly realtime = inject(RealtimeService);
 
@@ -60,6 +71,26 @@ export class ShellComponent {
     // rather than per-page.
     this.entitlements.load();
     this.notifications.load();
+
+    /*
+     * Enforce the lock once the subscription is actually known.
+     *
+     * `subscriptionLockGuard` runs before this load resolves, so on a fresh
+     * sign-in it sees no subscription and lets the user through to wherever
+     * they were heading. Guards do not re-run on their own, so the redirect has
+     * to happen here — and this also covers a workspace that is suspended
+     * mid-session, which no guard would ever catch.
+     */
+    effect(() => {
+      if (this.auth.isSuperAdmin() || !this.entitlements.isLocked()) {
+        return;
+      }
+
+      const first = this.router.url.split('?')[0].replace(/^\//, '').split('/')[0];
+      if (!UNLOCKED_ROUTES.includes(first)) {
+        void this.router.navigate(['/subscription']);
+      }
+    });
 
     // Campaign progress and notifications arrive by push; the reports endpoints
     // are rate limited to 4 per window, so polling is not an option.

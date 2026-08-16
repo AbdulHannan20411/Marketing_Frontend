@@ -7,7 +7,7 @@
     <app-icon name="refresh" [size]="16" [class.animate-spin]="syncing()" />
     {{ syncing() ? 'Syncing…' : 'Sync from Meta' }}
   </button>
-  <button appButton size="md">
+  <button appButton size="md" (click)="compose()">
     <app-icon name="plus" [size]="16" />
     New template
   </button>
@@ -123,9 +123,23 @@
         </div>
 
         @if (template.rejectionReason !== null) {
-          <div class="mt-3 flex items-start gap-2 rounded-lg bg-red-50 p-2.5 ring-1 ring-red-200">
-            <app-icon name="warning" [size]="15" class="mt-px shrink-0 text-danger" />
-            <p class="text-xs leading-relaxed text-red-700">{{ template.rejectionReason }}</p>
+          <div class="mt-3 rounded-lg bg-red-50 p-2.5 ring-1 ring-red-200">
+            <div class="flex items-start gap-2">
+              <app-icon name="warning" [size]="15" class="mt-px shrink-0 text-danger" />
+              <p class="text-xs leading-relaxed text-red-700">{{ template.rejectionReason }}</p>
+            </div>
+            <button appButton variant="outline" size="sm" class="mt-2" (click)="resubmit(template)">
+              Fix and resubmit
+            </button>
+          </div>
+        }
+
+        @if (template.status === 'pending') {
+          <div class="mt-3 flex items-start gap-2 rounded-lg bg-amber-50 p-2.5 ring-1 ring-amber-200">
+            <app-icon name="clock" [size]="15" class="mt-px shrink-0 text-warning" />
+            <p class="text-xs leading-relaxed text-amber-900">
+              With Meta for review. Usually minutes, occasionally up to 24 hours.
+            </p>
           </div>
         }
 
@@ -138,9 +152,50 @@
               </code>
             }
           </div>
-          <p class="shrink-0 pl-3 text-xs text-ink-muted">{{ template.updatedAt | timeAgo }}</p>
+          <div class="flex shrink-0 items-center gap-1.5 pl-3">
+            <p class="text-xs text-ink-muted">{{ template.updatedAt | timeAgo }}</p>
+            <button
+              appButton
+              variant="ghost"
+              size="sm"
+              [attr.aria-label]="'Delete ' + template.name"
+              (click)="confirmDelete(template)"
+            >
+              <app-icon name="trash" [size]="13" class="text-danger" />
+            </button>
+          </div>
         </div>
       </app-card>
     }
   </div>
+}
+
+@if (editing() !== null) {
+  <app-template-editor
+    [template]="editorTemplate()"
+    [saving]="saving()"
+    (submitted)="submitTemplate($event)"
+    (cancelled)="closeEditor()"
+  />
+}
+
+@if (deleting(); as target) {
+  <app-modal
+    title="Delete this template?"
+    [subtitle]="target.name + ' will be removed from Meta as well.'"
+    size="sm"
+    (closed)="cancelDelete()"
+  >
+    <p class="text-sm leading-relaxed text-ink-soft">
+      Campaigns already sent are unaffected, but any scheduled campaign using it will fail. Deleting
+      an approved template means resubmitting for review to get it back.
+    </p>
+
+    <ng-container modalFooter>
+      <button appButton variant="ghost" size="md" (click)="cancelDelete()">Cancel</button>
+      <button appButton variant="danger" size="md" [disabled]="saving()" (click)="remove()">
+        {{ saving() ? 'Deleting…' : 'Delete template' }}
+      </button>
+    </ng-container>
+  </app-modal>
 }

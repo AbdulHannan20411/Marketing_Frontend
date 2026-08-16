@@ -5,6 +5,7 @@ import { featureGuard } from '@core/guards/feature.guard';
 import { permissionGuard } from '@core/guards/permission.guard';
 import { adminPortalGuard, superAdminPortalGuard } from '@core/guards/portal.guard';
 import { scopeGuard } from '@core/guards/scope.guard';
+import { subscriptionLockGuard } from '@core/guards/subscription.guard';
 
 export const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
@@ -225,6 +226,9 @@ export const routes: Routes = [
   {
     path: '',
     canActivate: [authGuard, adminPortalGuard],
+    // A suspended or expired workspace can still sign in, but every screen
+    // except the subscription ones sends them to `/subscription`.
+    canActivateChild: [subscriptionLockGuard],
     loadComponent: () => import('@layout/shell/shell.component').then((m) => m.ShellComponent),
     children: [
       {
@@ -307,6 +311,13 @@ export const routes: Routes = [
         },
         loadComponent: () =>
           import('@features/campaigns/campaigns.component').then((m) => m.CampaignsComponent),
+      },
+      {
+        path: 'inbox',
+        title: 'Inbox',
+        canActivate: [permissionGuard, featureGuard],
+        data: { permissions: ['whatsapp.inbox.view'], module: 'whatsapp' },
+        loadComponent: () => import('@features/inbox/inbox.component').then((m) => m.InboxComponent),
       },
 
       /* ---------------- Insights ---------------- */

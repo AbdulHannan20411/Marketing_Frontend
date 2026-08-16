@@ -6,9 +6,14 @@ import { ApiService } from './api.service';
 
 export interface CampaignDraft {
   readonly name: string;
+  /** Must reference an **approved** template; the API rejects anything else. */
   readonly templateId: string;
   readonly audienceLabel: string;
   readonly groupIds?: readonly string[];
+  /** Handle from `POST /whatsapp/media`, when the template has a media header. */
+  readonly mediaId?: string | null;
+  /** ISO timestamp; omitted to send as soon as the campaign is started. */
+  readonly scheduledAt?: string | null;
 }
 
 @Injectable({ providedIn: 'root' })

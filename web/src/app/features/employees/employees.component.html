@@ -120,10 +120,108 @@
               </p>
             </div>
 
-            <button appButton variant="outline" size="sm" (click)="select(employee)">
-              <app-icon name="key" [size]="14" />
-              Permissions
-            </button>
+            <div class="flex flex-wrap items-center justify-end gap-1.5">
+              <!-- A co-administrator holds everything, so a matrix would mislead. -->
+              @if (employee.role !== 'Admin') {
+                <button appButton variant="outline" size="sm" (click)="select(employee)">
+                  <app-icon name="key" [size]="14" />
+                  Permissions
+                </button>
+              }
+
+              @if (employee.status === 'invited') {
+                <button
+                  appButton
+                  variant="ghost"
+                  size="sm"
+                  [disabled]="busyId() !== null"
+                  (click)="resendInvite($event, employee)"
+                >
+                  Resend
+                </button>
+                <button
+                  appButton
+                  variant="ghost"
+                  size="sm"
+                  [disabled]="busyId() !== null"
+                  (click)="revokeInvite($event, employee)"
+                >
+                  Revoke
+                </button>
+              } @else if (!isSelf(employee)) {
+                @if (employee.status === 'active') {
+                  <button
+                    appButton
+                    variant="ghost"
+                    size="sm"
+                    [disabled]="busyId() !== null"
+                    (click)="setStatus($event, employee, 'suspended')"
+                  >
+                    Suspend
+                  </button>
+                } @else {
+                  <button
+                    appButton
+                    variant="ghost"
+                    size="sm"
+                    [disabled]="busyId() !== null"
+                    (click)="setStatus($event, employee, 'active')"
+                  >
+                    Restore
+                  </button>
+                }
+
+                @if (employee.role === 'Admin') {
+                  <!-- The only admin cannot step down: nobody would be left to
+                       restore access. The API rejects it; saying so up front
+                       beats an error after the click. -->
+                  <button
+                    appButton
+                    variant="ghost"
+                    size="sm"
+                    [disabled]="busyId() !== null || isLastAdmin(employee)"
+                    [attr.title]="
+                      isLastAdmin(employee)
+                        ? 'This is the only administrator. Promote someone else first.'
+                        : null
+                    "
+                    (click)="setRole($event, employee, 'Employee')"
+                  >
+                    Make employee
+                  </button>
+                } @else {
+                  <button
+                    appButton
+                    variant="ghost"
+                    size="sm"
+                    [disabled]="busyId() !== null"
+                    (click)="setRole($event, employee, 'Admin')"
+                  >
+                    Make co-admin
+                  </button>
+                }
+              }
+
+              @if (isSelf(employee)) {
+                <span class="px-2 text-xs text-ink-muted">That's you</span>
+              } @else {
+                <button
+                  appButton
+                  variant="ghost"
+                  size="sm"
+                  [disabled]="busyId() !== null || isLastAdmin(employee)"
+                  [attr.aria-label]="'Remove ' + employee.name"
+                  [attr.title]="
+                    isLastAdmin(employee)
+                      ? 'This is the only administrator and cannot be removed.'
+                      : 'Remove ' + employee.name
+                  "
+                  (click)="confirmRemove($event, employee)"
+                >
+                  <app-icon name="trash" [size]="14" class="text-danger" />
+                </button>
+              }
+            </div>
           </li>
         }
       </ul>
@@ -288,4 +386,37 @@
       }
     </div>
   }
+}
+
+<!-- Invite -->
+@if (inviting()) {
+  <app-employee-invite
+    [permissionSets]="permissionSets()"
+    [saving]="saving()"
+    [seatsLeft]="seatsLeft()"
+    (invited)="sendInvite($event)"
+    (cancelled)="closeInvite()"
+  />
+}
+
+<!-- Removal is not reversible and frees a seat, so it is confirmed. -->
+@if (removing(); as target) {
+  <app-modal
+    title="Remove this employee?"
+    [subtitle]="target.name + ' will be signed out and lose access immediately.'"
+    size="sm"
+    (closed)="cancelRemove()"
+  >
+    <p class="text-sm leading-relaxed text-ink-soft">
+      Their campaigns, contacts and history stay in the workspace. Only their access is removed, and
+      the seat is returned to your plan.
+    </p>
+
+    <ng-container modalFooter>
+      <button appButton variant="ghost" size="md" (click)="cancelRemove()">Cancel</button>
+      <button appButton variant="danger" size="md" [disabled]="busyId() !== null" (click)="remove()">
+        Remove {{ target.name }}
+      </button>
+    </ng-container>
+  </app-modal>
 }

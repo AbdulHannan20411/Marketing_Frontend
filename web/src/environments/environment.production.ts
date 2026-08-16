@@ -7,4 +7,10 @@ export const environment: AppEnvironment = {
   realtimeUrl: '/hubs/realtime',
   useMockApi: false,
   appName: 'NextReach',
+  // Replace with the real values from your Meta app before running signup.
+  meta: {
+    appId: '',
+    configId: '',
+    graphVersion: 'v21.0',
+  },
 };

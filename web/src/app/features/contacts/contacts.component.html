@@ -237,15 +237,45 @@
     </td>
 
     <td class="hidden px-4 py-3 md:table-cell">
-      <div class="flex flex-wrap gap-1">
+      <div class="flex flex-wrap items-center gap-1">
         @for (tagId of contact.tagIds.slice(0, 2); track tagId) {
           @if (tagFor(tagId); as tag) {
             <app-badge [tone]="tag.color">{{ tag.name }}</app-badge>
           }
         }
+
+        <!-- The overflow count is otherwise a dead end: the remaining names
+             cannot be read without opening the contact. Hover or focus lists
+             them all; `title` covers touch and screen readers. -->
         @if (contact.tagIds.length > 2) {
-          <app-badge tone="neutral">+{{ contact.tagIds.length - 2 }}</app-badge>
+          <span
+            class="group relative inline-flex"
+            tabindex="0"
+            [attr.aria-label]="'All tags: ' + tagNameList(contact)"
+            [attr.title]="tagNameList(contact)"
+          >
+            <app-badge
+              tone="neutral"
+              class="cursor-help transition-colors group-hover:ring-brand-300 group-focus:ring-brand-300"
+            >
+              +{{ contact.tagIds.length - 2 }}
+            </app-badge>
+
+            <!-- `focus-within` as well as `focus`: the group is what receives
+                 focus, but the variant only fires reliably for descendants. -->
+            <span
+              role="tooltip"
+              class="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1.5 hidden -translate-x-1/2 group-hover:block group-focus:block group-focus-within:block"
+            >
+              <span
+                class="block max-w-[16rem] rounded-lg bg-ink px-2.5 py-1.5 text-xs leading-relaxed whitespace-normal text-white shadow-lg"
+              >
+                {{ tagNameList(contact) }}
+              </span>
+            </span>
+          </span>
         }
+
         @if (contact.tagIds.length === 0) {
           <span class="text-xs text-ink-muted">—</span>
         }

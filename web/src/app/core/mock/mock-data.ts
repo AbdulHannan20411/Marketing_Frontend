@@ -219,6 +219,7 @@ export const WHATSAPP_CONNECTION: WhatsAppConnection = {
   qualityRating: 'green',
   messagingLimit: 100000,
   messagesLast24h: 41280,
+  messagingTier: 'tier_100k',
   connectedAt: daysAgo(214),
   webhookHealthy: true,
   templateNamespaceAlias: 'northwind_retail',

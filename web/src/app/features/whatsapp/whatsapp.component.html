@@ -80,7 +80,7 @@
           <button
             type="button"
             class="inline-flex h-9.5 items-center gap-2 rounded-lg px-4 text-sm font-medium text-brand-50 transition-colors hover:bg-white/10"
-            (click)="disconnect()"
+            (click)="confirmDisconnect()"
           >
             Disconnect
           </button>
@@ -109,8 +109,18 @@
       </div>
 
       <div class="border-t border-line px-6 py-4 lg:border-t-0">
-        <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Category</dt>
-        <dd class="mt-2 text-sm font-medium text-ink">{{ conn.businessCategory }}</dd>
+        <!-- Meta raises this on volume and quality; it cannot be requested,
+             so it is reported rather than presented as a setting. -->
+        <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Messaging tier</dt>
+        <dd class="mt-2 flex items-center gap-1.5">
+          <span class="text-sm font-medium text-ink">{{ tierLabels[conn.messagingTier] }}</span>
+          <span
+            class="cursor-help text-ink-muted"
+            title="New conversations you may start each day. Meta raises this automatically as your volume and quality allow."
+          >
+            <app-icon name="info" [size]="14" />
+          </span>
+        </dd>
       </div>
 
       <div class="border-t border-line px-6 py-4 lg:border-t-0">
@@ -119,6 +129,31 @@
       </div>
     </dl>
   </section>
+
+  <!-- Message charges are Meta's, not ours. Saying so prevents support tickets
+       asking us for invoices we never issue. -->
+  <div class="mt-4 flex flex-wrap items-start gap-3 rounded-xl bg-surface-sunken px-4 py-3.5 ring-1 ring-line">
+    <app-icon name="creditCard" [size]="18" class="mt-px shrink-0 text-ink-muted" />
+    <div class="min-w-0 flex-1">
+      <p class="text-sm font-medium text-ink">Message charges are billed by Meta</p>
+      <p class="mt-0.5 text-sm leading-relaxed text-ink-muted">
+        Your {{ appName }} subscription covers this platform. WhatsApp conversation charges are
+        billed to the payment method on your Meta Business account, and we neither see nor mark up
+        that spend.
+      </p>
+    </div>
+    <a
+      appButton
+      variant="outline"
+      size="sm"
+      [href]="metaBillingUrl"
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      Meta billing
+      <app-icon name="share" [size]="14" />
+    </a>
+  </div>
 
   <div class="mt-4 grid gap-4 lg:grid-cols-3">
     <!-- Messaging limit -->
@@ -190,11 +225,55 @@
         Sign in with Meta to link your WhatsApp Business Account. You'll pick a phone number and
         confirm your business profile — it takes about two minutes.
       </p>
-      <button appButton size="lg" class="mt-6">
-        <app-icon name="chat" [size]="18" />
-        Connect with Meta
+      <button
+        appButton
+        size="lg"
+        class="mt-6"
+        [disabled]="connecting() || !signupConfigured()"
+        (click)="connect()"
+      >
+        @if (connecting()) {
+          <app-icon name="refresh" [size]="18" class="animate-spin" />
+          Waiting for Meta…
+        } @else {
+          <app-icon name="chat" [size]="18" />
+          Connect with Meta
+        }
       </button>
+
+      @if (!signupConfigured()) {
+        <p class="mt-3 max-w-md text-xs text-danger">
+          Signup is unavailable: this environment has no Meta app id or config id.
+        </p>
+      } @else {
+        <p class="mt-3 max-w-md text-xs text-ink-muted">
+          A Meta window opens. We never see your Meta password, and the authorisation it returns is
+          exchanged on our server — it is never stored in your browser.
+        </p>
+      }
     </div>
   </app-card>
+  }
+
+  <!-- Disconnecting stops every campaign from sending, so it is confirmed. -->
+  @if (disconnecting()) {
+    <app-modal
+      title="Disconnect WhatsApp?"
+      subtitle="Campaigns and replies stop immediately."
+      size="sm"
+      (closed)="cancelDisconnect()"
+    >
+      <p class="text-sm leading-relaxed text-ink-soft">
+        Your templates and message history stay in {{ appName }}, but nothing can be sent or
+        received until you connect again. Reconnecting means running Meta signup from the start.
+      </p>
+
+      <ng-container modalFooter>
+        <button appButton variant="ghost" size="md" (click)="cancelDisconnect()">Cancel</button>
+        <button appButton variant="danger" size="md" [disabled]="busy()" (click)="disconnect()">
+          {{ busy() ? 'Disconnecting…' : 'Disconnect' }}
+        </button>
+      </ng-container>
+    </app-modal>
   }
 }

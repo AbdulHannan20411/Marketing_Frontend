@@ -2,6 +2,7 @@ import { Injectable, computed, effect, inject, signal } from '@angular/core';
 
 import { AuthService } from '@core/auth/auth.service';
 import { NAVIGATION } from '@core/config/navigation.config';
+import { UNLOCKED_ROUTES } from '@core/guards/subscription.guard';
 import { SUPERADMIN_NAVIGATION } from '@core/config/superadmin-navigation.config';
 import type { NavSection } from '@core/models/navigation.model';
 import { EntitlementService } from './entitlement.service';
@@ -35,10 +36,21 @@ export class LayoutService {
         (item) =>
           this.auth.hasAnyPermission(item.permissions) &&
           (item.roles === undefined || this.auth.hasRole(item.roles)) &&
-          (item.module === undefined || this.entitlements.hasFeature(item.module)),
+          (item.module === undefined || this.entitlements.hasFeature(item.module)) &&
+          // A locked workspace keeps only the routes that can unlock it —
+          // otherwise the sidebar advertises screens that bounce straight back.
+          this.isReachableWhileLocked(item.route),
       ),
     })).filter((section) => section.items.length > 0);
   });
+
+  private isReachableWhileLocked(route: string): boolean {
+    if (!this.entitlements.isLocked()) {
+      return true;
+    }
+    const first = route.replace(/^\//, '').split('/')[0];
+    return UNLOCKED_ROUTES.includes(first);
+  }
 
   constructor() {
     effect(() => localStorage.setItem(COLLAPSE_KEY, String(this.sidebarCollapsed())));

@@ -7,7 +7,7 @@
     <app-icon name="download" [size]="16" />
     Export
   </button>
-  <button appButton size="md">
+  <button appButton size="md" (click)="openBuilder()">
     <app-icon name="plus" [size]="16" />
     New campaign
   </button>
@@ -181,3 +181,13 @@
     </td>
   </ng-template>
 </app-data-table>
+
+@if (building()) {
+  <app-campaign-builder
+    [templates]="templates()"
+    [groups]="groups()"
+    [saving]="creating()"
+    (created)="createCampaign($event)"
+    (cancelled)="closeBuilder()"
+  />
+}

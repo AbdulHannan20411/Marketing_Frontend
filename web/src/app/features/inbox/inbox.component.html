@@ -1,0 +1,340 @@
+<app-page-header
+  title="Inbox"
+  description="Replies from your customers. Free-form messages are only allowed inside the 24-hour window."
+  [breadcrumbs]="[{ label: 'Home', route: '/dashboard' }, { label: 'Inbox', route: null }]"
+>
+  <button appButton variant="outline" size="md" (click)="load()">
+    <app-icon name="refresh" [size]="16" />
+    Refresh
+  </button>
+</app-page-header>
+
+@switch (state()) {
+  @case ('loading') {
+    <div class="mt-6 grid gap-4 lg:grid-cols-[20rem_1fr]">
+      <div class="space-y-2">
+        @for (row of skeletons; track row) {
+          <app-skeleton height="4.5rem" />
+        }
+      </div>
+      <app-skeleton height="32rem" />
+    </div>
+  }
+
+  @case ('error') {
+    <div class="mt-6">
+      <app-error-state
+        title="Could not load your inbox"
+        description="Conversations are temporarily unavailable. Nothing has been lost."
+        (retry)="load()"
+      />
+    </div>
+  }
+
+  @case ('empty') {
+    <div class="mt-6">
+      <app-empty-state
+        icon="inbox"
+        title="No conversations yet"
+        description="When a customer messages your WhatsApp number, the conversation appears here and you have 24 hours to reply freely."
+      />
+    </div>
+  }
+
+  @default {
+    <div class="mt-6 grid gap-4 lg:grid-cols-[20rem_1fr]">
+      <!-- Conversation list -->
+      <div class="flex max-h-[38rem] flex-col rounded-xl bg-surface ring-1 ring-line shadow-card">
+        <div class="border-b border-line p-3">
+          <div class="relative">
+            <app-icon
+              name="search"
+              [size]="15"
+              class="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-ink-muted"
+            />
+            <input
+              type="search"
+              [value]="search()"
+              (input)="search.set($any($event.target).value)"
+              placeholder="Name or number"
+              aria-label="Search conversations"
+              class="h-9 w-full rounded-lg border-0 bg-surface-sunken py-2 pr-3 pl-9 text-sm text-ink ring-1 ring-line ring-inset placeholder:text-ink-muted focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
+            />
+          </div>
+        </div>
+
+        <ul class="flex-1 divide-y divide-line overflow-y-auto">
+          @for (conversation of visibleConversations(); track conversation.id) {
+            <li>
+              <button
+                type="button"
+                class="flex w-full items-start gap-3 px-3 py-3 text-left transition-colors"
+                [class]="
+                  selectedId() === conversation.id ? 'bg-brand-50' : 'hover:bg-surface-muted'
+                "
+                [attr.aria-current]="selectedId() === conversation.id"
+                (click)="select(conversation)"
+              >
+                <app-avatar [name]="conversation.contactName" [initials]="initialsFor(conversation.contactName)" size="md" />
+
+                <div class="min-w-0 flex-1">
+                  <div class="flex items-baseline justify-between gap-2">
+                    <p class="truncate text-sm font-medium text-ink">
+                      {{ conversation.contactName }}
+                    </p>
+                    <span class="shrink-0 text-[11px] text-ink-muted">
+                      {{ conversation.lastMessageAt | timeAgo }}
+                    </span>
+                  </div>
+                  <p class="mt-0.5 truncate text-xs text-ink-muted">
+                    {{ conversation.lastMessagePreview }}
+                  </p>
+                </div>
+
+                @if (conversation.unreadCount > 0) {
+                  <span
+                    class="mt-1 grid h-5 min-w-5 shrink-0 place-items-center rounded-full bg-brand-600 px-1.5 text-[11px] font-semibold text-white"
+                  >
+                    {{ conversation.unreadCount }}
+                  </span>
+                }
+              </button>
+            </li>
+          }
+        </ul>
+      </div>
+
+      <!-- Thread -->
+      <div class="flex max-h-[38rem] flex-col rounded-xl bg-surface ring-1 ring-line shadow-card">
+        @if (selected(); as conversation) {
+          <!-- Header, with the window state front and centre -->
+          <div class="flex flex-wrap items-center gap-3 border-b border-line px-4 py-3">
+            <app-avatar [name]="conversation.contactName" [initials]="initialsFor(conversation.contactName)" size="md" />
+            <div class="min-w-0 flex-1">
+              <p class="truncate text-sm font-semibold text-ink">{{ conversation.contactName }}</p>
+              <p class="text-xs text-ink-muted">{{ conversation.phoneNumber }}</p>
+            </div>
+
+            @if (windowOpen()) {
+              <app-badge [tone]="windowClosingSoon() ? 'warning' : 'success'" [dot]="true">
+                {{ windowLabel() }}
+              </app-badge>
+            } @else {
+              <app-badge tone="neutral" [dot]="true">Window closed</app-badge>
+            }
+          </div>
+
+          <!-- Messages -->
+          <div #thread class="flex-1 space-y-3 overflow-y-auto bg-surface-sunken px-4 py-4">
+            @switch (threadState()) {
+              @case ('loading') {
+                <app-skeleton height="3rem" />
+                <app-skeleton height="3rem" width="70%" />
+                <app-skeleton height="3rem" />
+              }
+              @case ('error') {
+                <app-error-state
+                  title="Could not load this conversation"
+                  description="Try again in a moment."
+                  (retry)="loadThread(conversation.id)"
+                />
+              }
+              @default {
+                @for (message of messages(); track message.id) {
+                  <div
+                    class="flex"
+                    [class]="message.direction === 'outbound' ? 'justify-end' : 'justify-start'"
+                  >
+                    <div
+                      class="max-w-[80%] rounded-xl px-3 py-2 shadow-xs sm:max-w-[70%]"
+                      [class]="
+                        message.direction === 'outbound'
+                          ? 'rounded-tr-none bg-brand-600 text-white'
+                          : 'rounded-tl-none bg-surface text-ink ring-1 ring-line'
+                      "
+                    >
+                      @if (message.kind === 'template') {
+                        <p
+                          class="mb-1 text-[11px] font-medium"
+                          [class]="message.direction === 'outbound' ? 'text-brand-100' : 'text-ink-muted'"
+                        >
+                          Template · {{ message.templateName }}
+                        </p>
+                      }
+
+                      @if (message.media; as media) {
+                        @if (media.kind === 'image') {
+                          <app-secure-image
+                            [src]="media.url"
+                            [alt]="media.fileName"
+                            fallback="Image unavailable"
+                            class="mb-1.5 max-h-56 overflow-hidden rounded-lg"
+                          />
+                        } @else if (media.kind === 'audio') {
+                          <!-- Voice notes play inline; recording is not offered. -->
+                          <audio
+                            controls
+                            [src]="media.url"
+                            class="mb-1.5 w-56 max-w-full"
+                            [attr.aria-label]="'Voice message from ' + conversation.contactName"
+                          ></audio>
+                        } @else {
+                          <a
+                            class="mb-1.5 flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs underline"
+                            [class]="message.direction === 'outbound' ? 'bg-white/10' : 'bg-surface-sunken'"
+                            [href]="media.url"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <app-icon
+                              [name]="media.kind === 'video' ? 'megaphone' : 'document'"
+                              [size]="14"
+                            />
+                            {{ media.fileName }}
+                          </a>
+                        }
+                      }
+
+                      @if (message.body !== '') {
+                        <p class="text-sm leading-relaxed whitespace-pre-wrap">{{ message.body }}</p>
+                      }
+
+                      <p
+                        class="mt-1 flex items-center justify-end gap-1 text-[11px]"
+                        [class]="message.direction === 'outbound' ? 'text-brand-100' : 'text-ink-muted'"
+                      >
+                        {{ message.occurredAt | timeAgo }}
+                        @if (message.direction === 'outbound') {
+                          @if (message.status === 'failed') {
+                            <app-icon name="xCircle" [size]="12" class="text-red-200" />
+                          } @else if (message.status === 'read') {
+                            <app-icon name="checkCircle" [size]="12" />
+                          } @else {
+                            <span class="capitalize">{{ message.status }}</span>
+                          }
+                        }
+                      </p>
+
+                      @if (message.failureReason !== null) {
+                        <p class="mt-1 text-[11px] text-red-200">{{ message.failureReason }}</p>
+                      }
+                    </div>
+                  </div>
+                }
+              }
+            }
+          </div>
+
+          <!-- Composer -->
+          <div class="border-t border-line p-3">
+            <input
+              #attachmentInput
+              type="file"
+              class="sr-only"
+              [attr.accept]="acceptAttr()"
+              (change)="onAttachmentInput($event)"
+            />
+
+            @if (windowOpen()) {
+              @if (attachment(); as asset) {
+                <div
+                  class="mb-2 flex items-center gap-2 rounded-lg bg-surface-sunken px-3 py-2 ring-1 ring-line"
+                >
+                  <app-icon name="document" [size]="15" class="shrink-0 text-ink-muted" />
+                  <span class="min-w-0 flex-1 truncate text-xs text-ink">{{ asset.fileName }}</span>
+                  <button
+                    type="button"
+                    class="rounded p-1 text-ink-muted hover:text-danger"
+                    aria-label="Remove attachment"
+                    (click)="clearAttachment()"
+                  >
+                    <app-icon name="close" [size]="13" />
+                  </button>
+                </div>
+              }
+
+              <div class="flex items-end gap-2">
+                <div class="flex shrink-0 gap-0.5">
+                  <button
+                    type="button"
+                    class="rounded-lg p-2 text-ink-muted transition-colors hover:bg-surface-muted hover:text-ink"
+                    [disabled]="uploading()"
+                    aria-label="Attach an image"
+                    title="Image"
+                    (click)="chooseAttachment('image')"
+                  >
+                    <app-icon name="photo" [size]="17" />
+                  </button>
+                  <button
+                    type="button"
+                    class="rounded-lg p-2 text-ink-muted transition-colors hover:bg-surface-muted hover:text-ink"
+                    [disabled]="uploading()"
+                    aria-label="Attach a document"
+                    title="Document"
+                    (click)="chooseAttachment('document')"
+                  >
+                    <app-icon name="document" [size]="17" />
+                  </button>
+                  <button
+                    type="button"
+                    class="rounded-lg p-2 text-ink-muted transition-colors hover:bg-surface-muted hover:text-ink"
+                    [disabled]="uploading()"
+                    aria-label="Attach an audio file"
+                    title="Audio"
+                    (click)="chooseAttachment('audio')"
+                  >
+                    <app-icon name="chat" [size]="17" />
+                  </button>
+                </div>
+
+                <textarea
+                  rows="1"
+                  [value]="draft()"
+                  (input)="draft.set($any($event.target).value)"
+                  (keydown)="onComposerKeydown($event)"
+                  placeholder="Write a reply…"
+                  aria-label="Reply"
+                  class="max-h-28 min-h-9.5 flex-1 resize-y rounded-lg border-0 bg-surface-sunken px-3 py-2 text-sm text-ink ring-1 ring-line ring-inset placeholder:text-ink-muted focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                ></textarea>
+
+                <button appButton size="md" [disabled]="!canSend()" (click)="send()">
+                  @if (sending() || uploading()) {
+                    <app-icon name="refresh" [size]="16" class="animate-spin" />
+                  } @else {
+                    <app-icon name="send" [size]="16" />
+                  }
+                  Send
+                </button>
+              </div>
+
+              @if (windowClosingSoon()) {
+                <p class="mt-1.5 text-xs text-amber-700">
+                  Only {{ windowLabel() }} in the free-form window. After that, an approved template
+                  is the only way to reach this customer.
+                </p>
+              }
+            } @else {
+              <!-- Closed: state the rule rather than disabling a box with no explanation. -->
+              <div class="flex flex-wrap items-start gap-3 rounded-lg bg-surface-sunken px-3.5 py-3 ring-1 ring-line">
+                <app-icon name="lock" [size]="17" class="mt-px shrink-0 text-ink-muted" />
+                <div class="min-w-0 flex-1">
+                  <p class="text-sm font-medium text-ink">The 24-hour window has closed</p>
+                  <p class="mt-0.5 text-xs leading-relaxed text-ink-muted">
+                    WhatsApp only allows free-form replies for 24 hours after the customer's last
+                    message. To reach {{ conversation.contactName }} now, send an approved template
+                    — replying reopens the window.
+                  </p>
+                </div>
+                <a appButton variant="outline" size="sm" routerLink="/campaigns">Use a template</a>
+              </div>
+            }
+          </div>
+        } @else {
+          <div class="grid flex-1 place-items-center p-10">
+            <p class="text-sm text-ink-muted">Choose a conversation to read it.</p>
+          </div>
+        }
+      </div>
+    </div>
+  }
+}

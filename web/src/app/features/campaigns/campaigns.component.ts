@@ -4,7 +4,11 @@ import type { Observable } from 'rxjs';
 
 import type { ApiError, LoadState } from '@core/models/api.model';
 import type { Campaign, CampaignStatus } from '@core/models/campaign.model';
-import { CampaignsService } from '@core/services/campaigns.service';
+import type { ContactGroup } from '@core/models/contact.model';
+import type { MessageTemplate } from '@core/models/whatsapp.model';
+import { CampaignsService, type CampaignDraft } from '@core/services/campaigns.service';
+import { ContactsService } from '@core/services/contacts.service';
+import { WhatsAppService } from '@core/services/whatsapp.service';
 import { RealtimeService } from '@core/services/realtime.service';
 import { ToastService } from '@core/services/toast.service';
 import { TimeAgoPipe } from '@shared/pipes/time-ago.pipe';
@@ -17,6 +21,7 @@ import { IconComponent } from '@shared/ui/icon/icon.component';
 import { DEFAULT_PAGE_SIZE } from '@shared/ui/pagination/pagination.component';
 import { PageHeaderComponent } from '@shared/ui/page-header/page-header.component';
 import { StatCardComponent } from '@shared/ui/stat-card/stat-card.component';
+import { CampaignBuilderComponent } from './campaign-builder.component';
 
 type StatusFilter = CampaignStatus | 'all';
 
@@ -34,13 +39,22 @@ type StatusFilter = CampaignStatus | 'all';
     BadgeComponent,
     ButtonDirective,
     IconComponent,
+    CampaignBuilderComponent,
   ],
   templateUrl: './campaigns.component.html',
 })
 export class CampaignsComponent {
   private readonly campaignsService = inject(CampaignsService);
+  private readonly whatsapp = inject(WhatsAppService);
+  private readonly contacts = inject(ContactsService);
   private readonly realtime = inject(RealtimeService);
   private readonly toast = inject(ToastService);
+
+  /** Loaded up front so the builder can gate on approval without a spinner. */
+  protected readonly templates = signal<readonly MessageTemplate[]>([]);
+  protected readonly groups = signal<readonly ContactGroup[]>([]);
+  protected readonly building = signal(false);
+  protected readonly creating = signal(false);
 
   protected readonly busyId = signal<string | null>(null);
   protected readonly state = signal<LoadState>('loading');
@@ -118,6 +132,7 @@ export class CampaignsComponent {
 
   constructor() {
     this.load();
+    this.loadBuilderData();
 
     // The dispatcher runs on a one-minute cadence, so progress arrives by push
     // rather than polling — the reports endpoints are rate limited to 4.
@@ -127,6 +142,57 @@ export class CampaignsComponent {
 
     // Events are not replayed, so a reconnect needs a fresh read.
     this.realtime.resynced$.pipe(takeUntilDestroyed()).subscribe(() => this.load());
+  }
+
+  /**
+   * Templates and groups for the builder.
+   *
+   * Failures are swallowed: the campaign list is still useful without them,
+   * and the builder states plainly when there is nothing approved to send.
+   */
+  private loadBuilderData(): void {
+    this.whatsapp.listTemplates().subscribe({
+      next: (templates) => this.templates.set(templates),
+      error: () => this.templates.set([]),
+    });
+    this.contacts.listGroups().subscribe({
+      next: (groups) => this.groups.set(groups),
+      error: () => this.groups.set([]),
+    });
+  }
+
+  protected openBuilder(): void {
+    this.building.set(true);
+  }
+
+  protected closeBuilder(): void {
+    this.building.set(false);
+  }
+
+  protected createCampaign(draft: CampaignDraft): void {
+    if (this.creating()) {
+      return;
+    }
+    this.creating.set(true);
+
+    this.campaignsService.create(draft).subscribe({
+      next: (campaign) => {
+        this.creating.set(false);
+        this.building.set(false);
+        this.campaigns.update((current) => [campaign, ...current]);
+        this.toast.success(
+          'Campaign created',
+          draft.scheduledAt === null
+            ? `${campaign.name} is ready. Send it when you are.`
+            : `${campaign.name} is scheduled.`,
+        );
+      },
+      // An unapproved template or a missing connection comes back as 409.
+      error: (error: ApiError) => {
+        this.creating.set(false);
+        this.toast.error(error.title, error.detail);
+      },
+    });
   }
 
   protected load(): void {

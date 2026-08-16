@@ -80,6 +80,9 @@ export class SubscriptionComponent {
     () => this.latestPayment()?.status === 'rejected',
   );
 
+  protected readonly isLocked = this.entitlements.isLocked;
+  protected readonly lockReason = this.entitlements.lockReason;
+
   protected readonly isLoaded = this.entitlements.isLoaded;
   protected readonly subscription = this.entitlements.subscription;
   protected readonly plan = this.entitlements.plan;

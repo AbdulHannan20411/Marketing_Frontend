@@ -110,6 +110,24 @@ export class EntitlementService {
     return status === 'active' || status === 'trial';
   });
 
+  /**
+   * A workspace that may sign in but may not use the product.
+   *
+   * Locking rather than blocking the login is deliberate: the person who can
+   * fix it is the one signing in, and they need to reach the subscription page
+   * to do it. Shutting them out at the door leaves them with no route back.
+   */
+  readonly isLocked = computed(() => {
+    const status = this.subscription()?.status;
+    return status === 'suspended' || status === 'expired';
+  });
+
+  /** Distinguishes the two so the explanation can differ. */
+  readonly lockReason = computed<'suspended' | 'expired' | null>(() => {
+    const status = this.subscription()?.status;
+    return status === 'suspended' || status === 'expired' ? status : null;
+  });
+
   /** Metrics at or past their ceiling, used to drive upgrade prompts. */
   readonly breachedMetrics = computed(() =>
     this.isUnrestricted()

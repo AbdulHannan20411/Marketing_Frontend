@@ -1,0 +1,299 @@
+<app-modal
+  [title]="isEdit() ? 'Resubmit template' : 'New message template'"
+  [subtitle]="
+    isEdit()
+      ? 'Fix what Meta flagged and send it back for review.'
+      : 'Meta reviews every template. Approval usually takes minutes, sometimes up to 24 hours.'
+  "
+  size="xl"
+  (closed)="cancelled.emit()"
+>
+  <div class="grid gap-6 lg:grid-cols-[1.35fr_1fr]">
+    <!-- Composer -->
+    <div class="space-y-5">
+      <div class="grid gap-4 sm:grid-cols-2">
+        <div>
+          <label for="tpl-name" class="block text-sm font-medium text-ink-soft">Template name</label>
+          <input
+            id="tpl-name"
+            type="text"
+            [value]="name()"
+            (input)="name.set($any($event.target).value)"
+            [disabled]="isEdit()"
+            placeholder="order_shipped_update"
+            class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 font-mono text-sm text-ink ring-1 ring-line ring-inset transition-all placeholder:text-ink-muted focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none disabled:cursor-not-allowed disabled:text-ink-muted"
+            [class.ring-red-400]="nameProblem() !== null && name() !== ''"
+          />
+          @if (nameProblem() !== null && name() !== '') {
+            <p class="mt-1 text-xs text-danger">{{ nameProblem() }}</p>
+          } @else if (isEdit()) {
+            <p class="mt-1 text-xs text-ink-muted">Meta does not allow renaming a template.</p>
+          } @else {
+            <p class="mt-1 text-xs text-ink-muted">Lowercase, numbers and underscores.</p>
+          }
+        </div>
+
+        <div>
+          <label for="tpl-language" class="block text-sm font-medium text-ink-soft">Language</label>
+          <select
+            id="tpl-language"
+            (change)="language.set($any($event.target).value)"
+            class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink ring-1 ring-line ring-inset focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
+          >
+            @for (code of ['en_US', 'en_GB', 'es_ES', 'fr_FR', 'ar_AR', 'ur_PK', 'hi_IN']; track code) {
+              <option [value]="code" [selected]="language() === code">{{ code }}</option>
+            }
+          </select>
+        </div>
+      </div>
+
+      <!-- Category, with the re-categorisation warning -->
+      <div>
+        <p class="text-sm font-medium text-ink-soft">Category</p>
+        <div class="mt-2 space-y-2">
+          @for (option of categories; track option.value) {
+            <button
+              type="button"
+              class="w-full rounded-lg px-3.5 py-3 text-left ring-1 transition-all focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none"
+              [class]="
+                category() === option.value
+                  ? 'bg-brand-50 ring-brand-300'
+                  : 'bg-surface-sunken ring-line hover:ring-brand-200'
+              "
+              [attr.aria-pressed]="category() === option.value"
+              (click)="setCategory(option.value)"
+            >
+              <span class="text-sm font-medium text-ink">{{ option.label }}</span>
+              <span class="mt-0.5 block text-xs leading-relaxed text-ink-muted">
+                {{ option.description }}
+              </span>
+            </button>
+          }
+        </div>
+
+        <!-- Meta re-categorises on the content, not the claim. Saying so here is
+             the difference between an expected reclassification and a surprise
+             on the invoice, since marketing costs more than utility. -->
+        <div class="mt-2.5 flex items-start gap-2.5 rounded-lg bg-amber-50 px-3.5 py-3 ring-1 ring-amber-200">
+          <app-icon name="warning" [size]="16" class="mt-px shrink-0 text-warning" />
+          <p class="text-xs leading-relaxed text-amber-900">
+            <span class="font-medium">Meta can re-categorise this.</span>
+            Review is based on what the message actually says, not the category you pick. A
+            "utility" template containing an offer will be moved to marketing — which is charged at a
+            higher rate. Categories can also be reviewed again after approval.
+          </p>
+        </div>
+      </div>
+
+      <!-- Header -->
+      <div class="grid gap-4 sm:grid-cols-[10rem_1fr]">
+        <div>
+          <label for="tpl-header-kind" class="block text-sm font-medium text-ink-soft">Header</label>
+          <select
+            id="tpl-header-kind"
+            (change)="setHeaderKind($any($event.target).value)"
+            class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink ring-1 ring-line ring-inset focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
+          >
+            @for (option of headerKinds; track option.value) {
+              <option [value]="option.value" [selected]="headerKind() === option.value">
+                {{ option.label }}
+              </option>
+            }
+          </select>
+        </div>
+
+        @if (headerKind() === 'text') {
+          <div>
+            <label for="tpl-header" class="block text-sm font-medium text-ink-soft">
+              Header text
+            </label>
+            <input
+              id="tpl-header"
+              type="text"
+              [value]="headerText()"
+              (input)="headerText.set($any($event.target).value)"
+              [attr.maxlength]="limits.headerMaxLength"
+              class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink ring-1 ring-line ring-inset focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
+            />
+            <p class="mt-1 text-xs text-ink-muted">
+              {{ headerText().length }} / {{ limits.headerMaxLength }}
+            </p>
+          </div>
+        } @else if (headerKind() !== 'none') {
+          <div class="flex items-end">
+            <p class="pb-2 text-xs text-ink-muted">
+              You'll attach the {{ headerKind() }} when you use this template in a campaign.
+            </p>
+          </div>
+        }
+      </div>
+
+      <!-- Body -->
+      <div>
+        <div class="flex items-center justify-between gap-3">
+          <label for="tpl-body" class="block text-sm font-medium text-ink-soft">Body</label>
+          <button appButton variant="ghost" size="sm" (click)="insertVariable()">
+            <app-icon name="plus" [size]="13" />
+            Add variable
+          </button>
+        </div>
+        <textarea
+          id="tpl-body"
+          rows="6"
+          [value]="bodyText()"
+          (input)="bodyText.set($any($event.target).value)"
+          [attr.maxlength]="limits.bodyMaxLength"
+          placeholder="Hi {{ '{{' }}1{{ '}}' }}, your order {{ '{{' }}2{{ '}}' }} has shipped."
+          class="mt-1.5 w-full resize-y rounded-lg border-0 bg-surface-sunken px-3 py-2 text-sm leading-relaxed text-ink ring-1 ring-line ring-inset transition-all placeholder:text-ink-muted focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
+          [class.ring-red-400]="bodyProblem() !== null && bodyText() !== ''"
+        ></textarea>
+        <div class="mt-1 flex flex-wrap items-center justify-between gap-2">
+          @if (bodyProblem() !== null && bodyText() !== '') {
+            <p class="text-xs text-danger">{{ bodyProblem() }}</p>
+          } @else {
+            <p class="text-xs text-ink-muted">
+              {{ variables().length }}
+              {{ variables().length === 1 ? 'variable' : 'variables' }}
+            </p>
+          }
+          <p class="text-xs text-ink-muted">{{ bodyText().length }} / {{ limits.bodyMaxLength }}</p>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div>
+        <label for="tpl-footer" class="block text-sm font-medium text-ink-soft">
+          Footer <span class="font-normal text-ink-muted">(optional)</span>
+        </label>
+        <input
+          id="tpl-footer"
+          type="text"
+          [value]="footerText()"
+          (input)="footerText.set($any($event.target).value)"
+          [attr.maxlength]="limits.footerMaxLength"
+          placeholder="Reply STOP to opt out"
+          class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink ring-1 ring-line ring-inset placeholder:text-ink-muted focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
+        />
+      </div>
+
+      <!-- Buttons -->
+      <div>
+        <div class="flex items-center justify-between gap-3">
+          <p class="text-sm font-medium text-ink-soft">
+            Buttons <span class="font-normal text-ink-muted">(up to {{ limits.maxButtons }})</span>
+          </p>
+          <button appButton variant="ghost" size="sm" [disabled]="!canAddButton()" (click)="addButton()">
+            <app-icon name="plus" [size]="13" />
+            Add button
+          </button>
+        </div>
+
+        @if (buttons().length > 0) {
+          <div class="mt-2 space-y-2">
+            @for (button of buttons(); track $index; let i = $index) {
+              <div class="flex flex-wrap items-start gap-2 rounded-lg bg-surface-sunken p-2.5 ring-1 ring-line">
+                <select
+                  [attr.aria-label]="'Button ' + (i + 1) + ' type'"
+                  (change)="updateButton(i, { kind: $any($event.target).value })"
+                  class="h-8 rounded-lg border-0 bg-surface px-2 text-xs text-ink ring-1 ring-line ring-inset focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                >
+                  @for (kind of buttonKinds; track kind.value) {
+                    <option [value]="kind.value" [selected]="button.kind === kind.value">
+                      {{ kind.label }}
+                    </option>
+                  }
+                </select>
+
+                <input
+                  type="text"
+                  [value]="button.label"
+                  (input)="updateButton(i, { label: $any($event.target).value })"
+                  [attr.maxlength]="limits.buttonLabelMaxLength"
+                  [attr.aria-label]="'Button ' + (i + 1) + ' label'"
+                  placeholder="Label"
+                  class="h-8 min-w-0 flex-1 rounded-lg border-0 bg-surface px-2.5 text-xs text-ink ring-1 ring-line ring-inset placeholder:text-ink-muted focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                />
+
+                @if (button.kind !== 'quick_reply') {
+                  <input
+                    type="text"
+                    [value]="button.value"
+                    (input)="updateButton(i, { value: $any($event.target).value })"
+                    [attr.aria-label]="'Button ' + (i + 1) + ' destination'"
+                    [placeholder]="button.kind === 'url' ? 'https://…' : '+44…'"
+                    class="h-8 min-w-0 flex-1 rounded-lg border-0 bg-surface px-2.5 text-xs text-ink ring-1 ring-line ring-inset placeholder:text-ink-muted focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                  />
+                }
+
+                <button
+                  type="button"
+                  class="rounded p-1.5 text-ink-muted transition-colors hover:text-danger"
+                  [attr.aria-label]="'Remove button ' + (i + 1)"
+                  (click)="removeButton(i)"
+                >
+                  <app-icon name="close" [size]="13" />
+                </button>
+              </div>
+            }
+          </div>
+
+          @if (buttonProblem() !== null) {
+            <p class="mt-1.5 text-xs text-danger">{{ buttonProblem() }}</p>
+          }
+        }
+      </div>
+    </div>
+
+    <!-- Preview -->
+    <div>
+      <p class="text-xs font-medium tracking-wide text-ink-muted uppercase">Preview</p>
+      <div class="mt-2 rounded-xl bg-[#e5ddd5] p-4 ring-1 ring-line dark:bg-surface-sunken">
+        <div class="ml-auto max-w-[19rem] rounded-lg rounded-tr-none bg-white p-3 shadow-sm">
+          @if (headerKind() === 'text' && headerText() !== '') {
+            <p class="text-sm font-semibold text-slate-900">{{ headerText() }}</p>
+          } @else if (headerKind() !== 'none') {
+            <div
+              class="mb-2 flex h-24 items-center justify-center rounded-md bg-slate-100 text-slate-400"
+            >
+              <app-icon
+                [name]="headerKind() === 'video' ? 'megaphone' : headerKind() === 'document' ? 'document' : 'photo'"
+                [size]="24"
+              />
+            </div>
+          }
+
+          <p class="mt-1 text-sm leading-relaxed whitespace-pre-wrap text-slate-800">
+            {{ preview() || 'Your message will appear here.' }}
+          </p>
+
+          @if (footerText() !== '') {
+            <p class="mt-2 text-xs text-slate-400">{{ footerText() }}</p>
+          }
+        </div>
+
+        @if (buttons().length > 0) {
+          <div class="ml-auto mt-1 max-w-[19rem] space-y-1">
+            @for (button of buttons(); track $index) {
+              <div class="rounded-lg bg-white p-2 text-center text-sm font-medium text-sky-600 shadow-sm">
+                {{ button.label || 'Button' }}
+              </div>
+            }
+          </div>
+        }
+      </div>
+
+      <p class="mt-3 text-xs leading-relaxed text-ink-muted">
+        Variables show as «value 1», «value 2» and so on. You'll map them to contact fields when you
+        build a campaign.
+      </p>
+    </div>
+  </div>
+
+  <ng-container modalFooter>
+    <button appButton variant="ghost" size="md" (click)="cancelled.emit()">Cancel</button>
+    <button appButton size="md" [disabled]="invalid() || saving()" (click)="submit()">
+      <app-icon name="send" [size]="16" [class.animate-spin]="saving()" />
+      {{ saving() ? 'Submitting…' : 'Submit for approval' }}
+    </button>
+  </ng-container>
+</app-modal>

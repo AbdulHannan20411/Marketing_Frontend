@@ -36,6 +36,8 @@ export const PERMISSIONS = [
   'whatsapp.campaigns.pause',
   'whatsapp.campaigns.cancel',
   'whatsapp.campaigns.reports',
+  'whatsapp.inbox.view',
+  'whatsapp.inbox.reply',
 
   // Email marketing
   'email.connect',
@@ -179,6 +181,16 @@ export const PERMISSION_CATALOGUE: readonly PermissionCategory[] = [
         key: 'whatsapp.templates.sync',
         label: 'Sync templates',
         description: 'Pull the latest from Meta.',
+      },
+      {
+        key: 'whatsapp.inbox.view',
+        label: 'View inbox',
+        description: 'Read customer conversations.',
+      },
+      {
+        key: 'whatsapp.inbox.reply',
+        label: 'Reply in inbox',
+        description: 'Send messages inside the 24-hour window.',
       },
       {
         key: 'whatsapp.campaigns.create',

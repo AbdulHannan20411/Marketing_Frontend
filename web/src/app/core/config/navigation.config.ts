@@ -68,6 +68,13 @@ export const NAVIGATION: readonly NavSection[] = [
         permissions: ['whatsapp.campaigns.reports', 'whatsapp.campaigns.create'],
         module: 'whatsapp',
       },
+      {
+        label: 'Inbox',
+        route: '/inbox',
+        icon: 'inbox',
+        permissions: ['whatsapp.inbox.view'],
+        module: 'whatsapp',
+      },
     ],
   },
   {

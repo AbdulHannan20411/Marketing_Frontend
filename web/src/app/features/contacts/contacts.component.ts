@@ -286,6 +286,23 @@ export class ContactsComponent {
     return this.tagNameById().get(tagId);
   }
 
+  /**
+   * Every tag on a contact, for the overflow tooltip.
+   *
+   * The cell shows two and counts the rest, so without this the remaining
+   * names are unreachable without opening the contact.
+   */
+  protected allTagNames(contact: Contact): readonly string[] {
+    return contact.tagIds
+      .map((tagId) => this.tagFor(tagId)?.name)
+      .filter((name): name is string => name !== undefined);
+  }
+
+  /** Same list as a single string, for the native `title` fallback. */
+  protected tagNameList(contact: Contact): string {
+    return this.allTagNames(contact).join(', ');
+  }
+
   /** Applies a bulk result: report it, drop the selection, refresh the page. */
   private applyBulkResult(result: BulkOperationResult, outcome: string): void {
     this.busy.set(false);
