@@ -17,7 +17,7 @@ import type { ApiResponse } from '@core/models/api.model';
 import type {
   AuthTokens,
   AuthUser,
-  ChangePasswordRequest,
+  UpdateProfileRequest,
   CurrentUserResponse,
   ForgotPasswordRequest,
   LoginRequest,
@@ -117,10 +117,23 @@ export class AuthService {
       .pipe(map(() => undefined));
   }
 
-  changePassword(request: ChangePasswordRequest): Observable<void> {
+  /**
+   * Updates your own name, email and password, then adopts the result as the
+   * session user so the top bar and avatar change immediately.
+   *
+   * All three apply in **one transaction** server-side, so there is no
+   * partial-success case to handle: either everything took, or nothing did.
+   *
+   * Errors are `422` with **PascalCase** field keys — `CurrentPassword`,
+   * `NewPassword`, `Email`, `DisplayName` — or `409 email_in_use`. Callers must
+   * look those up case-insensitively.
+   *
+   * Changing the password revokes every other session; this one survives.
+   */
+  updateProfile(request: UpdateProfileRequest): Observable<AuthUser> {
     return this.http
-      .post<ApiResponse<null>>(`${this.baseUrl}/change-password`, request)
-      .pipe(map(() => undefined));
+      .patch<ApiResponse<CurrentUserResponse>>(`${this.baseUrl}/me`, request)
+      .pipe(switchMap(() => this.loadProfile()));
   }
 
   acceptInvitation(token: string, password: string): Observable<AuthUser> {

@@ -39,16 +39,25 @@ export function permissionsForRole(role: UserRole): readonly Permission[] {
   }
 }
 
+/**
+ * `id` is the stable handle; `email`, `name` and `password` are mutable because
+ * the profile screen can change all three.
+ *
+ * Nothing may key off the email or the name: an account that renames itself
+ * would stop resolving, and the session would drop on the next `/auth/me`.
+ */
 export interface MockAccount {
-  readonly email: string;
-  readonly password: string;
-  readonly name: string;
+  readonly id: string;
+  email: string;
+  password: string;
+  name: string;
   readonly role: UserRole;
   readonly workspaceName: string;
 }
 
 export const MOCK_ACCOUNTS: readonly MockAccount[] = [
   {
+    id: 'usr_admin',
     email: 'admin@nextreach.io',
     password: 'Password1!',
     name: 'Amara Chen',
@@ -56,6 +65,7 @@ export const MOCK_ACCOUNTS: readonly MockAccount[] = [
     workspaceName: 'Northwind Retail',
   },
   {
+    id: 'usr_employee',
     email: 'employee@nextreach.io',
     password: 'Password1!',
     name: 'Diego Rivera',
@@ -63,6 +73,7 @@ export const MOCK_ACCOUNTS: readonly MockAccount[] = [
     workspaceName: 'Northwind Retail',
   },
   {
+    id: 'usr_superadmin',
     email: 'superadmin@nextreach.io',
     password: 'Password1!',
     name: 'Priya Raman',
@@ -80,7 +91,7 @@ const TOKEN_LIFETIME_SECONDS = 60 * 30;
 export function issueMockTokens(account: MockAccount): AuthTokens {
   const issuedAt = Math.floor(Date.now() / 1000);
   const claims: JwtClaims = {
-    sub: `usr_${account.email.split('@')[0]}`,
+    sub: account.id,
     // The real issuer carries no email claim; the profile comes from /auth/me.
     name: account.name,
     role: account.role,
@@ -97,7 +108,7 @@ export function issueMockTokens(account: MockAccount): AuthTokens {
 
   return {
     accessToken: `${header}.${payload}.mock-signature`,
-    refreshToken: `refresh_${base64UrlEncode(account.email)}`,
+    refreshToken: `refresh_${base64UrlEncode(account.id)}`,
     expiresAtUtc: new Date(claims.exp * 1000).toISOString(),
   };
 }

@@ -7,6 +7,7 @@ import {
   type HttpRequest,
 } from '@angular/common/http';
 import { Observable, delay, of, throwError } from 'rxjs';
+import { avoidsCommonPatterns } from '@core/models/password-policy';
 import { environment } from '@env/environment';
 import type { ApiResponse, PagedResult } from '@core/models/api.model';
 import type {
@@ -88,6 +89,7 @@ import { campaignStore, handleCampaigns } from './mock-campaign-handler';
 import { searchEverything } from './mock-search';
 import {
   MOCK_ACCOUNTS,
+  type MockAccount,
   accountFromRefreshToken,
   issueMockTokens,
   permissionsForRole,
@@ -136,6 +138,27 @@ function fail(
       new HttpErrorResponse({
         status,
         error: { title, detail, errorCode, traceId: crypto.randomUUID() },
+      }),
+  );
+}
+/**
+ * A 422 carrying field errors, shaped exactly as the API sends them.
+ *
+ * Keys stay **PascalCase** on purpose: that is what the real API returns, and a
+ * camelCase mock would let a case-sensitive lookup pass here and fail in
+ * production, which is the opposite of what a mock is for.
+ */
+function failValidation(errors: Readonly<Record<string, readonly string[]>>): Observable<never> {
+  return throwError(
+    () =>
+      new HttpErrorResponse({
+        status: 422,
+        error: {
+          title: 'Validation failed',
+          errors,
+          errorCode: 'validation_failed',
+          traceId: crypto.randomUUID(),
+        },
       }),
   );
 }
@@ -248,10 +271,12 @@ function handleAuth(
   if (method === 'GET' && path === '/auth/me') {
     const bearer = request.headers.get('Authorization') ?? '';
     const claims = decodeJwt(bearer.replace(/^Bearer\s+/i, ''));
+    // Resolved by `sub`, never by name or email — the profile screen can change
+    // both, and a token issued before the change must still identify its owner.
     const account =
       claims === null
         ? undefined
-        : MOCK_ACCOUNTS.find((candidate) => candidate.name === claims.name);
+        : MOCK_ACCOUNTS.find((candidate) => candidate.id === claims.sub);
     if (account === undefined) {
       return fail(401, 'Session expired', 'Please sign in again.');
     }
@@ -283,10 +308,130 @@ function handleAuth(
       ? fail(401, 'Session expired', 'Please sign in again.')
       : ok<AuthTokens>(issueMockTokens(account));
   }
+  if (method === 'POST' && path === '/auth/change-password') {
+    const account = accountFromRequest(request);
+    if (account === null) {
+      return fail(401, 'Session expired', 'Please sign in again.');
+    }
+
+    const { currentPassword, newPassword } = body as {
+      currentPassword: string;
+      newPassword: string;
+    };
+
+    // Field keys are PascalCase, exactly as the real API sends them — the
+    // client has to match case-insensitively, and a camelCase mock would hide
+    // the bug rather than expose it.
+    if (account.password !== currentPassword) {
+      return failValidation({ CurrentPassword: ['That is not your current password.'] });
+    }
+    if (!meetsMockPasswordPolicy(newPassword)) {
+      return failValidation({
+        NewPassword: ['Use at least 12 characters, including a letter and a digit.'],
+      });
+    }
+
+    account.password = newPassword;
+    return ok<null>(null);
+  }
+
+  if (method === 'PATCH' && path === '/auth/me') {
+    const account = accountFromRequest(request);
+    if (account === null) {
+      return fail(401, 'Session expired', 'Please sign in again.');
+    }
+
+    const update = body as {
+      displayName?: string;
+      email?: string;
+      newPassword?: string;
+      currentPassword?: string;
+    };
+
+    const nextEmail = update.email?.trim() ?? null;
+    const nextName = update.displayName?.trim() ?? null;
+    const nextPassword = update.newPassword ?? null;
+
+    const emailChanging =
+      nextEmail !== null && nextEmail.toLowerCase() !== account.email.toLowerCase();
+
+    // Everything is validated before anything is written: the API applies all
+    // three in one transaction, and a mock that half-applied them would let a
+    // partial-success bug through unnoticed.
+    if ((emailChanging || nextPassword !== null) && account.password !== (update.currentPassword ?? '')) {
+      return failValidation({ CurrentPassword: ['That is not your current password.'] });
+    }
+
+    if (nextName !== null && nextName === '') {
+      return failValidation({ DisplayName: ['A name is required.'] });
+    }
+
+    if (nextPassword !== null && !meetsMockPasswordPolicy(nextPassword)) {
+      return failValidation({
+        NewPassword: [
+          'Use at least 12 characters, including a letter and a digit, and not a common word or pattern.',
+        ],
+      });
+    }
+
+    if (emailChanging) {
+      const taken = MOCK_ACCOUNTS.some(
+        (candidate) =>
+          candidate.id !== account.id &&
+          candidate.email.toLowerCase() === (nextEmail ?? '').toLowerCase(),
+      );
+      if (taken) {
+        return fail(
+          409,
+          'Email already in use',
+          'Another account already uses that address.',
+          'email_in_use',
+        );
+      }
+    }
+
+    // Commit.
+    if (emailChanging && nextEmail !== null) {
+      account.email = nextEmail;
+    }
+    if (nextName !== null && nextName !== '') {
+      account.name = nextName;
+    }
+    if (nextPassword !== null) {
+      account.password = nextPassword;
+    }
+
+    return ok<null>(null, 'Profile updated.');
+  }
+
   if (method === 'POST' && (path === '/auth/logout' || path === '/auth/forgot-password')) {
     return ok<null>(null);
   }
   return null;
+}
+
+/** The signed-in account, resolved from the bearer token's `sub`. */
+function accountFromRequest(request: HttpRequest<unknown>): MockAccount | null {
+  const bearer = request.headers.get('Authorization') ?? '';
+  const claims = decodeJwt(bearer.replace(/^Bearer\s+/i, ''));
+  if (claims === null) {
+    return null;
+  }
+  return MOCK_ACCOUNTS.find((candidate) => candidate.id === claims.sub) ?? null;
+}
+
+/**
+ * Mirrors `core/models/password-policy.ts`, which mirrors the API — including
+ * the forbidden fragments, so a password the client would wave through is still
+ * refused here if the client-side rule is ever dropped.
+ */
+function meetsMockPasswordPolicy(value: string): boolean {
+  return (
+    value.length >= 12 &&
+    /[a-zA-Z]/.test(value) &&
+    /\d/.test(value) &&
+    avoidsCommonPatterns(value)
+  );
 }
 /** Super Admin plan CRUD: create, update, duplicate, archive and delete. */
 function handlePlans(

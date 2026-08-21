@@ -71,7 +71,7 @@
   </app-card>
 
   <!-- Account -->
-  <app-card title="Your account" subtitle="Signed in as">
+  <app-card class="min-w-0" title="Your account" subtitle="Signed in as">
     @if (user(); as currentUser) {
       <div class="flex items-center gap-3">
         <app-avatar
@@ -102,16 +102,228 @@
           </dd>
         </div>
       </dl>
+
+      @if (!editingProfile()) {
+        <button
+          appButton
+          variant="outline"
+          size="sm"
+          class="mt-4 w-full"
+          (click)="startEditingProfile()"
+        >
+          <app-icon name="pencil" [size]="15" />
+          Edit profile
+        </button>
+      }
     }
   </app-card>
 </div>
 
-<!-- Help & FAQ -->
-<app-card
-  class="mt-4 block"
-  title="Help & FAQ"
-  subtitle="Answers to the questions this product raises most often."
->
+<!-- Profile editing. Name, email and password in one form: someone correcting
+     their own details should not have to find three screens to do it. -->
+@if (editingProfile()) {
+  <app-card
+    class="mt-4 block"
+    title="Edit your profile"
+    subtitle="Change your name, your email, your password — or all three."
+  >
+    <form class="grid gap-5 lg:grid-cols-2" [formGroup]="profileForm" (ngSubmit)="saveProfile()">
+      <!-- Identity -->
+      <div class="space-y-4">
+        <div>
+          <label for="profile-name" class="block text-sm font-medium text-ink">Name</label>
+          <input
+            id="profile-name"
+            type="text"
+            formControlName="displayName"
+            autocomplete="name"
+            class="mt-1.5 h-10 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink ring-1 ring-line ring-inset transition-all focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
+            [attr.aria-invalid]="profileProblem('displayName') !== null"
+          />
+          @if (profileProblem('displayName'); as message) {
+            <p class="mt-1.5 text-xs text-danger">{{ message }}</p>
+          } @else {
+            <p class="mt-1.5 text-xs text-ink-muted">
+              Shown on campaigns you create and to your team.
+            </p>
+          }
+        </div>
+
+        <div>
+          <label for="profile-email" class="block text-sm font-medium text-ink">Email</label>
+          <input
+            id="profile-email"
+            type="email"
+            formControlName="email"
+            autocomplete="email"
+            class="mt-1.5 h-10 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink ring-1 ring-line ring-inset transition-all focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
+            [attr.aria-invalid]="profileProblem('email') !== null"
+          />
+          @if (profileProblem('email'); as message) {
+            <p class="mt-1.5 text-xs text-danger">{{ message }}</p>
+          } @else if (emailChanged()) {
+            <p class="mt-1.5 flex items-start gap-1.5 text-xs text-warning">
+              <app-icon name="warning" [size]="13" class="mt-px shrink-0" />
+              You will sign in with this address from now on.
+            </p>
+          } @else {
+            <p class="mt-1.5 text-xs text-ink-muted">The address you sign in with.</p>
+          }
+        </div>
+      </div>
+
+      <!-- Password. Left blank unless it is being changed. -->
+      <div class="space-y-4">
+        <div>
+          <label for="profile-new-password" class="block text-sm font-medium text-ink">
+            New password
+            <span class="font-normal text-ink-muted">— leave blank to keep it</span>
+          </label>
+          <input
+            id="profile-new-password"
+            type="password"
+            formControlName="newPassword"
+            autocomplete="new-password"
+            class="mt-1.5 h-10 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink ring-1 ring-line ring-inset transition-all focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
+            [attr.aria-invalid]="profileProblem('newPassword') !== null"
+          />
+          @if (profileProblem('newPassword'); as message) {
+            <p class="mt-1.5 text-xs text-danger">{{ message }}</p>
+          }
+
+          @if (passwordChanging()) {
+            <div class="mt-2 flex gap-1" aria-hidden="true">
+              @for (bar of [1, 2, 3]; track bar) {
+                <span
+                  class="h-1 flex-1 rounded-full transition-colors"
+                  [class]="
+                    newPasswordStrength() >= bar
+                      ? newPasswordStrength() === 3
+                        ? 'bg-brand-500'
+                        : 'bg-warning'
+                      : 'bg-line'
+                  "
+                ></span>
+              }
+            </div>
+
+            <ul class="mt-2 space-y-1">
+              @for (rule of newPasswordRules(); track rule.label) {
+                <li
+                  class="flex items-center gap-1.5 text-xs"
+                  [class]="rule.met ? 'text-brand-700' : 'text-ink-muted'"
+                >
+                  <app-icon
+                    [name]="rule.met ? 'checkCircle' : 'xCircle'"
+                    [size]="13"
+                    class="shrink-0"
+                  />
+                  {{ rule.label }}
+                </li>
+              }
+            </ul>
+          }
+        </div>
+
+        @if (passwordChanging()) {
+          <div>
+            <label for="profile-confirm-password" class="block text-sm font-medium text-ink">
+              Confirm new password
+            </label>
+            <input
+              id="profile-confirm-password"
+              type="password"
+              formControlName="confirmPassword"
+              autocomplete="new-password"
+              class="mt-1.5 h-10 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink ring-1 ring-line ring-inset transition-all focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
+              [attr.aria-invalid]="profileProblem('confirmPassword') !== null"
+            />
+            @if (profileProblem('confirmPassword'); as message) {
+              <p class="mt-1.5 text-xs text-danger">{{ message }}</p>
+            }
+          </div>
+        }
+      </div>
+
+      <!-- Confirmation, asked for only when it is actually needed. -->
+      @if (needsCurrentPassword()) {
+        <div class="lg:col-span-2">
+          <div class="rounded-xl bg-surface-sunken p-4 ring-1 ring-line">
+            <label for="profile-current-password" class="block text-sm font-medium text-ink">
+              Current password
+            </label>
+            <p class="mt-0.5 text-xs text-ink-muted">
+              Required because you are changing your
+              {{
+                emailChanged() && passwordChanging()
+                  ? 'email and password'
+                  : emailChanged()
+                    ? 'email'
+                    : 'password'
+              }}.
+            </p>
+            <input
+              id="profile-current-password"
+              type="password"
+              formControlName="currentPassword"
+              autocomplete="current-password"
+              class="mt-2 h-10 w-full max-w-sm rounded-lg border-0 bg-surface px-3 text-sm text-ink ring-1 ring-line ring-inset transition-all focus:ring-2 focus:ring-brand-500 focus:outline-none"
+              [attr.aria-invalid]="profileProblem('currentPassword') !== null"
+            />
+            @if (profileProblem('currentPassword'); as message) {
+              <p class="mt-1.5 text-xs text-danger">{{ message }}</p>
+            }
+          </div>
+        </div>
+      }
+
+      <div class="flex flex-wrap items-center gap-2.5 border-t border-line pt-4 lg:col-span-2">
+        <button appButton type="submit" size="md" [disabled]="!hasChanges() || savingProfile()">
+          {{ savingProfile() ? 'Saving…' : 'Save changes' }}
+        </button>
+        <button appButton type="button" variant="ghost" size="md" (click)="cancelEditingProfile()">
+          Cancel
+        </button>
+
+        @if (!hasChanges()) {
+          <p class="text-xs text-ink-muted">Nothing has changed yet.</p>
+        } @else if (passwordChanging()) {
+          <p class="text-xs text-ink-muted">Changing your password signs out your other devices.</p>
+        }
+      </div>
+    </form>
+  </app-card>
+}
+
+<!-- Help & FAQ. Collapsed on arrival: Settings is opened to change a setting,
+     and seventeen questions is a lot of page for the exception. -->
+<app-card class="mt-4 block" [padded]="false">
+  <button
+    type="button"
+    class="flex w-full items-center gap-3 px-5 py-4 text-left transition-colors hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-inset"
+    [attr.aria-expanded]="helpOpen()"
+    aria-controls="help-panel"
+    (click)="toggleHelp()"
+  >
+    <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-700">
+      <app-icon name="info" [size]="18" />
+    </span>
+    <span class="min-w-0 flex-1">
+      <span class="block text-sm font-semibold text-ink">Help &amp; FAQ</span>
+      <span class="mt-0.5 block text-xs text-ink-muted">
+        Answers to the questions this product raises most often, and a way to reach support.
+      </span>
+    </span>
+    <app-icon
+      name="chevronDown"
+      [size]="18"
+      class="shrink-0 text-ink-muted transition-transform duration-200"
+      [class.rotate-180]="helpOpen()"
+    />
+  </button>
+
+  @if (helpOpen()) {
+  <div id="help-panel" class="animate-fade-in border-t border-line px-5 pt-4 pb-5">
   <div class="flex flex-wrap items-center gap-2.5">
     <div class="relative min-w-0 flex-1 sm:max-w-xs">
       <label for="faq-search" class="sr-only">Search help</label>
@@ -215,6 +427,8 @@
       Contact support
     </a>
   </div>
+  </div>
+  }
 </app-card>
 
 <!-- Sections the API does not expose yet -->

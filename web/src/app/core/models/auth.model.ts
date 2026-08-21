@@ -88,7 +88,22 @@ export interface AcceptInvitationRequest {
   readonly password: string;
 }
 
-export interface ChangePasswordRequest {
-  readonly currentPassword: string;
-  readonly newPassword: string;
+/**
+ * Editing your own name, email and password.
+ *
+ * Every field is optional so a caller can change one without restating the
+ * others; absent means "leave alone", never "clear". The API applies all three
+ * in **one transaction**, so there is no state where the name saves and the
+ * password does not.
+ *
+ * `currentPassword` is required whenever `email` or `newPassword` is present.
+ * Both are account-takeover steps, and a session left open on a shared machine
+ * should not be enough to perform either. A rename alone asks for nothing —
+ * gating that would only train people to type their password without thinking.
+ */
+export interface UpdateProfileRequest {
+  readonly displayName?: string;
+  readonly email?: string;
+  readonly newPassword?: string;
+  readonly currentPassword?: string;
 }
