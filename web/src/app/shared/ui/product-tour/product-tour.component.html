@@ -1,0 +1,107 @@
+@if (active()) {
+  <!-- Swallows clicks so the tour cannot be half-dismissed by clicking behind
+       it. Transparent: the dimming is the spotlight's box-shadow. -->
+  <div class="fixed inset-0 z-60" aria-hidden="true"></div>
+
+  @if (spotlightStyle(); as spotlight) {
+    <!-- The dim and the hole in one element. The ring is a second, offset
+         outline so the highlight is not carried by colour alone. -->
+    <div
+      class="pointer-events-none fixed top-0 left-0 z-61 rounded-xl ring-2 ring-brand-400 ring-offset-2 ring-offset-brand-900/40 transition-[transform,width,height] duration-300 ease-out"
+      [style.transform]="spotlight.transform"
+      [style.width]="spotlight.width"
+      [style.height]="spotlight.height"
+      style="box-shadow: 0 0 0 9999px rgb(15 23 42 / 0.62)"
+      aria-hidden="true"
+    ></div>
+  } @else {
+    <!-- No target yet: dim everything rather than flashing the app undimmed. -->
+    <div class="pointer-events-none fixed inset-0 z-61 bg-slate-900/60" aria-hidden="true"></div>
+  }
+
+  @if (step(); as current) {
+    <div
+      #tooltip
+      class="fixed top-0 left-0 z-62 w-[min(21rem,calc(100vw-1.5rem))] rounded-xl bg-surface p-4 shadow-lg ring-1 ring-line transition-transform duration-300 ease-out focus:outline-none"
+      [style.transform]="tooltipTransform()"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="tour-title"
+      aria-describedby="tour-description"
+      tabindex="-1"
+    >
+      <!-- Progress -->
+      <div class="flex items-center justify-between gap-3">
+        <p class="text-xs font-medium text-ink-muted" aria-live="polite">
+          Step {{ stepNumber() }} of {{ total() }}
+        </p>
+        <button
+          type="button"
+          class="rounded text-xs font-medium text-ink-muted transition-colors hover:text-ink focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none"
+          (click)="askToSkip()"
+        >
+          Skip tutorial
+        </button>
+      </div>
+
+      <div
+        class="mt-2 flex items-center gap-1.5"
+        role="progressbar"
+        [attr.aria-valuenow]="stepNumber()"
+        aria-valuemin="1"
+        [attr.aria-valuemax]="total()"
+        [attr.aria-label]="'Tour progress: step ' + stepNumber() + ' of ' + total()"
+      >
+        @for (dot of dots(); track dot) {
+          <span
+            class="h-1.5 flex-1 rounded-full transition-colors duration-300"
+            [class]="dot < stepNumber() ? 'bg-brand-500' : 'bg-line'"
+          ></span>
+        }
+      </div>
+
+      <!-- Content -->
+      <h2 id="tour-title" class="mt-3.5 text-sm font-semibold text-ink">{{ current.title }}</h2>
+      <p id="tour-description" class="mt-1.5 text-sm leading-relaxed text-ink-soft">
+        {{ current.description }}
+      </p>
+
+      <!-- Controls -->
+      <div class="mt-4 flex items-center gap-2 border-t border-line pt-3.5">
+        @if (!isFirst()) {
+          <button appButton variant="outline" size="sm" (click)="previous()">
+            <app-icon name="chevronLeft" [size]="15" />
+            Back
+          </button>
+        }
+
+        <span class="flex-1"></span>
+
+        <button appButton size="sm" [disabled]="settling()" (click)="next()">
+          @if (settling()) {
+            Loading…
+          } @else if (isLast()) {
+            Finish
+          } @else {
+            Next
+            <app-icon name="chevronRight" [size]="15" />
+          }
+        </button>
+      </div>
+    </div>
+  }
+}
+
+@if (confirmingSkip()) {
+  <app-modal title="Skip the product tour?" size="sm" (closed)="cancelSkip()">
+    <p class="text-sm leading-relaxed text-ink-soft">
+      You can restart it any time from <span class="font-medium text-ink">Settings → Help &amp; FAQ
+      → Product tour</span>.
+    </p>
+
+    <ng-container modalFooter>
+      <button appButton variant="ghost" size="md" (click)="cancelSkip()">Continue tutorial</button>
+      <button appButton size="md" (click)="confirmSkip()">Skip</button>
+    </ng-container>
+  </app-modal>
+}

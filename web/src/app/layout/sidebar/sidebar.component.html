@@ -50,6 +50,7 @@
             <li>
               <a
                 [routerLink]="item.route"
+                [attr.data-tour]="item.route"
                 routerLinkActive="bg-brand-50 text-brand-700 font-semibold"
                 #active="routerLinkActive"
                 [attr.aria-current]="active.isActive ? 'page' : null"

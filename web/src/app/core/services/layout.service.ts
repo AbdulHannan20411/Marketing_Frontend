@@ -64,6 +64,11 @@ export class LayoutService {
     this.mobileNavOpen.update((open) => !open);
   }
 
+  /** Used by the product tour: sidebar links do not exist until the drawer is open. */
+  openMobileNav(): void {
+    this.mobileNavOpen.set(true);
+  }
+
   closeMobileNav(): void {
     this.mobileNavOpen.set(false);
   }

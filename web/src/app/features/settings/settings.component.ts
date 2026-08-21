@@ -14,6 +14,7 @@ import { AuthService } from '@core/auth/auth.service';
 import type { ApiError } from '@core/models/api.model';
 import { USER_ROLE_LABEL } from '@core/models/auth.model';
 import { meetsPasswordPolicy, passwordRules, passwordStrength } from '@core/models/password-policy';
+import { OnboardingService } from '@core/services/onboarding.service';
 import { ThemeService, type ThemePreference } from '@core/services/theme.service';
 import { ToastService } from '@core/services/toast.service';
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
@@ -81,6 +82,7 @@ export class SettingsComponent {
   private readonly auth = inject(AuthService);
   private readonly formBuilder = inject(FormBuilder);
   private readonly toast = inject(ToastService);
+  private readonly onboarding = inject(OnboardingService);
 
   protected readonly themeOptions = THEME_OPTIONS;
   protected readonly preference = this.theme.preference;
@@ -390,6 +392,20 @@ export class SettingsComponent {
 
   protected toggleHelp(): void {
     this.helpOpen.update((open) => !open);
+  }
+
+  /* ---------------------------- product tour ---------------------------- */
+
+  /** How many steps this user's tour has — the same number the tour will show. */
+  protected readonly tourStepCount = this.onboarding.total;
+
+  /**
+   * Restarts the tour and closes the help panel, so the first spotlight is not
+   * hidden behind the thing that launched it.
+   */
+  protected restartTour(): void {
+    this.helpOpen.set(false);
+    this.onboarding.restart();
   }
 
   protected isOpen(id: string): boolean {

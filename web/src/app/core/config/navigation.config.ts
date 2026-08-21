@@ -118,7 +118,12 @@ export const NAVIGATION: readonly NavSection[] = [
   {
     title: null,
     items: [
-      { label: 'Settings', route: '/settings', icon: 'cog', permissions: ['settings.company'] },
+      // No permission: the route has never had a guard, and the page is now
+      // almost entirely personal — appearance, your own profile, help, and the
+      // product tour. Gating the link behind `settings.company` hid a reachable
+      // page from employees, leaving them unable to edit their own profile or
+      // restart the tour while the URL worked perfectly well if they guessed it.
+      { label: 'Settings', route: '/settings', icon: 'cog', permissions: [] },
     ],
   },
 ];

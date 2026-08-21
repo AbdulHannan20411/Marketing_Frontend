@@ -5,6 +5,7 @@ import {
   computed,
   effect,
   inject,
+  untracked,
 } from '@angular/core';
 import { Router, RouterOutlet } from '@angular/router';
 
@@ -13,11 +14,13 @@ import { UNLOCKED_ROUTES } from '@core/guards/subscription.guard';
 import { EntitlementService } from '@core/services/entitlement.service';
 import { LayoutService } from '@core/services/layout.service';
 import { NotificationsService } from '@core/services/notifications.service';
+import { OnboardingService } from '@core/services/onboarding.service';
 import { RealtimeService } from '@core/services/realtime.service';
 import { CommandPaletteComponent } from '@layout/command-palette/command-palette.component';
 import { ScopeBarComponent } from '@layout/scope-bar/scope-bar.component';
 import { SidebarComponent } from '@layout/sidebar/sidebar.component';
 import { TopbarComponent } from '@layout/topbar/topbar.component';
+import { ProductTourComponent } from '@shared/ui/product-tour/product-tour.component';
 
 @Component({
   selector: 'app-shell',
@@ -28,6 +31,7 @@ import { TopbarComponent } from '@layout/topbar/topbar.component';
     TopbarComponent,
     CommandPaletteComponent,
     ScopeBarComponent,
+    ProductTourComponent,
   ],
   host: { class: 'block min-h-dvh bg-surface-muted' },
   template: `
@@ -51,6 +55,7 @@ import { TopbarComponent } from '@layout/topbar/topbar.component';
     </div>
 
     <app-command-palette />
+    <app-product-tour />
   `,
 })
 export class ShellComponent {
@@ -60,6 +65,7 @@ export class ShellComponent {
   private readonly router = inject(Router);
   private readonly notifications = inject(NotificationsService);
   private readonly realtime = inject(RealtimeService);
+  private readonly onboarding = inject(OnboardingService);
 
   /** Sidebar is fixed-position, so the content column reserves its width on lg+. */
   protected readonly offset = computed(() =>
@@ -90,6 +96,25 @@ export class ShellComponent {
       if (!UNLOCKED_ROUTES.includes(first)) {
         void this.router.navigate(['/subscription']);
       }
+    });
+
+    /*
+     * Offer the product tour once, on a first login.
+     *
+     * Waits for entitlements because the sidebar — and therefore the tour's
+     * steps — depends on which plan modules are on. Starting before they load
+     * would build a tour from a half-populated sidebar and get the step count
+     * wrong. Runs after a paint so the sidebar has actually rendered.
+     */
+    effect(() => {
+      const user = this.auth.user();
+      const ready = this.entitlements.isLoaded();
+
+      if (user === null || !ready) {
+        return;
+      }
+
+      untracked(() => setTimeout(() => this.onboarding.maybeStartForFirstLogin(), 0));
     });
 
     // Campaign progress and notifications arrive by push; the reports endpoints

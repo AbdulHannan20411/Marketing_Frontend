@@ -410,6 +410,25 @@
     </ul>
   }
 
+  <!-- Product tour. Sits above "contact support" because retaking the tour is
+       the cheaper answer to "how does this work?" and should be tried first. -->
+  @if (tourStepCount() > 0) {
+    <div
+      class="mt-5 flex flex-wrap items-center gap-3 rounded-xl bg-surface-sunken px-4 py-3.5 ring-1 ring-line"
+    >
+      <app-icon name="rocket" [size]="18" class="shrink-0 text-ink-muted" />
+      <div class="min-w-0 flex-1">
+        <p class="text-sm font-medium text-ink">Product tour</p>
+        <p class="mt-0.5 text-xs text-ink-muted">
+          A {{ tourStepCount() }}-step walkthrough of the sections you have access to.
+        </p>
+      </div>
+      <button appButton variant="outline" size="sm" (click)="restartTour()">
+        Restart product tour
+      </button>
+    </div>
+  }
+
   <!-- Still stuck. The workspace and account travel with the message so support
        does not have to ask for them first. -->
   <div
