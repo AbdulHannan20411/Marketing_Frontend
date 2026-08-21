@@ -7,7 +7,6 @@ import {
   type HttpRequest,
 } from '@angular/common/http';
 import { Observable, delay, of, throwError } from 'rxjs';
-
 import { environment } from '@env/environment';
 import type { ApiResponse, PagedResult } from '@core/models/api.model';
 import type {
@@ -24,7 +23,6 @@ import { PERMISSIONS, type Permission } from '@core/models/permission.model';
 import type { SubscriptionPlan } from '@core/models/subscription.model';
 import {
   AUDIT_LOGS,
-  CAMPAIGNS,
   CONTACTS,
   DASHBOARD,
   DELIVERY_FAILURES,
@@ -86,6 +84,7 @@ import {
   messageStore,
   replaceConversation,
 } from './mock-inbox-data';
+import { campaignStore, handleCampaigns } from './mock-campaign-handler';
 import { searchEverything } from './mock-search';
 import {
   MOCK_ACCOUNTS,
@@ -93,10 +92,8 @@ import {
   issueMockTokens,
   permissionsForRole,
 } from './mock-tokens';
-
 /** Simulated round-trip latency. Set to 0 to make mock responses synchronous. */
 const LATENCY_MS: number = 380;
-
 /**
  * Mutable slices of the dataset. Plan CRUD and notification read-state are
  * genuinely stateful in the UI, so the mock keeps them in memory for the
@@ -106,11 +103,9 @@ const planStore: SubscriptionPlan[] = PLANS.map((plan) => ({ ...plan }));
 const notificationStore: AppNotification[] = NOTIFICATIONS.map((entry) => ({ ...entry }));
 const employeeStore: Employee[] = EMPLOYEES.map((entry) => ({ ...entry }));
 const templateStore: MessageTemplate[] = TEMPLATES.map((entry) => ({ ...entry }));
-
 function nextPlanId(): string {
   return `plan_${crypto.randomUUID().slice(0, 8)}`;
 }
-
 function ok<T>(data: T, message: string | null = null): Observable<HttpResponse<ApiResponse<T>>> {
   const response = of(
     new HttpResponse({ status: 200, body: { data, message, traceId: crypto.randomUUID() } }),
@@ -119,7 +114,6 @@ function ok<T>(data: T, message: string | null = null): Observable<HttpResponse<
   // synchronous, which matters for tests and for throttled background tabs.
   return LATENCY_MS === 0 ? response : response.pipe(delay(LATENCY_MS));
 }
-
 /**
  * A file download. Unlike every other response this one is *not* enveloped —
  * `ApiService.download` asks for a blob and hands it straight to the caller.
@@ -127,12 +121,10 @@ function ok<T>(data: T, message: string | null = null): Observable<HttpResponse<
 function okFile(content: string, mimeType: string): Observable<HttpResponse<Blob>> {
   return okBlob(new Blob([content], { type: mimeType }));
 }
-
 function okBlob(blob: Blob): Observable<HttpResponse<Blob>> {
   const response = of(new HttpResponse({ status: 200, body: blob }));
   return LATENCY_MS === 0 ? response : response.pipe(delay(LATENCY_MS));
 }
-
 function fail(
   status: number,
   title: string,
@@ -147,12 +139,10 @@ function fail(
       }),
   );
 }
-
 function paginate<T>(items: readonly T[], params: HttpParams): PagedResult<T> {
   const page = Number(params.get('page') ?? '1');
   const pageSize = Number(params.get('pageSize') ?? '10');
   const start = (page - 1) * pageSize;
-
   return {
     items: items.slice(start, start + pageSize),
     page,
@@ -161,7 +151,6 @@ function paginate<T>(items: readonly T[], params: HttpParams): PagedResult<T> {
     totalPages: Math.max(1, Math.ceil(items.length / pageSize)),
   };
 }
-
 /**
  * The Admin account a SuperAdmin is viewing as, or `null` for their own /
  * global context. A real API would authorise this against the caller's role;
@@ -170,6 +159,66 @@ function paginate<T>(items: readonly T[], params: HttpParams): PagedResult<T> {
 function scopeOf(params: HttpParams): string | null {
   return params.get('adminId');
 }
+/**
+ * Templates, filtered and paged the way the API is being asked to.
+ *
+ * Filtering here rather than in the client is the point: it is what proves the
+ * screen works against a server that only ever returns one page, and it catches
+ * the mismatches — a filter value the API would not recognise, a page beyond
+ * the end — that a client-side slice over a full array never would.
+ */
+function pageTemplates(params: HttpParams): PagedResult<MessageTemplate> {
+  const search = (params.get('search') ?? '').trim().toLowerCase();
+  const status = params.get('status') ?? 'all';
+  const category = params.get('category') ?? 'all';
+
+  const matched = templateStore.filter((template) => {
+    const matchesSearch =
+      search === '' ||
+      template.name.toLowerCase().includes(search) ||
+      template.bodyText.toLowerCase().includes(search);
+
+    return (
+      matchesSearch &&
+      (status === 'all' || template.status === status) &&
+      (category === 'all' || template.category === category)
+    );
+  });
+
+  return paginate(matched, params);
+}
+
+/**
+ * Counts across every page, under the same search and category as the list.
+ *
+ * Status is not applied — these counts are the breakdown by status. Search and
+ * category are, or a chip reads "Pending 1" beside an empty list and the filter
+ * looks broken when it is working.
+ */
+function countTemplates(params: HttpParams) {
+  const search = (params.get('search') ?? '').trim().toLowerCase();
+  const category = params.get('category') ?? 'all';
+
+  const scoped = templateStore.filter((template) => {
+    const matchesSearch =
+      search === '' ||
+      template.name.toLowerCase().includes(search) ||
+      template.bodyText.toLowerCase().includes(search);
+
+    return matchesSearch && (category === 'all' || template.category === category);
+  });
+
+  const of = (status: MessageTemplate['status']): number =>
+    scoped.filter((template) => template.status === status).length;
+
+  return {
+    total: scoped.length,
+    approved: of('approved'),
+    pending: of('pending'),
+    rejected: of('rejected'),
+    paused: of('paused'),
+  };
+}
 
 function filterContacts(params: HttpParams): readonly Contact[] {
   const search = (params.get('search') ?? '').trim().toLowerCase();
@@ -177,21 +226,17 @@ function filterContacts(params: HttpParams): readonly Contact[] {
   const groupId = params.get('groupId') ?? 'all';
   const adminId = scopeOf(params);
   const source = adminId === null ? CONTACTS : contactsForAdmin(adminId);
-
   return source.filter((contact) => {
     const matchesSearch =
       search === '' ||
       contact.fullName.toLowerCase().includes(search) ||
       contact.phoneNumber.toLowerCase().includes(search) ||
       (contact.email?.toLowerCase().includes(search) ?? false);
-
     const matchesStatus = status === 'all' || contact.status === status;
     const matchesGroup = groupId === 'all' || contact.groupIds.includes(groupId);
-
     return matchesSearch && matchesStatus && matchesGroup;
   });
 }
-
 function handleAuth(
   path: string,
   method: string,
@@ -207,11 +252,9 @@ function handleAuth(
       claims === null
         ? undefined
         : MOCK_ACCOUNTS.find((candidate) => candidate.name === claims.name);
-
     if (account === undefined) {
       return fail(401, 'Session expired', 'Please sign in again.');
     }
-
     return ok<CurrentUserResponse>({
       id: MOCK_ACCOUNTS.indexOf(account) + 1,
       email: account.email,
@@ -222,7 +265,6 @@ function handleAuth(
       permissions: [...permissionsForRole(account.role)],
     });
   }
-
   if (method === 'POST' && path === '/auth/login') {
     const credentials = body as LoginRequest;
     const account = MOCK_ACCOUNTS.find(
@@ -230,28 +272,22 @@ function handleAuth(
         candidate.email.toLowerCase() === credentials.email.trim().toLowerCase() &&
         candidate.password === credentials.password,
     );
-
     return account === undefined
       ? fail(401, 'Sign-in failed', 'That email and password combination is not recognised.')
       : ok<AuthTokens>(issueMockTokens(account));
   }
-
   if (method === 'POST' && path === '/auth/refresh') {
     const { refreshToken } = body as { refreshToken: string };
     const account = accountFromRefreshToken(refreshToken);
-
     return account === null
       ? fail(401, 'Session expired', 'Please sign in again.')
       : ok<AuthTokens>(issueMockTokens(account));
   }
-
   if (method === 'POST' && (path === '/auth/logout' || path === '/auth/forgot-password')) {
     return ok<null>(null);
   }
-
   return null;
 }
-
 /** Super Admin plan CRUD: create, update, duplicate, archive and delete. */
 function handlePlans(
   path: string,
@@ -263,7 +299,6 @@ function handlePlans(
     planStore.push(plan);
     return ok(plan, `Plan "${plan.name}" created.`);
   }
-
   const duplicateMatch = /^\/admin\/plans\/([^/]+)\/duplicate$/.exec(path);
   if (method === 'POST' && duplicateMatch !== null) {
     const source = planStore.find((plan) => plan.id === duplicateMatch[1]);
@@ -283,7 +318,6 @@ function handlePlans(
     planStore.push(copy);
     return ok(copy, `Duplicated "${source.name}".`);
   }
-
   const idMatch = /^\/admin\/plans\/([^/]+)$/.exec(path);
   if (idMatch === null) {
     return null;
@@ -292,7 +326,6 @@ function handlePlans(
   if (index === -1) {
     return fail(404, 'Plan not found', 'That plan no longer exists.');
   }
-
   if (method === 'PUT') {
     const updated = {
       ...planStore[index],
@@ -303,27 +336,22 @@ function handlePlans(
     planStore[index] = updated;
     return ok(updated, `Plan "${updated.name}" saved.`);
   }
-
   if (method === 'DELETE') {
     const [removed] = planStore.splice(index, 1);
     return ok<null>(null, `Plan "${removed.name}" deleted.`);
   }
-
   return null;
 }
-
 function handleNotifications(path: string, method: string): Observable<HttpEvent<unknown>> | null {
   if (method !== 'POST') {
     return null;
   }
-
   if (path === '/notifications/read-all') {
     for (let index = 0; index < notificationStore.length; index++) {
       notificationStore[index] = { ...notificationStore[index], read: true };
     }
     return ok([...notificationStore], 'All notifications marked as read.');
   }
-
   const readMatch = /^\/notifications\/([^/]+)\/read$/.exec(path);
   if (readMatch !== null) {
     const index = notificationStore.findIndex((entry) => entry.id === readMatch[1]);
@@ -333,10 +361,8 @@ function handleNotifications(path: string, method: string): Observable<HttpEvent
     notificationStore[index] = { ...notificationStore[index], read: true };
     return ok([...notificationStore]);
   }
-
   return null;
 }
-
 /**
  * Contact import.
  *
@@ -354,15 +380,12 @@ function handleContactImports(
   if (!path.startsWith('/contact-imports')) {
     return null;
   }
-
   if (method === 'GET' && path === '/contact-imports/template') {
     return okFile(IMPORT_TEMPLATE_CSV, 'text/csv');
   }
-
   if (method === 'GET' && path === '/contact-imports') {
     return ok(paginate(allMockBatches().map(toListItem), params));
   }
-
   if (method === 'POST' && path === '/contact-imports') {
     const file = body instanceof FormData ? body.get('file') : null;
     if (!(file instanceof File)) {
@@ -382,12 +405,10 @@ function handleContactImports(
       'File accepted and queued.',
     );
   }
-
   const exportDownload = /^\/contact-imports\/exports\/([^/]+)\/download$/.exec(path);
   if (method === 'GET' && exportDownload !== null) {
     return okFile(exportCsv(exportDownload[1]), 'text/csv');
   }
-
   const exportPoll = /^\/contact-imports\/exports\/([^/]+)$/.exec(path);
   if (method === 'GET' && exportPoll !== null) {
     const job = exportStatus(exportPoll[1]);
@@ -395,7 +416,6 @@ function handleContactImports(
       ? fail(404, 'Export not found', 'That export has expired.')
       : ok(job);
   }
-
   const rowsMatch = /^\/contact-imports\/([^/]+)\/rows$/.exec(path);
   if (method === 'GET' && rowsMatch !== null) {
     const batch = findMockBatch(rowsMatch[1]);
@@ -403,7 +423,6 @@ function handleContactImports(
       ? fail(404, 'Import not found', 'That batch does not exist in this workspace.')
       : ok(paginate(rowsOf(batch, params.get('status') ?? 'all'), params));
   }
-
   const detailMatch = /^\/contact-imports\/([^/]+)$/.exec(path);
   if (method === 'GET' && detailMatch !== null) {
     const batch = findMockBatch(detailMatch[1]);
@@ -411,7 +430,6 @@ function handleContactImports(
       ? fail(404, 'Import not found', 'That batch does not exist in this workspace.')
       : ok(toDetails(batch));
   }
-
   const mappingMatch = /^\/contact-imports\/([^/]+)\/mapping$/.exec(path);
   if (method === 'PUT' && mappingMatch !== null) {
     const batch = findMockBatch(mappingMatch[1]);
@@ -421,7 +439,6 @@ function handleContactImports(
     batch.mapping = (body as { mapping: never }).mapping;
     return ok(toDetails(batch), 'Mapping saved.');
   }
-
   const commitMatch = /^\/contact-imports\/([^/]+)\/commit$/.exec(path);
   if (method === 'POST' && commitMatch !== null) {
     const batch = findMockBatch(commitMatch[1]);
@@ -462,7 +479,6 @@ function handleContactImports(
       'Import queued.',
     );
   }
-
   const cancelMatch = /^\/contact-imports\/([^/]+)\/cancel$/.exec(path);
   if (method === 'POST' && cancelMatch !== null) {
     const batch = findMockBatch(cancelMatch[1]);
@@ -490,7 +506,6 @@ function handleContactImports(
     batch.cancelled = true;
     return ok(toDetails(batch), 'Import cancelled.');
   }
-
   const failedExport = /^\/contact-imports\/([^/]+)\/failed-records\/export$/.exec(path);
   if (method === 'POST' && failedExport !== null) {
     const batch = findMockBatch(failedExport[1]);
@@ -507,10 +522,8 @@ function handleContactImports(
     }
     return ok(startExport(batch));
   }
-
   return null;
 }
-
 /**
  * Manual payments.
  *
@@ -534,7 +547,6 @@ function handleEmployees(
   if (!path.startsWith('/employees')) {
     return null;
   }
-
   if (method === 'POST' && path === '/employees/invite') {
     const request = body as {
       name: string;
@@ -543,7 +555,6 @@ function handleEmployees(
       role?: 'Admin' | 'Employee';
       permissionSetId?: string;
     };
-
     if (employeeStore.some((e) => e.email.toLowerCase() === request.email.toLowerCase())) {
       // Platform-wide, matching the API: the address may belong to another
       // customer entirely, which is why the wording is not workspace-scoped.
@@ -554,12 +565,10 @@ function handleEmployees(
         'email_taken',
       );
     }
-
     const set =
       request.permissionSetId === undefined
         ? undefined
         : PERMISSION_SETS.find((entry) => entry.id === request.permissionSetId);
-
     const invited: Employee = {
       id: `emp_${crypto.randomUUID().slice(0, 8)}`,
       name: request.name,
@@ -578,34 +587,28 @@ function handleEmployees(
       lastActiveAt: null,
       invitedAt: new Date().toISOString(),
     };
-
     employeeStore.unshift(invited);
     return ok(invited, `Invitation sent to ${invited.email}.`);
   }
-
   const withId = /^\/employees\/([^/]+)(\/[a-z-]+)?$/.exec(path);
   if (withId === null) {
     return null;
   }
-
   const [, id, suffix] = withId;
   const index = employeeStore.findIndex((employee) => employee.id === id);
   if (index === -1) {
     return fail(404, 'Not found', 'That employee is no longer in this workspace.');
   }
-
   const current = employeeStore[index];
   // Replaced rather than mutated, so a signal `set()` is not a no-op.
   const replace = (patch: Partial<Employee>): Employee => {
     employeeStore[index] = { ...current, ...patch };
     return employeeStore[index];
   };
-
   if (method === 'PUT' && suffix === '/permissions') {
     const permissions = (body as { permissions: Permission[] }).permissions ?? [];
     return ok(replace({ permissions }), 'Permissions updated.');
   }
-
   if (method === 'PUT' && suffix === '/role') {
     const role = (body as { role: 'Admin' | 'Employee' }).role;
     return ok(
@@ -616,33 +619,26 @@ function handleEmployees(
       'Role updated.',
     );
   }
-
   if (method === 'PUT' && suffix === '/status') {
     const status = (body as { status: Employee['status'] }).status;
     return ok(replace({ status }), 'Status updated.');
   }
-
   if (method === 'POST' && suffix === '/resend-invite') {
     return ok(null, `Invitation resent to ${current.email}.`);
   }
-
   if (method === 'DELETE' && suffix === '/invite') {
     employeeStore.splice(index, 1);
     return ok(null, 'Invitation revoked.');
   }
-
   if (method === 'DELETE' && suffix === undefined) {
     employeeStore.splice(index, 1);
     return ok(null, 'Employee removed.');
   }
-
   if (method === 'PUT' && suffix === undefined) {
     return ok(replace(body as Partial<Employee>), 'Employee updated.');
   }
-
   return null;
 }
-
 /**
  * WhatsApp: template authoring, media and the inbox.
  *
@@ -656,7 +652,6 @@ function handleWhatsApp(
   params: HttpParams,
 ): Observable<HttpEvent<unknown>> | null {
   /* ---------------------------- templates ---------------------------- */
-
   if (method === 'POST' && path === '/templates') {
     const draft = body as {
       name: string;
@@ -667,7 +662,6 @@ function handleWhatsApp(
       footerText: string;
       buttons: { label: string }[];
     };
-
     if (templateStore.some((entry) => entry.name === draft.name)) {
       return fail(
         409,
@@ -676,7 +670,6 @@ function handleWhatsApp(
         'template_name_taken',
       );
     }
-
     const created: MessageTemplate = {
       id: `tpl_${crypto.randomUUID().slice(0, 8)}`,
       name: draft.name,
@@ -693,9 +686,15 @@ function handleWhatsApp(
       updatedAt: new Date().toISOString(),
       rejectionReason: null,
     };
-
     templateStore.unshift(created);
     return ok(created, 'Submitted to Meta for review.');
+  }
+  // Literal sub-routes must be claimed before the `{id}` pattern, or `counts`
+  // is read as a template id and answers 404. This is the same collision the
+  // real API has with `/campaigns/preview-audience`, and it is worth reproducing
+  // faithfully rather than special-casing away.
+  if (method === 'GET' && path === '/templates/counts') {
+    return ok(countTemplates(params));
   }
 
   const templateMatch = /^\/templates\/([^/]+)$/.exec(path);
@@ -704,12 +703,10 @@ function handleWhatsApp(
     if (index === -1) {
       return fail(404, 'Not found', 'That template no longer exists.');
     }
-
     if (method === 'DELETE') {
       templateStore.splice(index, 1);
       return ok(null, 'Template deleted.');
     }
-
     if (method === 'PUT') {
       const draft = body as { bodyText: string; category: MessageTemplate['category'] };
       // Resubmitting sends it back to review; Meta does not keep the rejection.
@@ -725,9 +722,7 @@ function handleWhatsApp(
       return ok(templateStore[index], 'Resubmitted to Meta.');
     }
   }
-
   /* ---------------------------- media ---------------------------- */
-
   if (method === 'POST' && path === '/whatsapp/media') {
     const form = body instanceof FormData ? body : null;
     const file = form?.get('file');
@@ -736,9 +731,7 @@ function handleWhatsApp(
     }
     return ok(createMediaAsset(file, String(form?.get('kind') ?? 'image')));
   }
-
   /* ---------------------------- conversations ---------------------------- */
-
   if (method === 'GET' && path === '/whatsapp/conversations') {
     const search = (params.get('search') ?? '').trim().toLowerCase();
     const filtered =
@@ -751,18 +744,15 @@ function handleWhatsApp(
           );
     return ok(paginate(filtered, params));
   }
-
   const messagesMatch = /^\/whatsapp\/conversations\/([^/]+)\/messages$/.exec(path);
   if (messagesMatch !== null) {
     const conversation = findConversation(messagesMatch[1]);
     if (conversation === undefined) {
       return fail(404, 'Not found', 'That conversation no longer exists.');
     }
-
     if (method === 'GET') {
       return ok(paginate(messageStore[conversation.id] ?? [], params));
     }
-
     if (method === 'POST') {
       // The server owns the clock: a UI that has drifted must still be refused.
       if (!isWindowOpen(conversation)) {
@@ -773,7 +763,6 @@ function handleWhatsApp(
           'window_closed',
         );
       }
-
       const request = body as { kind: ConversationMessage['kind']; body: string; mediaId: string | null };
       return ok(
         appendMessage(conversation.id, {
@@ -788,7 +777,6 @@ function handleWhatsApp(
       );
     }
   }
-
   const readMatch = /^\/whatsapp\/conversations\/([^/]+)\/read$/.exec(path);
   if (method === 'POST' && readMatch !== null) {
     const conversation = findConversation(readMatch[1]);
@@ -796,7 +784,6 @@ function handleWhatsApp(
       ? fail(404, 'Not found', 'That conversation no longer exists.')
       : ok(replaceConversation({ ...conversation, unreadCount: 0 }));
   }
-
   const conversationMatch = /^\/whatsapp\/conversations\/([^/]+)$/.exec(path);
   if (method === 'GET' && conversationMatch !== null) {
     const conversation = findConversation(conversationMatch[1]);
@@ -804,19 +791,15 @@ function handleWhatsApp(
       ? fail(404, 'Not found', 'That conversation no longer exists.')
       : ok(conversation);
   }
-
   return null;
 }
-
 /** The single mock customer identity, standing in for tenant scoping. */
 const MOCK_CUSTOMER_EMAIL = 'admin@nextreach.io';
-
 function ownRequests(): readonly MockPaymentRequest[] {
   return paymentRequestStore.filter(
     (request) => request.submittedByEmail === MOCK_CUSTOMER_EMAIL,
   );
 }
-
 function handlePayments(
   path: string,
   method: string,
@@ -827,11 +810,9 @@ function handlePayments(
   if (method === 'GET' && path === '/billing/payment-channels') {
     return ok(activeChannels());
   }
-
   if (method === 'GET' && path === '/superadmin/payment-channels') {
     return ok([...paymentChannelStore]);
   }
-
   const channelSave = /^\/superadmin\/payment-channels\/([^/]+)$/.exec(path);
   if (method === 'PUT' && channelSave !== null) {
     const patch = body as { accountTitle?: string; accountNumber?: string };
@@ -851,7 +832,6 @@ function handlePayments(
       ? fail(404, 'Unknown channel', 'That payment method does not exist.')
       : ok(updated, 'Payment method saved.');
   }
-
   const qrUpload = /^\/superadmin\/payment-channels\/([^/]+)\/qr$/.exec(path);
   if (method === 'POST' && qrUpload !== null) {
     const image = body instanceof FormData ? body.get('qr') : null;
@@ -865,7 +845,6 @@ function handlePayments(
       ? fail(404, 'Unknown channel', 'That payment method does not exist.')
       : ok(updated, 'QR code updated.');
   }
-
   const channelQr = /^\/billing\/payment-channels\/([^/]+)\/qr$/.exec(path);
   if (method === 'GET' && channelQr !== null) {
     const details = channelDetails(channelQr[1] as 'JazzCash' | 'EasyPaisa' | 'BankTransfer');
@@ -873,7 +852,6 @@ function handlePayments(
       ? fail(404, 'No QR', 'This channel has no QR image.')
       : okFile('placeholder', 'image/svg+xml');
   }
-
   const proofMatch = /^\/billing\/payment-requests\/([^/]+)\/proof$/.exec(path);
   if (method === 'GET' && proofMatch !== null) {
     const request = findPaymentRequest(proofMatch[1]);
@@ -881,21 +859,18 @@ function handlePayments(
       ? fail(404, 'Not found', 'That payment no longer exists.')
       : okBlob(proofBlobFor(request));
   }
-
   // The API scopes these to the caller's tenant. The mock has one customer
   // identity, so it filters by that — without it, a workspace would see (and be
   // blocked by) another organisation's payments.
   if (method === 'GET' && path === '/billing/payment-requests') {
     return ok(paginate(ownRequests(), params));
   }
-
   if (method === 'POST' && path === '/billing/payment-requests') {
     const form = body instanceof FormData ? body : null;
     const proof = form?.get('proof');
     if (form === null || !(proof instanceof File)) {
       return fail(422, 'No proof attached', 'Attach a screenshot of your payment.');
     }
-
     // One open request per workspace, as the API enforces.
     if (ownRequests().some((entry) => entry.status === 'Pending')) {
       return fail(
@@ -905,13 +880,11 @@ function handlePayments(
         'payment_request_pending',
       );
     }
-
     const planId = String(form.get('planId') ?? '');
     const plan = planStore.find((entry) => entry.id === planId);
     if (plan === undefined) {
       return fail(404, 'Unknown plan', 'That plan is no longer available.');
     }
-
     const cycle = String(form.get('billingCycle') ?? 'Monthly');
     const created = createPaymentRequest({
       planId,
@@ -932,10 +905,8 @@ function handlePayments(
       // sees the actual upload rather than a stand-in.
       proofDataUrl: URL.createObjectURL(proof),
     });
-
     return ok(created, 'Payment submitted for review.');
   }
-
   const cancelMatch = /^\/billing\/payment-requests\/([^/]+)\/cancel$/.exec(path);
   if (method === 'POST' && cancelMatch !== null) {
     const updated = decidePaymentRequest(cancelMatch[1], 'Cancelled', null);
@@ -943,7 +914,6 @@ function handlePayments(
       ? fail(404, 'Not found', 'That payment no longer exists.')
       : ok(updated, 'Payment withdrawn.');
   }
-
   const mineMatch = /^\/billing\/payment-requests\/([^/]+)$/.exec(path);
   if (method === 'GET' && mineMatch !== null) {
     const request = findPaymentRequest(mineMatch[1]);
@@ -951,13 +921,10 @@ function handlePayments(
       ? fail(404, 'Not found', 'That payment no longer exists.')
       : ok(request);
   }
-
   /* ---------------------------- platform ---------------------------- */
-
   if (method === 'GET' && path === '/superadmin/payment-requests') {
     const status = params.get('status') ?? 'all';
     const search = (params.get('search') ?? '').trim().toLowerCase();
-
     const filtered = paymentRequestStore.filter((request) => {
       const matchesStatus = status === 'all' || request.status === status;
       const matchesSearch =
@@ -966,10 +933,8 @@ function handlePayments(
         request.submittedByEmail.toLowerCase().includes(search);
       return matchesStatus && matchesSearch;
     });
-
     return ok(paginate(filtered, params));
   }
-
   const approveMatch = /^\/superadmin\/payment-requests\/([^/]+)\/approve$/.exec(path);
   if (method === 'POST' && approveMatch !== null) {
     const existing = findPaymentRequest(approveMatch[1]);
@@ -986,7 +951,6 @@ function handlePayments(
     }
     return ok(decidePaymentRequest(existing.id, 'Approved', null), 'Payment approved.');
   }
-
   const rejectMatch = /^\/superadmin\/payment-requests\/([^/]+)\/reject$/.exec(path);
   if (method === 'POST' && rejectMatch !== null) {
     const existing = findPaymentRequest(rejectMatch[1]);
@@ -1007,7 +971,6 @@ function handlePayments(
     }
     return ok(decidePaymentRequest(existing.id, 'Rejected', reason.trim()), 'Payment rejected.');
   }
-
   const reviewMatch = /^\/superadmin\/payment-requests\/([^/]+)$/.exec(path);
   if (method === 'GET' && reviewMatch !== null) {
     const request = findPaymentRequest(reviewMatch[1]);
@@ -1015,10 +978,8 @@ function handlePayments(
       ? fail(404, 'Not found', 'That payment no longer exists.')
       : ok(request);
   }
-
   return null;
 }
-
 /**
  * In-memory stand-in for the ASP.NET Core API. Enabled by `environment.useMockApi`;
  * flipping that flag is the only change needed to talk to the real backend.
@@ -1027,36 +988,33 @@ export const mockBackendInterceptor: HttpInterceptorFn = (request, next) => {
   if (!environment.useMockApi || !request.url.startsWith(environment.apiBaseUrl)) {
     return next(request);
   }
-
   const path = request.url.slice(environment.apiBaseUrl.length);
   const method = request.method.toUpperCase();
   const params = request.params;
-
   const authResponse = handleAuth(path, method, request.body, request);
   if (authResponse !== null) {
     return authResponse;
   }
-
   const importResponse = handleContactImports(path, method, request.body, params);
   if (importResponse !== null) {
     return importResponse;
   }
-
   const paymentResponse = handlePayments(path, method, request.body, params);
   if (paymentResponse !== null) {
     return paymentResponse;
   }
-
   const employeeResponse = handleEmployees(path, method, request.body);
   if (employeeResponse !== null) {
     return employeeResponse;
   }
-
   const whatsappResponse = handleWhatsApp(path, method, request.body, params);
   if (whatsappResponse !== null) {
     return whatsappResponse;
   }
-
+  const campaignResponse = handleCampaigns(path, method, request.body, params, templateStore, { ok, fail });
+  if (campaignResponse !== null) {
+    return campaignResponse;
+  }
   if (method === 'GET') {
     switch (path) {
       case '/dashboard': {
@@ -1078,10 +1036,10 @@ export const mockBackendInterceptor: HttpInterceptorFn = (request, next) => {
         return ok(adminId === null ? WHATSAPP_CONNECTION : connectionForAdmin(adminId));
       }
       case '/templates':
-        return ok([...templateStore]);
+        return ok(pageTemplates(params));
       case '/campaigns': {
         const adminId = scopeOf(params);
-        return ok(adminId === null ? CAMPAIGNS : campaignsForAdmin(adminId));
+        return ok(adminId === null ? [...campaignStore] : campaignsForAdmin(adminId));
       }
       case '/reports/failures':
         return ok(paginate(DELIVERY_FAILURES, params));
@@ -1119,24 +1077,19 @@ export const mockBackendInterceptor: HttpInterceptorFn = (request, next) => {
         break;
     }
   }
-
   if (method === 'POST' && path === '/whatsapp/connection/sync') {
     return ok(WHATSAPP_CONNECTION, 'Connection refreshed from Meta.');
   }
-
   if (method === 'POST' && path === '/templates/sync') {
     return ok(TEMPLATES, `Synced ${TEMPLATES.length} templates from Meta.`);
   }
-
   const planResponse = handlePlans(path, method, request.body);
   if (planResponse !== null) {
     return planResponse;
   }
-
   const notificationResponse = handleNotifications(path, method);
   if (notificationResponse !== null) {
     return notificationResponse;
   }
-
   return fail(404, 'Not implemented', `The mock backend has no handler for ${method} ${path}.`);
 };

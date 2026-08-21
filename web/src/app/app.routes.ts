@@ -146,6 +146,33 @@ export const routes: Routes = [
           import('@features/campaigns/campaigns.component').then((m) => m.CampaignsComponent),
       },
       {
+        path: 'campaigns/new',
+        title: 'New campaign',
+        canActivate: [scopeGuard],
+        loadComponent: () =>
+          import('@features/campaigns/campaign-form/campaign-form.component').then(
+            (m) => m.CampaignFormComponent,
+          ),
+      },
+      {
+        path: 'campaigns/:campaignId/edit',
+        title: 'Edit campaign',
+        canActivate: [scopeGuard],
+        loadComponent: () =>
+          import('@features/campaigns/campaign-form/campaign-form.component').then(
+            (m) => m.CampaignFormComponent,
+          ),
+      },
+      {
+        path: 'campaigns/:campaignId',
+        title: 'Campaign',
+        canActivate: [scopeGuard],
+        loadComponent: () =>
+          import('@features/campaigns/campaign-detail/campaign-detail.component').then(
+            (m) => m.CampaignDetailComponent,
+          ),
+      },
+      {
         path: 'templates',
         title: 'Templates',
         canActivate: [scopeGuard],
@@ -311,6 +338,37 @@ export const routes: Routes = [
         },
         loadComponent: () =>
           import('@features/campaigns/campaigns.component').then((m) => m.CampaignsComponent),
+      },
+      // Declared before `campaigns/:id` so the literal wins the match.
+      {
+        path: 'campaigns/new',
+        title: 'New campaign',
+        canActivate: [permissionGuard, featureGuard],
+        data: { permissions: ['whatsapp.campaigns.create'], module: 'whatsapp' },
+        loadComponent: () =>
+          import('@features/campaigns/campaign-form/campaign-form.component').then(
+            (m) => m.CampaignFormComponent,
+          ),
+      },
+      {
+        path: 'campaigns/:campaignId/edit',
+        title: 'Edit campaign',
+        canActivate: [permissionGuard, featureGuard],
+        data: { permissions: ['whatsapp.campaigns.edit'], module: 'whatsapp' },
+        loadComponent: () =>
+          import('@features/campaigns/campaign-form/campaign-form.component').then(
+            (m) => m.CampaignFormComponent,
+          ),
+      },
+      {
+        path: 'campaigns/:campaignId',
+        title: 'Campaign',
+        canActivate: [permissionGuard, featureGuard],
+        data: { permissions: ['whatsapp.campaigns.reports'], module: 'whatsapp' },
+        loadComponent: () =>
+          import('@features/campaigns/campaign-detail/campaign-detail.component').then(
+            (m) => m.CampaignDetailComponent,
+          ),
       },
       {
         path: 'inbox',

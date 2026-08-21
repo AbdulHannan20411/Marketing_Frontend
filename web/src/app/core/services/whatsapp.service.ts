@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import type { Observable } from 'rxjs';
+import { map, type Observable } from 'rxjs';
 
 import type { PagedResult } from '@core/models/api.model';
 import type {
@@ -10,9 +10,69 @@ import type {
   MessageTemplate,
   SendMessageRequest,
   TemplateDraft,
+  TemplateCountQuery,
+  TemplateQuery,
+  TemplateStatusCounts,
   WhatsAppConnection,
 } from '@core/models/whatsapp.model';
 import { ApiService } from './api.service';
+
+/**
+ * One large page stands in for "everything" where a picker needs the full set.
+ * Well above any plausible template count — Meta's own per-account ceiling is
+ * far lower — so it is a page in name only.
+ */
+const ALL_TEMPLATES_PAGE_SIZE = 500;
+
+export interface TemplatePage extends PagedResult<MessageTemplate> {
+  /**
+   * Whether the API did the filtering and slicing.
+   *
+   * False means this page was cut from a full array client-side, which is
+   * correct but does not scale — and means the status counts are exact only
+   * because the whole collection happened to be in hand.
+   */
+  readonly pagedByServer: boolean;
+}
+
+function matchesQuery(template: MessageTemplate, query: TemplateQuery): boolean {
+  const term = query.search.trim().toLowerCase();
+
+  const matchesSearch =
+    term === '' ||
+    template.name.toLowerCase().includes(term) ||
+    template.bodyText.toLowerCase().includes(term);
+
+  return (
+    matchesSearch &&
+    (query.status === 'all' || template.status === query.status) &&
+    (query.category === 'all' || template.category === query.category)
+  );
+}
+
+/** Wraps a bare array into the paged shape the screen expects. */
+function normaliseTemplatePage(
+  response: PagedResult<MessageTemplate> | readonly MessageTemplate[],
+  query: TemplateQuery,
+): TemplatePage {
+  if (!Array.isArray(response)) {
+    return { ...(response as PagedResult<MessageTemplate>), pagedByServer: true };
+  }
+
+  const matched = (response as readonly MessageTemplate[]).filter((template) =>
+    matchesQuery(template, query),
+  );
+  const start = (query.page - 1) * query.pageSize;
+
+  return {
+    items: matched.slice(start, start + query.pageSize),
+    page: query.page,
+    pageSize: query.pageSize,
+    totalItems: matched.length,
+    totalPages: Math.max(1, Math.ceil(matched.length / query.pageSize)),
+    pagedByServer: false,
+  };
+}
 
 export interface ConnectWhatsAppRequest {
   readonly code: string;
@@ -46,8 +106,57 @@ export class WhatsAppService {
     return this.api.post<WhatsAppConnection>('/whatsapp/disconnect');
   }
 
-  listTemplates(): Observable<readonly MessageTemplate[]> {
-    return this.api.get<readonly MessageTemplate[]>('/templates');
+  /**
+   * One page of templates, filtered and searched by the API.
+   *
+   * **Accepts both shapes.** The endpoint returns a bare array today and a
+   * `PagedResult` once the paging work lands; rather than break until then,
+   * an array response is filtered and sliced here so the screen behaves
+   * identically either way. `pagedByServer` on the result says which happened,
+   * because the difference matters for the counts — see `countTemplates`.
+   */
+  listTemplates(query: TemplateQuery): Observable<TemplatePage> {
+    return this.api
+      .get<PagedResult<MessageTemplate> | readonly MessageTemplate[]>('/templates', {
+        page: query.page,
+        pageSize: query.pageSize,
+        search: query.search,
+        status: query.status,
+        category: query.category,
+      })
+      .pipe(map((response) => normaliseTemplatePage(response, query)));
+  }
+
+  /**
+   * Every template, for the pickers that need to offer all of them.
+   *
+   * The campaign wizard lists approved templates to choose from; a page of ten
+   * would silently hide the eleventh. Asks for one large page and unwraps.
+   */
+  listAllTemplates(): Observable<readonly MessageTemplate[]> {
+    return this.listTemplates({
+      page: 1,
+      pageSize: ALL_TEMPLATES_PAGE_SIZE,
+      search: '',
+      status: 'all',
+      category: 'all',
+    }).pipe(map((page) => page.items));
+  }
+
+  /**
+   * How many templates sit in each status, under the current search and
+   * category — but across every page, not just this one.
+   *
+   * Status is deliberately not sent: these counts *are* the breakdown by
+   * status. Search and category are, because a chip reading "Pending 1" beside
+   * an empty list is worse than no number at all — it tells the operator the
+   * filter is broken when it is working perfectly.
+   */
+  countTemplates(query: TemplateCountQuery): Observable<TemplateStatusCounts> {
+    return this.api.get<TemplateStatusCounts>('/templates/counts', {
+      search: query.search,
+      category: query.category,
+    });
   }
 
   syncTemplates(): Observable<readonly MessageTemplate[]> {

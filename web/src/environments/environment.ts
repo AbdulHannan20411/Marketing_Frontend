@@ -8,9 +8,10 @@ export const environment: AppEnvironment = {
   realtimeUrl: 'https://localhost:7108/hubs/realtime',
   useMockApi: false,
   appName: 'NextReach',
-  // Replace with the real values from your Meta app before running signup.
+  // configId is still empty: Embedded Signup cannot open without it, and the connect button
+  // stays disabled until it is filled in from Meta's WhatsApp > Configuration screen.
   meta: {
-    appId: '',
+    appId: '934175505679137',
     configId: '',
     graphVersion: 'v21.0',
   },

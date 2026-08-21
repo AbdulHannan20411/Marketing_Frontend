@@ -6,8 +6,11 @@
 
 <div class="mt-6 grid gap-4 lg:grid-cols-3">
   <!-- Appearance -->
+  <!-- `min-w-0`: a grid item's default `min-width: auto` lets its content set a
+       floor wider than the track, which pushed the whole page into horizontal
+       scroll at 375px. -->
   <app-card
-    class="lg:col-span-2"
+    class="min-w-0 lg:col-span-2"
     title="Appearance"
     subtitle="Applies to this browser only — it is not shared with your team."
   >
@@ -102,6 +105,117 @@
     }
   </app-card>
 </div>
+
+<!-- Help & FAQ -->
+<app-card
+  class="mt-4 block"
+  title="Help & FAQ"
+  subtitle="Answers to the questions this product raises most often."
+>
+  <div class="flex flex-wrap items-center gap-2.5">
+    <div class="relative min-w-0 flex-1 sm:max-w-xs">
+      <label for="faq-search" class="sr-only">Search help</label>
+      <app-icon
+        name="search"
+        [size]="16"
+        class="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-ink-muted"
+      />
+      <input
+        id="faq-search"
+        type="search"
+        placeholder="Search questions and answers"
+        [value]="faqSearch()"
+        (input)="onFaqSearch($event)"
+        class="h-9 w-full rounded-lg border-0 bg-surface-sunken py-2 pr-3 pl-9 text-sm text-ink ring-1 ring-line ring-inset transition-all placeholder:text-ink-muted focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
+      />
+    </div>
+
+    <div class="flex flex-wrap items-center gap-1.5" role="group" aria-label="Filter help by topic">
+      @for (option of topics; track option.value) {
+        <button
+          type="button"
+          [attr.aria-pressed]="faqTopic() === option.value"
+          class="rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all duration-150"
+          [class]="
+            faqTopic() === option.value
+              ? 'bg-brand-600 text-white'
+              : 'text-ink-soft hover:bg-surface-muted'
+          "
+          (click)="setTopic(option.value)"
+        >
+          {{ option.label }}
+        </button>
+      }
+    </div>
+  </div>
+
+  @if (visibleFaqs().length === 0) {
+    <app-empty-state
+      icon="search"
+      title="Nothing matches that"
+      description="Try a different word, or ask support directly — they can see your workspace."
+    >
+      <button appButton variant="outline" size="sm" (click)="clearFaqFilters()">
+        Clear search
+      </button>
+    </app-empty-state>
+  } @else {
+    <ul class="mt-4 divide-y divide-line border-t border-line">
+      @for (entry of visibleFaqs(); track entry.id) {
+        <li>
+          <h3>
+            <button
+              type="button"
+              class="flex w-full items-center gap-3 py-3.5 text-left transition-colors hover:text-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-inset"
+              [attr.aria-expanded]="isOpen(entry.id)"
+              [attr.aria-controls]="'faq-answer-' + entry.id"
+              (click)="toggleFaq(entry.id)"
+            >
+              <span class="min-w-0 flex-1 text-sm font-medium text-ink">{{ entry.question }}</span>
+              <span class="shrink-0 text-[11px] font-medium text-ink-muted">
+                {{ topicLabels[entry.topic] }}
+              </span>
+              <app-icon
+                name="chevronDown"
+                [size]="16"
+                class="shrink-0 text-ink-muted transition-transform duration-200"
+                [class.rotate-180]="isOpen(entry.id)"
+              />
+            </button>
+          </h3>
+
+          @if (isOpen(entry.id)) {
+            <div [id]="'faq-answer-' + entry.id" class="animate-fade-in pr-8 pb-4">
+              @for (paragraph of entry.answer; track $index) {
+                <p class="mt-1.5 text-sm leading-relaxed text-ink-soft first:mt-0">
+                  {{ paragraph }}
+                </p>
+              }
+            </div>
+          }
+        </li>
+      }
+    </ul>
+  }
+
+  <!-- Still stuck. The workspace and account travel with the message so support
+       does not have to ask for them first. -->
+  <div
+    class="mt-5 flex flex-wrap items-center gap-3 rounded-xl bg-brand-50 px-4 py-3.5 ring-1 ring-brand-200"
+  >
+    <app-icon name="chat" [size]="18" class="shrink-0 text-brand-700" />
+    <div class="min-w-0 flex-1">
+      <p class="text-sm font-medium text-brand-900">Still stuck?</p>
+      <p class="mt-0.5 text-xs text-brand-900/70">
+        Support can see your workspace, so you do not need to explain the setup.
+      </p>
+    </div>
+    <a appButton size="sm" [href]="supportLink()">
+      <app-icon name="envelope" [size]="15" />
+      Contact support
+    </a>
+  </div>
+</app-card>
 
 <!-- Sections the API does not expose yet -->
 <app-card

@@ -23,7 +23,7 @@
     <app-error-state (retry)="load()" />
   </app-card>
 } @else {
-  @if (connection(); as conn) {
+  @if (isConnected() && connection(); as conn) {
   <!-- Hero connection card -->
   <section
     class="mt-6 overflow-hidden rounded-xl bg-surface ring-1 ring-line shadow-card animate-rise"

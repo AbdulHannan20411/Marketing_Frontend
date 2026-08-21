@@ -32,14 +32,21 @@ export class ApiService {
       .pipe(map((response) => response.data));
   }
 
+  /**
+   * `headers` covers the few calls that carry an `Idempotency-Key` — actions
+   * that send real messages or move money, where a retry must not repeat the
+   * effect.
+   */
   post<TResponse, TBody = unknown>(
     path: string,
     body?: TBody,
     params?: QueryParams,
+    headers?: Readonly<Record<string, string>>,
   ): Observable<TResponse> {
     return this.http
       .post<ApiResponse<TResponse>>(`${this.baseUrl}${path}`, body ?? {}, {
         params: toHttpParams(params),
+        headers,
       })
       .pipe(map((response) => response.data));
   }

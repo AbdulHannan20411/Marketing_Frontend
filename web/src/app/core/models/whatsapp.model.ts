@@ -37,6 +37,68 @@ export interface WhatsAppConnection {
 export type TemplateStatus = 'approved' | 'pending' | 'rejected' | 'paused';
 export type TemplateCategory = 'marketing' | 'utility' | 'authentication';
 
+/** `all` is a real wire value, not the absence of a filter — see `TemplateQuery`. */
+export type TemplateStatusFilter = TemplateStatus | 'all';
+export type TemplateCategoryFilter = TemplateCategory | 'all';
+
+export const TEMPLATE_STATUS_LABEL: Readonly<Record<TemplateStatus, string>> = {
+  approved: 'Approved',
+  pending: 'Pending',
+  rejected: 'Rejected',
+  paused: 'Paused',
+};
+
+export const TEMPLATE_CATEGORY_LABEL: Readonly<Record<TemplateCategory, string>> = {
+  marketing: 'Marketing',
+  utility: 'Utility',
+  authentication: 'Authentication',
+};
+
+/**
+ * Query for the templates list.
+ *
+ * `search` matches the name and the body copy — an operator hunting for the
+ * template that mentions "shipped" is not going to remember it was called
+ * `order_shipped_v3`.
+ *
+ * Filters send the literal `all` when cleared, matching the convention the
+ * contacts endpoint already set, so the API never has to distinguish "absent"
+ * from "cleared".
+ */
+export interface TemplateQuery {
+  readonly page: number;
+  readonly pageSize: number;
+  readonly search: string;
+  readonly status: TemplateStatusFilter;
+  readonly category: TemplateCategoryFilter;
+}
+
+/**
+ * The filters the status counts are computed under.
+ *
+ * Every filter **except status** applies. Status is excluded because the counts
+ * are a breakdown *by* status — applying it would leave the selected chip
+ * showing the total and every other chip at zero, which tells nobody anything.
+ * Search and category are different dimensions and must apply, or the chips
+ * claim templates that the current filters exclude.
+ */
+export type TemplateCountQuery = Pick<TemplateQuery, 'search' | 'category'>;
+
+/**
+ * Counts per status across everything matching `TemplateCountQuery` — not just
+ * the current page.
+ *
+ * A page of ten cannot say how many templates are pending, and "3 pending" is
+ * exactly the thing an operator opens this screen to find out.
+ */
+export interface TemplateStatusCounts {
+  readonly total: number;
+  readonly approved: number;
+  readonly pending: number;
+  readonly rejected: number;
+  readonly paused: number;
+}
+
 export interface MessageTemplate {
   readonly id: string;
   readonly name: string;

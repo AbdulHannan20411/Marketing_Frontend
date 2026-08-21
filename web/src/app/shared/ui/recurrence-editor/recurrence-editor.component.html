@@ -1,0 +1,335 @@
+<form [formGroup]="form" class="space-y-5">
+  <!-- Repeat -->
+  <div>
+    <p class="text-sm font-medium text-ink-soft">Repeat</p>
+    <div class="mt-2 flex flex-wrap gap-1.5">
+      @for (option of frequencies; track option) {
+        <button
+          type="button"
+          class="rounded-lg px-3 py-1.5 text-sm font-medium transition-all focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none"
+          [class]="
+            frequency() === option
+              ? 'bg-brand-600 text-white shadow-xs'
+              : 'bg-surface-sunken text-ink-soft ring-1 ring-line hover:ring-brand-300'
+          "
+          [attr.aria-pressed]="frequency() === option"
+          (click)="setFrequency(option)"
+        >
+          {{ frequencyLabels[option] }}
+        </button>
+      }
+    </div>
+  </div>
+
+  <!-- Interval: meaningless for a one-off, so it is absent rather than disabled -->
+  @if (frequency() !== 'once') {
+    <div class="flex flex-wrap items-end gap-3">
+      <div class="w-32">
+        <label for="rec-interval" class="block text-sm font-medium text-ink-soft">Every</label>
+        <input
+          id="rec-interval"
+          type="number"
+          appPositiveNumber
+          [appPositiveNumberMin]="1"
+          formControlName="interval"
+          class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink tabular-nums ring-1 ring-line ring-inset focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
+        />
+      </div>
+      <p class="pb-2.5 text-sm text-ink-muted">
+        @switch (frequency()) {
+          @case ('daily') {
+            {{ form.controls.interval.value === 1 ? 'day' : 'days' }}
+          }
+          @case ('weekly') {
+            {{ form.controls.interval.value === 1 ? 'week' : 'weeks' }}
+          }
+          @case ('monthly') {
+            {{ form.controls.interval.value === 1 ? 'month' : 'months' }}
+          }
+          @case ('yearly') {
+            {{ form.controls.interval.value === 1 ? 'year' : 'years' }}
+          }
+        }
+      </p>
+    </div>
+    @if (problemFor('interval'); as message) {
+      <p class="-mt-3 text-xs text-danger">{{ message }}</p>
+    }
+  }
+
+  <!-- Weekly: days of the week -->
+  @if (frequency() === 'weekly') {
+    <div>
+      <p class="text-sm font-medium text-ink-soft">On these days</p>
+      <div class="mt-2 flex flex-wrap gap-1.5">
+        @for (label of weekdayShort; track $index; let day = $index) {
+          <button
+            type="button"
+            class="h-9 w-11 rounded-lg text-sm font-medium transition-all focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none"
+            [class]="
+              isWeekdaySelected(day)
+                ? 'bg-brand-600 text-white'
+                : 'bg-surface-sunken text-ink-soft ring-1 ring-line hover:ring-brand-300'
+            "
+            [attr.aria-pressed]="isWeekdaySelected(day)"
+            [attr.aria-label]="weekdayLabels[day]"
+            (click)="toggleWeekday(day)"
+          >
+            {{ label }}
+          </button>
+        }
+      </div>
+      @if (problemFor('weekdays'); as message) {
+        <p class="mt-1.5 text-xs text-danger">{{ message }}</p>
+      }
+    </div>
+  }
+
+  <!-- Monthly: on a date, or on an ordinal weekday -->
+  @if (frequency() === 'monthly') {
+    <div class="space-y-3">
+      <p class="text-sm font-medium text-ink-soft">On</p>
+
+      <label class="flex cursor-pointer items-center gap-3 rounded-lg bg-surface-sunken px-3.5 py-3 ring-1 transition-all"
+        [class]="form.controls.monthlyMode.value === 'dayOfMonth' ? 'ring-brand-300' : 'ring-line'">
+        <input
+          type="radio"
+          name="monthlyMode"
+          class="h-4 w-4 text-brand-600 focus:ring-brand-500"
+          [checked]="form.controls.monthlyMode.value === 'dayOfMonth'"
+          (change)="setMonthlyMode('dayOfMonth')"
+        />
+        <span class="flex flex-wrap items-center gap-2 text-sm text-ink">
+          Day
+          <input
+            type="number"
+            appPositiveNumber
+            [appPositiveNumberMin]="1"
+            [appPositiveNumberMax]="31"
+            formControlName="dayOfMonth"
+            [attr.aria-label]="'Day of the month'"
+            class="h-8 w-20 rounded-lg border-0 bg-surface px-2.5 text-sm text-ink tabular-nums ring-1 ring-line ring-inset focus:ring-2 focus:ring-brand-500 focus:outline-none"
+          />
+          of the month
+        </span>
+      </label>
+
+      <label class="flex cursor-pointer items-center gap-3 rounded-lg bg-surface-sunken px-3.5 py-3 ring-1 transition-all"
+        [class]="form.controls.monthlyMode.value === 'dayOfWeek' ? 'ring-brand-300' : 'ring-line'">
+        <input
+          type="radio"
+          name="monthlyMode"
+          class="h-4 w-4 text-brand-600 focus:ring-brand-500"
+          [checked]="form.controls.monthlyMode.value === 'dayOfWeek'"
+          (change)="setMonthlyMode('dayOfWeek')"
+        />
+        <span class="flex flex-wrap items-center gap-2 text-sm text-ink">
+          The
+          <select
+            formControlName="ordinal"
+            aria-label="Which occurrence in the month"
+            class="h-8 rounded-lg border-0 bg-surface px-2 text-sm text-ink ring-1 ring-line ring-inset focus:ring-2 focus:ring-brand-500 focus:outline-none"
+          >
+            @for (option of ordinals; track option) {
+              <option [value]="option">{{ ordinalLabels[option] }}</option>
+            }
+          </select>
+          <select
+            formControlName="ordinalWeekday"
+            aria-label="Day of the week"
+            class="h-8 rounded-lg border-0 bg-surface px-2 text-sm text-ink ring-1 ring-line ring-inset focus:ring-2 focus:ring-brand-500 focus:outline-none"
+          >
+            @for (label of weekdayLabels; track $index; let day = $index) {
+              <option [value]="day">{{ label }}</option>
+            }
+          </select>
+        </span>
+      </label>
+
+      @if (monthWarning(); as warning) {
+        <p class="flex items-start gap-1.5 text-xs text-amber-700">
+          <app-icon name="warning" [size]="13" class="mt-px shrink-0" />
+          {{ warning }}
+        </p>
+      }
+      @if (problemFor('dayOfMonth'); as message) {
+        <p class="text-xs text-danger">{{ message }}</p>
+      }
+    </div>
+  }
+
+  <!-- Yearly: month and day -->
+  @if (frequency() === 'yearly') {
+    <div class="grid gap-3 sm:grid-cols-2">
+      <div>
+        <label for="rec-month" class="block text-sm font-medium text-ink-soft">Month</label>
+        <select
+          id="rec-month"
+          formControlName="month"
+          class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink ring-1 ring-line ring-inset focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
+        >
+          @for (label of monthLabels; track $index; let index = $index) {
+            <option [value]="index + 1">{{ label }}</option>
+          }
+        </select>
+      </div>
+      <div>
+        <label for="rec-yearly-day" class="block text-sm font-medium text-ink-soft">Day</label>
+        <input
+          id="rec-yearly-day"
+          type="number"
+          appPositiveNumber
+          [appPositiveNumberMin]="1"
+          [appPositiveNumberMax]="31"
+          formControlName="dayOfMonth"
+          class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink tabular-nums ring-1 ring-line ring-inset focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
+        />
+        @if (problemFor('dayOfMonth'); as message) {
+          <p class="mt-1 text-xs text-danger">{{ message }}</p>
+        }
+      </div>
+    </div>
+  }
+
+  <!-- When: always relevant -->
+  <div class="grid gap-3 sm:grid-cols-2">
+    <div>
+      <label for="rec-start" class="block text-sm font-medium text-ink-soft">
+        {{ frequency() === 'once' ? 'Send on' : 'Starting' }}
+      </label>
+      <input
+        id="rec-start"
+        type="date"
+        formControlName="startDate"
+        class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink ring-1 ring-line ring-inset focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
+      />
+      @if (problemFor('startDate'); as message) {
+        <p class="mt-1 text-xs text-danger">{{ message }}</p>
+      }
+    </div>
+    <div>
+      <label for="rec-time" class="block text-sm font-medium text-ink-soft">At</label>
+      <input
+        id="rec-time"
+        type="time"
+        formControlName="time"
+        class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink tabular-nums ring-1 ring-line ring-inset focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
+      />
+      @if (problemFor('time'); as message) {
+        <p class="mt-1 text-xs text-danger">{{ message }}</p>
+      }
+    </div>
+  </div>
+
+  <!-- Timezone -->
+  <div>
+    <label for="rec-zone" class="block text-sm font-medium text-ink-soft">Timezone</label>
+    <select
+      id="rec-zone"
+      formControlName="timeZone"
+      class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink ring-1 ring-line ring-inset focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
+    >
+      @for (zone of timeZones; track zone) {
+        <option [value]="zone">{{ zone }}</option>
+      }
+    </select>
+
+    <!-- Sending at the wrong local hour is the classic scheduling mistake, so a
+         zone that is not the operator's own is called out rather than assumed. -->
+    @if (isZoneUnusual()) {
+      <p class="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-ink-muted">
+        <app-icon name="info" [size]="13" class="shrink-0" />
+        Your device is in {{ detectedZone }}.
+        <button
+          type="button"
+          class="font-medium text-brand-700 underline hover:text-brand-800"
+          (click)="useDetectedZone()"
+        >
+          Use it instead
+        </button>
+      </p>
+    } @else {
+      <p class="mt-1.5 text-xs text-ink-muted">Matches your device.</p>
+    }
+  </div>
+
+  <!-- End condition: only meaningful for something that repeats -->
+  @if (frequency() !== 'once') {
+    <div>
+      <p class="text-sm font-medium text-ink-soft">Ends</p>
+      <div class="mt-2 space-y-2">
+        <label class="flex cursor-pointer items-center gap-3 text-sm text-ink">
+          <input
+            type="radio"
+            name="endCondition"
+            class="h-4 w-4 text-brand-600 focus:ring-brand-500"
+            [checked]="form.controls.endCondition.value === 'never'"
+            (change)="setEndCondition('never')"
+          />
+          Never
+        </label>
+
+        <label class="flex cursor-pointer flex-wrap items-center gap-3 text-sm text-ink">
+          <input
+            type="radio"
+            name="endCondition"
+            class="h-4 w-4 text-brand-600 focus:ring-brand-500"
+            [checked]="form.controls.endCondition.value === 'onDate'"
+            (change)="setEndCondition('onDate')"
+          />
+          On
+          <input
+            type="date"
+            formControlName="endDate"
+            aria-label="End date"
+            [disabled]="form.controls.endCondition.value !== 'onDate'"
+            class="h-8 rounded-lg border-0 bg-surface-sunken px-2.5 text-sm text-ink ring-1 ring-line ring-inset focus:ring-2 focus:ring-brand-500 focus:outline-none disabled:cursor-not-allowed disabled:text-ink-muted"
+          />
+        </label>
+
+        <label class="flex cursor-pointer flex-wrap items-center gap-3 text-sm text-ink">
+          <input
+            type="radio"
+            name="endCondition"
+            class="h-4 w-4 text-brand-600 focus:ring-brand-500"
+            [checked]="form.controls.endCondition.value === 'afterCount'"
+            (change)="setEndCondition('afterCount')"
+          />
+          After
+          <input
+            type="number"
+            appPositiveNumber
+            [appPositiveNumberMin]="1"
+            formControlName="occurrenceCount"
+            aria-label="Number of times to run"
+            [disabled]="form.controls.endCondition.value !== 'afterCount'"
+            class="h-8 w-24 rounded-lg border-0 bg-surface-sunken px-2.5 text-sm text-ink tabular-nums ring-1 ring-line ring-inset focus:ring-2 focus:ring-brand-500 focus:outline-none disabled:cursor-not-allowed disabled:text-ink-muted"
+          />
+          times
+        </label>
+      </div>
+
+      @if (problemFor('endDate'); as message) {
+        <p class="mt-1.5 text-xs text-danger">{{ message }}</p>
+      }
+      @if (problemFor('occurrenceCount'); as message) {
+        <p class="mt-1.5 text-xs text-danger">{{ message }}</p>
+      }
+    </div>
+  }
+
+  <!-- Summary: generated from the same rule the parent receives -->
+  <div class="flex items-start gap-2.5 rounded-lg bg-brand-50 px-3.5 py-3 ring-1 ring-brand-200">
+    <app-icon name="clock" [size]="16" class="mt-px shrink-0 text-brand-700" />
+    <div class="min-w-0">
+      <p class="text-sm leading-relaxed font-medium text-brand-900">{{ summary() }}</p>
+      @if (firstRun(); as first) {
+        <p class="mt-0.5 text-xs text-brand-900/70">
+          First run <span class="font-semibold">{{ first }}</span> — the interval counts from the
+          week the start date falls in.
+        </p>
+      }
+      <p class="mt-0.5 text-xs text-brand-900/70">Times are in {{ rule().timeZone }}.</p>
+    </div>
+  </div>
+</form>

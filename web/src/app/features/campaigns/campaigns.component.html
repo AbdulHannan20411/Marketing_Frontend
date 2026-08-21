@@ -7,7 +7,7 @@
     <app-icon name="download" [size]="16" />
     Export
   </button>
-  <button appButton size="md" (click)="openBuilder()">
+  <button appButton size="md" (click)="create()">
     <app-icon name="plus" [size]="16" />
     New campaign
   </button>
@@ -141,14 +141,30 @@
     </td>
 
     <td class="px-4 py-3.5 text-right">
-      <div class="flex items-center justify-end gap-1">
+      <div class="flex flex-wrap items-center justify-end gap-1">
+        <button appButton variant="ghost" size="sm" (click)="open(campaign)">View</button>
+
+        @if (canEdit(campaign)) {
+          <button appButton variant="ghost" size="sm" (click)="edit(campaign)">Edit</button>
+        }
+
+        <button
+          appButton
+          variant="ghost"
+          size="sm"
+          [disabled]="busyId() !== null"
+          (click)="duplicate(campaign)"
+        >
+          Duplicate
+        </button>
+
         @if (canSend(campaign)) {
           <button
             appButton
             variant="outline"
             size="sm"
             [disabled]="busyId() !== null"
-            (click)="send(campaign)"
+            (click)="ask(campaign, 'send')"
           >
             <app-icon name="send" [size]="14" />
             Send
@@ -165,29 +181,47 @@
             Pause
           </button>
         }
-        @if (canCancel(campaign)) {
+        @if (canResume(campaign)) {
           <button
             appButton
             variant="ghost"
             size="sm"
-            class="text-danger"
             [disabled]="busyId() !== null"
-            (click)="cancel(campaign)"
+            (click)="resume(campaign)"
           >
-            Cancel
+            Resume
           </button>
         }
+        <button
+          appButton
+          variant="ghost"
+          size="sm"
+          [disabled]="busyId() !== null"
+          [attr.aria-label]="'Delete ' + campaign.name"
+          (click)="ask(campaign, 'delete')"
+        >
+          <app-icon name="trash" [size]="14" class="text-danger" />
+        </button>
       </div>
     </td>
   </ng-template>
 </app-data-table>
 
-@if (building()) {
-  <app-campaign-builder
-    [templates]="templates()"
-    [groups]="groups()"
-    [saving]="creating()"
-    (created)="createCampaign($event)"
-    (cancelled)="closeBuilder()"
-  />
+@if (pending() !== null) {
+  <app-modal [title]="confirmTitle()" size="sm" (closed)="dismiss()">
+    <p class="text-sm leading-relaxed text-ink-soft">{{ confirmBody() }}</p>
+
+    <ng-container modalFooter>
+      <button appButton variant="ghost" size="md" (click)="dismiss()">Cancel</button>
+      <button
+        appButton
+        [variant]="pending()!.action === 'delete' ? 'danger' : 'primary'"
+        size="md"
+        [disabled]="busyId() !== null"
+        (click)="confirmPending()"
+      >
+        {{ pending()!.action === 'delete' ? 'Delete campaign' : 'Send now' }}
+      </button>
+    </ng-container>
+  </app-modal>
 }

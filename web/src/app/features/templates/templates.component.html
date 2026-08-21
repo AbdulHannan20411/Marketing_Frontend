@@ -13,29 +13,76 @@
   </button>
 </app-page-header>
 
-<!-- Category filter -->
-<div class="mt-5 flex flex-wrap items-center gap-2">
-  @for (option of categories; track option.value) {
-    <button
-      type="button"
-      [attr.aria-pressed]="category() === option.value"
-      class="rounded-lg px-3 py-1.5 text-sm font-medium transition-all duration-150"
-      [class]="
-        category() === option.value
-          ? 'bg-brand-600 text-white shadow-xs'
-          : 'bg-surface text-ink-soft ring-1 ring-line hover:bg-surface-muted hover:ring-brand-300'
-      "
-      (click)="setCategory(option.value)"
-    >
-      {{ option.label }}
-    </button>
-  }
+<!-- Search, status and category. Status leads: "what is waiting for Meta?" is
+     the question this screen is most often opened to answer. -->
+<div class="mt-5 rounded-xl bg-surface p-3.5 ring-1 ring-line shadow-card">
+  <div class="flex flex-wrap items-center gap-2.5">
+    <div class="relative min-w-0 flex-1 sm:max-w-xs">
+      <label for="template-search" class="sr-only">Search templates</label>
+      <app-icon
+        name="search"
+        [size]="16"
+        class="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-ink-muted"
+      />
+      <input
+        id="template-search"
+        type="search"
+        placeholder="Search name or message text"
+        [value]="search()"
+        (input)="onSearch($event)"
+        class="h-9 w-full rounded-lg border-0 bg-surface-sunken py-2 pr-3 pl-9 text-sm text-ink ring-1 ring-line ring-inset transition-all placeholder:text-ink-muted focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
+      />
+    </div>
 
-  @if (state() === 'ready') {
-    <p class="ml-auto text-xs text-ink-muted">
-      {{ approvedCount() }} of {{ templates().length }} approved
-    </p>
-  }
+    <div class="flex flex-wrap items-center gap-1.5" role="group" aria-label="Filter by status">
+      @for (option of statusOptions(); track option.value) {
+        <button
+          type="button"
+          [attr.aria-pressed]="status() === option.value"
+          class="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all duration-150"
+          [class]="
+            status() === option.value
+              ? 'bg-brand-600 text-white'
+              : option.count === 0
+                ? 'text-ink-muted hover:bg-surface-muted'
+                : 'text-ink-soft hover:bg-surface-muted'
+          "
+          (click)="setStatus(option.value)"
+        >
+          {{ option.label }}
+          <!-- A real zero is shown, not hidden: it explains the empty list
+               rather than leaving the chip looking like it lost its number. -->
+          @if (option.count !== null) {
+            <span
+              class="rounded px-1 py-px text-[11px] tabular-nums"
+              [class]="status() === option.value ? 'bg-white/20' : 'bg-surface-sunken'"
+            >
+              {{ option.count }}
+            </span>
+          }
+        </button>
+      }
+    </div>
+
+    <div class="ml-auto flex items-center gap-2">
+      <label for="template-category" class="sr-only">Filter by category</label>
+      <select
+        id="template-category"
+        class="h-9 rounded-lg border-0 bg-surface-sunken px-2.5 text-sm text-ink ring-1 ring-line ring-inset transition-all focus:ring-2 focus:ring-brand-500 focus:outline-none"
+        (change)="setCategory($any($event.target).value)"
+      >
+        @for (option of categories; track option.value) {
+          <option [value]="option.value" [selected]="category() === option.value">
+            {{ option.label }}
+          </option>
+        }
+      </select>
+
+      @if (isFiltered()) {
+        <button appButton variant="ghost" size="sm" (click)="clearFilters()">Clear</button>
+      }
+    </div>
+  </div>
 </div>
 
 @if (state() === 'loading') {
@@ -52,21 +99,31 @@
   <app-card class="mt-5 block" [padded]="false">
     <app-error-state (retry)="load()" />
   </app-card>
-} @else if (visibleTemplates().length === 0) {
+} @else if (templates().length === 0) {
   <app-card class="mt-5 block" [padded]="false">
-    <app-empty-state
-      icon="document"
-      title="No templates in this category"
-      description="Switch category, or sync from Meta to pull the latest approved templates."
-    >
-      <button appButton variant="outline" size="sm" (click)="setCategory('all')">
-        Show all templates
-      </button>
-    </app-empty-state>
+    @if (isFiltered()) {
+      <app-empty-state
+        icon="search"
+        title="No templates match those filters"
+        description="Try another status or category, or clear the search to see everything."
+      >
+        <button appButton variant="outline" size="sm" (click)="clearFilters()">
+          Clear filters
+        </button>
+      </app-empty-state>
+    } @else {
+      <app-empty-state
+        icon="document"
+        title="No templates yet"
+        description="WhatsApp needs an approved template before you can start a conversation. Write one, or sync the templates already approved at Meta."
+      >
+        <button appButton size="sm" (click)="compose()">New template</button>
+      </app-empty-state>
+    }
   </app-card>
 } @else {
   <div class="mt-5 grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
-    @for (template of visibleTemplates(); track template.id) {
+    @for (template of templates(); track template.id) {
       <app-card [interactive]="true">
         <!-- Header -->
         <div class="flex items-start justify-between gap-3">
@@ -168,6 +225,18 @@
       </app-card>
     }
   </div>
+
+  @if (totalItems() > pageSize()) {
+    <div class="mt-5">
+      <app-pagination
+        [page]="page()"
+        [pageSize]="pageSize()"
+        [totalItems]="totalItems()"
+        (pageChange)="onPageChange($event)"
+        (pageSizeChange)="onPageSizeChange($event)"
+      />
+    </div>
+  }
 }
 
 @if (editing() !== null) {

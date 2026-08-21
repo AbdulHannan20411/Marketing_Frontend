@@ -1,0 +1,311 @@
+<div class="animate-fade-in space-y-6">
+  @switch (state()) {
+    @case ('loading') {
+      <app-skeleton height="3rem" width="24rem" />
+      <div class="grid gap-4 lg:grid-cols-3">
+        <app-skeleton height="12rem" />
+        <app-skeleton height="12rem" />
+        <app-skeleton height="12rem" />
+      </div>
+    }
+
+    @case ('error') {
+      <app-error-state
+        title="Campaign not found"
+        description="It may have been deleted, or it belongs to another workspace."
+        (retry)="load(campaignId())"
+      />
+    }
+
+    @default {
+      @if (campaign(); as current) {
+        <app-page-header [title]="current.name" [breadcrumbs]="breadcrumbs()">
+          @if (canEdit()) {
+            <a appButton variant="outline" size="md" [routerLink]="['/campaigns', current.id, 'edit']">
+              <app-icon name="pencil" [size]="16" />
+              Edit
+            </a>
+          }
+          <button appButton variant="outline" size="md" [disabled]="busy()" (click)="duplicate()">
+            <app-icon name="duplicate" [size]="16" />
+            Duplicate
+          </button>
+          @if (canSend()) {
+            <button appButton size="md" [disabled]="busy()" (click)="ask('send')">
+              <app-icon name="send" [size]="16" />
+              Send now
+            </button>
+          }
+          @if (canRunNow()) {
+            <button appButton variant="outline" size="md" [disabled]="busy()" (click)="ask('runNow')">
+              <app-icon name="send" [size]="16" />
+              Run now
+            </button>
+          }
+          @if (canPause()) {
+            <button appButton variant="outline" size="md" [disabled]="busy()" (click)="ask('pause')">
+              Pause
+            </button>
+          }
+          @if (canResume()) {
+            <button appButton size="md" [disabled]="busy()" (click)="ask('resume')">Resume</button>
+          }
+        </app-page-header>
+
+        <!-- Status strip -->
+        <div class="flex flex-wrap items-center gap-3 rounded-xl bg-surface px-4 py-3.5 ring-1 ring-line shadow-card">
+          <app-badge [tone]="statusTone[statusOf()]" [dot]="true">
+            {{ statusLabel[statusOf()] }}
+          </app-badge>
+          <span class="text-xs text-ink-muted">
+            Created {{ current.createdAt | timeAgo }} by {{ current.createdBy }}
+          </span>
+          @if (completedAt(); as finished) {
+            <span class="text-xs text-ink-muted">· Completed {{ finished | timeAgo }}</span>
+          }
+          @if (lastRun(); as last) {
+            <span class="text-xs text-ink-muted">· Last run {{ last }}</span>
+          }
+          <span class="flex-1"></span>
+          <button
+            appButton
+            variant="ghost"
+            size="sm"
+            class="text-danger"
+            [disabled]="busy()"
+            (click)="ask('delete')"
+          >
+            <app-icon name="trash" [size]="14" />
+            Delete
+          </button>
+        </div>
+
+        @if (pauseReason(); as reason) {
+          <!-- The dispatcher pauses rather than fails, so this can appear
+               without anyone having pressed Pause. The wording comes from the
+               run that could not go out. -->
+          <div class="flex flex-wrap items-start gap-3 rounded-xl bg-amber-50 px-4 py-3.5 ring-1 ring-amber-200">
+            <app-icon name="warning" [size]="18" class="mt-px shrink-0 text-amber-600" />
+            <div class="min-w-0 flex-1">
+              <p class="text-sm font-medium text-amber-900">This campaign was paused automatically</p>
+              <p class="mt-0.5 text-sm leading-relaxed text-amber-900/80">{{ reason }}</p>
+            </div>
+            <button appButton size="sm" [disabled]="busy()" (click)="ask('resume')">Resume</button>
+          </div>
+        }
+
+        <!-- The three answers, in the order they were asked -->
+        <div class="grid gap-4 lg:grid-cols-3">
+          <app-card title="What is sent">
+            <p class="font-mono text-sm font-medium text-ink">{{ current.templateName }}</p>
+            @if (current.description !== undefined && current.description !== '') {
+              <p class="mt-2 text-xs leading-relaxed text-ink-muted">{{ current.description }}</p>
+            }
+          </app-card>
+
+          <app-card title="Who receives it">
+            <p class="text-sm text-ink">{{ current.audienceLabel }}</p>
+            <p class="mt-1.5 text-2xl font-semibold tabular-nums text-ink">
+              {{ current.metrics.audienceSize | number }}
+            </p>
+            <p class="text-xs text-ink-muted">recipients</p>
+          </app-card>
+
+          <app-card title="When it sends">
+            @if (schedule(); as summary) {
+              <p class="text-sm leading-relaxed text-ink">{{ summary }}</p>
+              @if (nextRun(); as next) {
+                <p class="mt-2 text-sm font-medium text-brand-700">Next run {{ next }}</p>
+              }
+              @if (occurrenceProgress(); as progress) {
+                <p class="mt-0.5 text-xs text-ink-muted">
+                  {{ progress.run }} of {{ progress.total }} sends ·
+                  {{ progress.remaining }} left
+                </p>
+              } @else if (current.occurrencesRun) {
+                <p class="mt-0.5 text-xs text-ink-muted">
+                  {{ current.occurrencesRun }} {{ current.occurrencesRun === 1 ? 'run' : 'runs' }} so far
+                </p>
+              }
+              <p class="mt-1 text-xs text-ink-muted">Times are in {{ zone() }}.</p>
+            } @else {
+              <p class="text-sm text-ink-muted">Not scheduled yet.</p>
+              @if (canEdit()) {
+                <a
+                  appButton
+                  variant="outline"
+                  size="sm"
+                  class="mt-2"
+                  [routerLink]="['/campaigns', current.id, 'edit']"
+                >
+                  Set a schedule
+                </a>
+              }
+            }
+          </app-card>
+        </div>
+
+        <!-- Performance. For a recurring campaign these are lifetime totals
+             across every run, which is a different claim from a one-off's
+             "Delivery" and has to say so. -->
+        <app-card [title]="metricsTitle()" [subtitle]="metricsSubtitle()">
+          <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+            <div>
+              <p class="text-xs font-medium tracking-wide text-ink-muted uppercase">Sent</p>
+              <p class="mt-1 text-2xl font-semibold tabular-nums text-ink">
+                {{ current.metrics.sent | number }}
+              </p>
+            </div>
+            <div>
+              <p class="text-xs font-medium tracking-wide text-ink-muted uppercase">Delivered</p>
+              <p class="mt-1 text-2xl font-semibold tabular-nums text-ink">
+                {{ current.metrics.delivered | number }}
+              </p>
+              <p class="text-xs text-ink-muted">{{ deliveredPercent() }}% of sent</p>
+            </div>
+            <div>
+              <p class="text-xs font-medium tracking-wide text-ink-muted uppercase">Read</p>
+              <p class="mt-1 text-2xl font-semibold tabular-nums text-brand-700">
+                {{ current.metrics.read | number }}
+              </p>
+              <p class="text-xs text-ink-muted">{{ readPercent() }}% of delivered</p>
+            </div>
+            <div>
+              <p class="text-xs font-medium tracking-wide text-ink-muted uppercase">Clicked</p>
+              <p class="mt-1 text-2xl font-semibold tabular-nums text-ink">
+                {{ current.metrics.clicked | number }}
+              </p>
+            </div>
+            <div>
+              <p class="text-xs font-medium tracking-wide text-ink-muted uppercase">Failed</p>
+              <p
+                class="mt-1 text-2xl font-semibold tabular-nums"
+                [class]="current.metrics.failed > 0 ? 'text-danger' : 'text-ink'"
+              >
+                {{ current.metrics.failed | number }}
+              </p>
+            </div>
+          </div>
+        </app-card>
+
+        <!-- Run history. Hidden entirely until the endpoint answers: an empty
+             table would read as "this campaign never ran". -->
+        @if (runsAvailable()) {
+          <app-card
+            title="Run history"
+            subtitle="Every firing, newest first. Times are in {{ zone() }}."
+          >
+            @switch (runsState()) {
+              @case ('loading') {
+                <div class="space-y-2">
+                  <app-skeleton height="2.5rem" />
+                  <app-skeleton height="2.5rem" />
+                  <app-skeleton height="2.5rem" />
+                </div>
+              }
+
+              @case ('error') {
+                <app-error-state
+                  title="Run history could not be loaded"
+                  description="The campaign itself is unaffected."
+                  (retry)="loadRuns(campaignId())"
+                />
+              }
+
+              @default {
+                @if (runs().length === 0) {
+                  <app-empty-state
+                    icon="clock"
+                    title="No runs yet"
+                    description="This campaign has not fired. The first run appears here as soon as it does."
+                  />
+                } @else {
+                  <div class="-mx-1 overflow-x-auto">
+                    <table class="w-full min-w-[46rem] border-collapse text-sm">
+                      <thead>
+                        <tr class="border-b border-line text-left">
+                          <th scope="col" class="px-3 py-2 text-xs font-medium tracking-wide text-ink-muted uppercase">Run</th>
+                          <th scope="col" class="px-3 py-2 text-xs font-medium tracking-wide text-ink-muted uppercase">Scheduled for</th>
+                          <th scope="col" class="px-3 py-2 text-xs font-medium tracking-wide text-ink-muted uppercase">Status</th>
+                          <th scope="col" class="px-3 py-2 text-right text-xs font-medium tracking-wide text-ink-muted uppercase">Sent</th>
+                          <th scope="col" class="px-3 py-2 text-right text-xs font-medium tracking-wide text-ink-muted uppercase">Delivered</th>
+                          <th scope="col" class="px-3 py-2 text-right text-xs font-medium tracking-wide text-ink-muted uppercase">Read</th>
+                          <th scope="col" class="px-3 py-2 text-right text-xs font-medium tracking-wide text-ink-muted uppercase">Failed</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        @for (run of runs(); track run.id) {
+                          <tr class="border-b border-line/70 transition-colors last:border-0 hover:bg-brand-50/40">
+                            <td class="px-3 py-2.5 tabular-nums text-ink-soft">#{{ run.occurrenceNumber }}</td>
+                            <td class="px-3 py-2.5 whitespace-nowrap text-ink">
+                              {{ runWhen(run) }}
+                              @if (run.triggeredManually) {
+                                <span class="ml-2 align-middle">
+                                  <app-badge tone="info">Manual</app-badge>
+                                </span>
+                              }
+                            </td>
+                            <td class="px-3 py-2.5">
+                              <app-badge [tone]="runTone[run.status]" [dot]="true">
+                                {{ runLabel[run.status] }}
+                              </app-badge>
+                              @if (run.failureReason) {
+                                <p class="mt-1 max-w-xs text-xs leading-relaxed text-ink-muted">
+                                  {{ run.failureReason }}
+                                </p>
+                              }
+                            </td>
+                            <td class="px-3 py-2.5 text-right tabular-nums text-ink">{{ run.metrics.sent | number }}</td>
+                            <td class="px-3 py-2.5 text-right tabular-nums text-ink">{{ run.metrics.delivered | number }}</td>
+                            <td class="px-3 py-2.5 text-right tabular-nums text-ink">{{ run.metrics.read | number }}</td>
+                            <td
+                              class="px-3 py-2.5 text-right tabular-nums"
+                              [class]="run.metrics.failed > 0 ? 'text-danger' : 'text-ink'"
+                            >
+                              {{ run.metrics.failed | number }}
+                            </td>
+                          </tr>
+                        }
+                      </tbody>
+                    </table>
+                  </div>
+
+                  @if (runsTotal() > runsPageSize()) {
+                    <div class="mt-4">
+                      <app-pagination
+                        [page]="runsPage()"
+                        [pageSize]="runsPageSize()"
+                        [totalItems]="runsTotal()"
+                        (pageChange)="changeRunsPage($event)"
+                        (pageSizeChange)="changeRunsPageSize($event)"
+                      />
+                    </div>
+                  }
+                }
+              }
+            }
+          </app-card>
+        }
+      }
+    }
+  }
+</div>
+
+@if (pending() !== null) {
+  <app-modal [title]="confirmTitle()" size="sm" (closed)="dismiss()">
+    <p class="text-sm leading-relaxed text-ink-soft">{{ confirmBody() }}</p>
+
+    <ng-container modalFooter>
+      <button appButton variant="ghost" size="md" (click)="dismiss()">Cancel</button>
+      <button
+        appButton
+        [variant]="isDestructive() ? 'danger' : 'primary'"
+        size="md"
+        [disabled]="busy()"
+        (click)="confirm()"
+      >
+        {{ busy() ? 'Working…' : confirmLabel() }}
+      </button>
+    </ng-container>
+  </app-modal>
+}
