@@ -14,7 +14,14 @@ import { AuthService } from '@core/auth/auth.service';
 import type { ApiError } from '@core/models/api.model';
 import { USER_ROLE_LABEL } from '@core/models/auth.model';
 import { meetsPasswordPolicy, passwordRules, passwordStrength } from '@core/models/password-policy';
+import type {
+  DeactivationReasonId,
+  DeactivateWorkspaceResult,
+} from '@core/models/workspace.model';
+import { DEACTIVATION_REASONS } from '@core/models/workspace.model';
 import { OnboardingService } from '@core/services/onboarding.service';
+import { RealtimeService } from '@core/services/realtime.service';
+import { WorkspaceService } from '@core/services/workspace.service';
 import { ThemeService, type ThemePreference } from '@core/services/theme.service';
 import { ToastService } from '@core/services/toast.service';
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
@@ -24,6 +31,7 @@ import { CardComponent } from '@shared/ui/card/card.component';
 import { IconComponent } from '@shared/ui/icon/icon.component';
 import type { IconName } from '@shared/ui/icon/icon.registry';
 import { PageHeaderComponent } from '@shared/ui/page-header/page-header.component';
+import { ModalComponent } from '@shared/ui/modal/modal.component';
 import { EmptyStateComponent } from '@shared/ui/state/empty-state.component';
 import { FAQ_ENTRIES, FAQ_TOPIC_LABEL, type FaqEntry, type FaqTopic } from './help-content';
 
@@ -74,6 +82,7 @@ const THEME_OPTIONS: readonly ThemeOption[] = [
     ButtonDirective,
     IconComponent,
     EmptyStateComponent,
+    ModalComponent,
   ],
   templateUrl: './settings.component.html',
 })
@@ -83,6 +92,8 @@ export class SettingsComponent {
   private readonly formBuilder = inject(FormBuilder);
   private readonly toast = inject(ToastService);
   private readonly onboarding = inject(OnboardingService);
+  private readonly workspace = inject(WorkspaceService);
+  private readonly realtime = inject(RealtimeService);
 
   protected readonly themeOptions = THEME_OPTIONS;
   protected readonly preference = this.theme.preference;
@@ -433,6 +444,179 @@ export class SettingsComponent {
   protected clearFaqFilters(): void {
     this.faqSearch.set('');
     this.faqTopic.set('all');
+  }
+
+  /* --------------------------- deactivation --------------------------- */
+
+  protected readonly deactivationReasons = DEACTIVATION_REASONS;
+
+  /**
+   * Only the workspace owner sees this.
+   *
+   * Role, not permission: there is no permission for "switch off the company",
+   * and inventing one would let an admin hand it to an employee. Super Admins
+   * are excluded too — they run the platform and have no workspace of their own
+   * to deactivate.
+   */
+  protected readonly canDeactivate = computed(
+    () => this.auth.hasRole(['Admin']) && this.user()?.isSuperAdmin !== true,
+  );
+
+  /**
+   * `null` closed · `reason` choosing why · `confirm` the point of no return.
+   *
+   * Two stages on purpose. Asking why and asking "are you sure" are different
+   * questions, and collapsing them into one screen makes the confirmation
+   * something you click past on the way to the reason picker.
+   */
+  protected readonly deactivateStage = signal<'reason' | 'confirm' | null>(null);
+  protected readonly deactivating = signal(false);
+  protected readonly deactivationResult = signal<DeactivateWorkspaceResult | null>(null);
+
+  /**
+   * The workspace name, captured at the moment it was switched off.
+   *
+   * The farewell screen must not read it from the live session. Every token for
+   * this workspace dies the instant the call succeeds, so anything that clears
+   * the session underneath would leave the goodbye message addressed to nobody.
+   */
+  protected readonly deactivatedName = signal('');
+  private readonly deactivateErrors = signal<Readonly<Record<string, readonly string[]>>>({});
+
+  protected readonly deactivateForm = this.formBuilder.nonNullable.group({
+    reason: ['' as DeactivationReasonId | ''],
+    details: [''],
+    confirmName: [''],
+    currentPassword: [''],
+  });
+
+  private readonly deactivateValue = toSignal(this.deactivateForm.valueChanges, {
+    initialValue: this.deactivateForm.getRawValue(),
+  });
+
+  protected startDeactivation(): void {
+    this.deactivateForm.reset({
+      reason: '',
+      details: '',
+      confirmName: '',
+      currentPassword: '',
+    });
+    this.deactivateErrors.set({});
+    this.deactivateStage.set('reason');
+  }
+
+  protected cancelDeactivation(): void {
+    this.deactivateStage.set(null);
+  }
+
+  protected chooseReason(reason: DeactivationReasonId): void {
+    this.deactivateForm.controls.reason.setValue(reason);
+  }
+
+  protected readonly chosenReason = computed(() => {
+    this.deactivateValue();
+    return this.deactivateForm.controls.reason.value;
+  });
+
+  /** Free text is only compulsory when the reason itself says nothing. */
+  protected readonly detailsRequired = computed(() => this.chosenReason() === 'other');
+
+  protected readonly canContinueToConfirm = computed(() => {
+    this.deactivateValue();
+    const raw = this.deactivateForm.getRawValue();
+    if (raw.reason === '') {
+      return false;
+    }
+    return !this.detailsRequired() || raw.details.trim() !== '';
+  });
+
+  protected continueToConfirm(): void {
+    if (this.canContinueToConfirm()) {
+      this.deactivateStage.set('confirm');
+    }
+  }
+
+  protected backToReason(): void {
+    this.deactivateStage.set('reason');
+  }
+
+  /** The exact string the user must type. Nothing else unlocks the button. */
+  protected readonly workspaceName = computed(() => this.user()?.workspaceName ?? '');
+
+  protected readonly confirmNameMatches = computed(() => {
+    this.deactivateValue();
+    return (
+      this.deactivateForm.controls.confirmName.value.trim() === this.workspaceName() &&
+      this.workspaceName() !== ''
+    );
+  });
+
+  protected readonly canDeactivateNow = computed(() => {
+    this.deactivateValue();
+    return (
+      this.confirmNameMatches() &&
+      this.deactivateForm.controls.currentPassword.value !== '' &&
+      !this.deactivating()
+    );
+  });
+
+  protected deactivationProblem(field: string): string | null {
+    const errors = this.deactivateErrors();
+    const key = Object.keys(errors).find((entry) => entry.toLowerCase() === field.toLowerCase());
+    return key === undefined ? null : (errors[key][0] ?? null);
+  }
+
+  protected confirmDeactivation(): void {
+    if (!this.canDeactivateNow()) {
+      return;
+    }
+
+    const raw = this.deactivateForm.getRawValue();
+    this.deactivating.set(true);
+    this.deactivateErrors.set({});
+
+    this.workspace
+      .deactivate({
+        reason: raw.reason as DeactivationReasonId,
+        details: raw.details.trim() === '' ? null : raw.details.trim(),
+        currentPassword: raw.currentPassword,
+      })
+      .subscribe({
+        next: (result) => {
+          this.deactivating.set(false);
+          this.deactivateStage.set(null);
+          this.deactivatedName.set(this.workspaceName());
+          this.deactivationResult.set(result);
+
+          // The session is already dead server-side. The realtime hub would
+          // otherwise keep retrying with a revoked token, and any request that
+          // slipped out would 401, fail its refresh, and bounce the user off
+          // this screen before they had read the retention date.
+          this.realtime.disconnect();
+        },
+        error: (error: ApiError) => {
+          this.deactivating.set(false);
+          this.deactivateErrors.set(error.fieldErrors);
+          if (Object.keys(error.fieldErrors).length === 0) {
+            this.toast.error('Could not deactivate', error.detail);
+          }
+        },
+      });
+  }
+
+  /**
+   * Signs out after the farewell screen.
+   *
+   * The session is dead server-side once the workspace is off; keeping the user
+   * in a shell whose every request will 403 would look like the app breaking
+   * rather than the thing they just asked for.
+   */
+  protected finishDeactivation(): void {
+    this.deactivationResult.set(null);
+    // `logout()`, not a navigation: routing to the login page while the tokens
+    // are still in storage just bounces off the auth guard and lands the user
+    // back on a dashboard belonging to a workspace that no longer works.
+    this.auth.logout();
   }
 
   /**

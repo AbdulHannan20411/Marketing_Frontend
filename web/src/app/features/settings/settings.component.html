@@ -450,6 +450,27 @@
   }
 </app-card>
 
+<!-- Deactivate workspace. Owner only, and last on the page: destructive
+     actions belong where nobody reaches them by accident. -->
+@if (canDeactivate()) {
+  <app-card class="mt-4 block" [padded]="false">
+    <div class="flex flex-wrap items-start gap-3 border-l-2 border-danger p-5">
+      <app-icon name="warning" [size]="18" class="mt-px shrink-0 text-danger" />
+      <div class="min-w-0 flex-1">
+        <h2 class="text-sm font-semibold text-ink">Deactivate workspace</h2>
+        <p class="mt-1 max-w-2xl text-sm leading-relaxed text-ink-soft">
+          Switches off <span class="font-medium text-ink">{{ workspaceName() }}</span> for everyone.
+          Your team loses access, scheduled campaigns stop sending, and nothing further is billed.
+          Your data is kept so the workspace can be brought back — this is not a deletion.
+        </p>
+      </div>
+      <button appButton variant="danger" size="sm" (click)="startDeactivation()">
+        Deactivate workspace
+      </button>
+    </div>
+  </app-card>
+}
+
 <!-- Sections the API does not expose yet -->
 <app-card
   class="mt-4 block"
@@ -471,3 +492,172 @@
     </li>
   </ul>
 </app-card>
+\n
+
+<!-- Stage 1 — why -->
+@if (deactivateStage() === 'reason') {
+  <app-modal
+    title="Deactivate workspace"
+    subtitle="Before you go, what pushed you to this?"
+    size="md"
+    (closed)="cancelDeactivation()"
+  >
+    <form [formGroup]="deactivateForm">
+      <fieldset>
+        <legend class="sr-only">Reason for deactivating</legend>
+        <div class="space-y-1.5">
+          @for (reason of deactivationReasons; track reason.id) {
+            <label
+              class="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 ring-1 transition-colors"
+              [class]="
+                chosenReason() === reason.id
+                  ? 'bg-brand-50 ring-brand-300'
+                  : 'bg-surface-sunken ring-line hover:ring-brand-200'
+              "
+            >
+              <input
+                type="radio"
+                name="reason"
+                class="h-4 w-4 shrink-0 border-line text-brand-600 focus:ring-2 focus:ring-brand-500"
+                [checked]="chosenReason() === reason.id"
+                (change)="chooseReason(reason.id)"
+              />
+              <span class="text-sm text-ink">{{ reason.label }}</span>
+            </label>
+          }
+        </div>
+      </fieldset>
+
+      <div class="mt-4">
+        <label for="deactivate-details" class="block text-sm font-medium text-ink">
+          Anything else?
+          <span class="font-normal text-ink-muted">
+            {{ detailsRequired() ? '— required' : '— optional' }}
+          </span>
+        </label>
+        <textarea
+          id="deactivate-details"
+          rows="3"
+          formControlName="details"
+          [attr.placeholder]="
+            detailsRequired()
+              ? 'Tell us what happened.'
+              : 'Anything that would have changed your mind.'
+          "
+          class="mt-1.5 w-full rounded-lg border-0 bg-surface-sunken px-3 py-2 text-sm text-ink ring-1 ring-line ring-inset transition-all placeholder:text-ink-muted focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
+        ></textarea>
+        <p class="mt-1.5 text-xs text-ink-muted">
+          This goes to the product team, not to an automated system.
+        </p>
+      </div>
+    </form>
+
+    <ng-container modalFooter>
+      <button appButton variant="ghost" size="md" (click)="cancelDeactivation()">Cancel</button>
+      <button
+        appButton
+        variant="danger"
+        size="md"
+        [disabled]="!canContinueToConfirm()"
+        (click)="continueToConfirm()"
+      >
+        Continue
+      </button>
+    </ng-container>
+  </app-modal>
+}
+
+<!-- Stage 2 — are you sure -->
+@if (deactivateStage() === 'confirm') {
+  <app-modal
+    title="Deactivate this workspace?"
+    size="md"
+    (closed)="cancelDeactivation()"
+  >
+    <div class="rounded-xl bg-red-50 p-4 ring-1 ring-red-200">
+      <p class="text-sm font-medium text-red-900">What happens immediately</p>
+      <ul class="mt-2 space-y-1.5 text-sm leading-relaxed text-red-900/80">
+        <li>Everyone in {{ workspaceName() }} is signed out and loses access.</li>
+        <li>Scheduled and recurring campaigns stop. Nothing further is sent.</li>
+        <li>Your subscription stops renewing.</li>
+      </ul>
+    </div>
+
+    <p class="mt-3 text-sm leading-relaxed text-ink-soft">
+      Your contacts, templates and campaign history are kept, so support can bring the workspace
+      back if you change your mind. This is not a deletion.
+    </p>
+
+    <form [formGroup]="deactivateForm" class="mt-4 space-y-4">
+      <div>
+        <label for="confirm-name" class="block text-sm font-medium text-ink">
+          Type <span class="font-mono font-semibold">{{ workspaceName() }}</span> to confirm
+        </label>
+        <input
+          id="confirm-name"
+          type="text"
+          autocomplete="off"
+          formControlName="confirmName"
+          class="mt-1.5 h-10 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink ring-1 ring-line ring-inset transition-all focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
+        />
+      </div>
+
+      <div>
+        <label for="deactivate-password" class="block text-sm font-medium text-ink">
+          Your password
+        </label>
+        <input
+          id="deactivate-password"
+          type="password"
+          autocomplete="current-password"
+          formControlName="currentPassword"
+          class="mt-1.5 h-10 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink ring-1 ring-line ring-inset transition-all focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
+        />
+        @if (deactivationProblem('currentPassword'); as message) {
+          <p class="mt-1.5 text-xs text-danger">{{ message }}</p>
+        } @else {
+          <p class="mt-1.5 text-xs text-ink-muted">
+            Confirms it is you, not someone using your open session.
+          </p>
+        }
+      </div>
+    </form>
+
+    <ng-container modalFooter>
+      <button appButton variant="ghost" size="md" (click)="backToReason()">Back</button>
+      <button
+        appButton
+        variant="danger"
+        size="md"
+        [disabled]="!canDeactivateNow()"
+        (click)="confirmDeactivation()"
+      >
+        {{ deactivating() ? 'Deactivating…' : 'Deactivate workspace' }}
+      </button>
+    </ng-container>
+  </app-modal>
+}
+
+<!-- Done -->
+@if (deactivationResult(); as result) {
+  <app-modal title="Workspace deactivated" size="sm" (closed)="finishDeactivation()">
+    <p class="text-sm leading-relaxed text-ink-soft">
+      {{ deactivatedName() }} is switched off and no further messages will be sent.
+    </p>
+    @if (result.dataRetainedUntil !== null) {
+      <p class="mt-2 text-sm leading-relaxed text-ink-soft">
+        Your data is kept until
+        <span class="font-medium text-ink">{{ result.dataRetainedUntil }}</span>. Contact support
+        before then to bring the workspace back.
+      </p>
+    } @else {
+      <p class="mt-2 text-sm leading-relaxed text-ink-soft">
+        Contact support if you would like the workspace brought back.
+      </p>
+    }
+
+    <ng-container modalFooter>
+      <button appButton size="md" (click)="finishDeactivation()">Sign out</button>
+    </ng-container>
+  </app-modal>
+}

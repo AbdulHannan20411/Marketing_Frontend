@@ -7,6 +7,12 @@ import {
   type HttpRequest,
 } from '@angular/common/http';
 import { Observable, delay, of, throwError } from 'rxjs';
+import {
+  MOCK_CATEGORIES,
+  mockBusinessSearch,
+  mockPlaces,
+  mockReversePlace,
+} from './mock-business-data';
 import { avoidsCommonPatterns } from '@core/models/password-policy';
 import { environment } from '@env/environment';
 import type { ApiResponse, PagedResult } from '@core/models/api.model';
@@ -410,6 +416,53 @@ function handleAuth(
   return null;
 }
 
+/**
+ * Workspace deactivation.
+ *
+ * Verifies the password like the real endpoint must, so the wrong-password path
+ * is reachable — that is the one branch worth exercising, since it is the only
+ * thing standing between an open session and a switched-off company.
+ */
+function handleWorkspace(
+  path: string,
+  method: string,
+  body: unknown,
+  request: HttpRequest<unknown>,
+): Observable<HttpEvent<unknown>> | null {
+  if (method !== 'POST' || path !== '/workspace/deactivate') {
+    return null;
+  }
+
+  const account = accountFromRequest(request);
+  if (account === null) {
+    return fail(401, 'Session expired', 'Please sign in again.');
+  }
+  if (account.role !== 'Admin') {
+    return fail(
+      403,
+      'Not permitted',
+      'Only the workspace owner can deactivate the workspace.',
+      'forbidden',
+    );
+  }
+
+  const payload = body as { currentPassword?: string; reason?: string };
+  if (account.password !== (payload.currentPassword ?? '')) {
+    return failValidation({ CurrentPassword: ['That is not your current password.'] });
+  }
+  if ((payload.reason ?? '') === '') {
+    return failValidation({ Reason: ['A reason is required.'] });
+  }
+
+  const retained = new Date();
+  retained.setDate(retained.getDate() + 30);
+
+  return ok({
+    deactivatedAt: new Date().toISOString(),
+    dataRetainedUntil: retained.toISOString().slice(0, 10),
+  });
+}
+
 /** The signed-in account, resolved from the bearer token's `sub`. */
 function accountFromRequest(request: HttpRequest<unknown>): MockAccount | null {
   const bearer = request.headers.get('Authorization') ?? '';
@@ -433,6 +486,101 @@ function meetsMockPasswordPolicy(value: string): boolean {
     avoidsCommonPatterns(value)
   );
 }
+/**
+ * Business discovery.
+ *
+ * Stands in for a provider-backed API so the flow can be exercised offline.
+ * Deliberately reproduces the awkward cases — businesses with no phone, some
+ * already in Contacts, paging that must not duplicate rows — because a mock
+ * where everything is tidy verifies nothing.
+ */
+function handleBusinessDiscovery(
+  path: string,
+  method: string,
+  body: unknown,
+  params: HttpParams,
+): Observable<HttpEvent<unknown>> | null {
+  if (!path.startsWith('/business-discovery')) {
+    return null;
+  }
+
+  if (method === 'GET' && path === '/business-discovery/categories') {
+    return ok(MOCK_CATEGORIES);
+  }
+
+  if (method === 'GET' && path === '/business-discovery/places') {
+    return ok(mockPlaces(params.get('query') ?? ''));
+  }
+
+  if (method === 'GET' && path === '/business-discovery/places/reverse') {
+    return ok(
+      mockReversePlace(Number(params.get('latitude') ?? 0), Number(params.get('longitude') ?? 0)),
+    );
+  }
+
+  if (method === 'POST' && path === '/business-discovery/search') {
+    const query = body as {
+      latitude: number;
+      longitude: number;
+      radiusKm: number;
+      category: string;
+      page: number;
+      pageSize: number;
+    };
+
+    // The real API caps the radius; refusing here proves the client surfaces it.
+    if (query.radiusKm > 50) {
+      return fail(
+        422,
+        'Radius too large',
+        'The maximum search radius is 50 km.',
+        'radius_too_large',
+      );
+    }
+
+    const { items, total } = mockBusinessSearch(
+      query.latitude,
+      query.longitude,
+      query.radiusKm,
+      query.category,
+      query.page,
+      query.pageSize,
+    );
+
+    return ok({
+      items,
+      page: query.page,
+      pageSize: query.pageSize,
+      total,
+      hasNextPage: query.page * query.pageSize < total,
+      searchId: `search_${query.category}_${query.page}`,
+    });
+  }
+
+  if (method === 'POST' && path === '/business-discovery/import') {
+    const request = body as { businessIds: readonly string[] };
+    const ids = request.businessIds ?? [];
+
+    // A deterministic slice fails and another is skipped, so the result screen
+    // and its failure list are both reachable without editing the mock.
+    const failed = ids.filter((_, index) => index % 11 === 10);
+    const skipped = ids.filter((_, index) => index % 6 === 0 && index % 11 !== 10);
+
+    return ok({
+      imported: ids.length - failed.length - skipped.length,
+      skipped: skipped.length,
+      failed: failed.length,
+      failures: failed.map((id) => ({
+        businessId: id,
+        name: id.replace(/^biz_[a-z_]+_/, 'Business '),
+        reason: 'The phone number could not be normalised to E.164.',
+      })),
+    });
+  }
+
+  return null;
+}
+
 /** Super Admin plan CRUD: create, update, duplicate, archive and delete. */
 function handlePlans(
   path: string,
@@ -1155,6 +1303,14 @@ export const mockBackendInterceptor: HttpInterceptorFn = (request, next) => {
   const whatsappResponse = handleWhatsApp(path, method, request.body, params);
   if (whatsappResponse !== null) {
     return whatsappResponse;
+  }
+  const workspaceResponse = handleWorkspace(path, method, request.body, request);
+  if (workspaceResponse !== null) {
+    return workspaceResponse;
+  }
+  const businessResponse = handleBusinessDiscovery(path, method, request.body, params);
+  if (businessResponse !== null) {
+    return businessResponse;
   }
   const campaignResponse = handleCampaigns(path, method, request.body, params, templateStore, { ok, fail });
   if (campaignResponse !== null) {

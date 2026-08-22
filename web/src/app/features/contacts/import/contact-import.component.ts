@@ -23,6 +23,8 @@ import { DEFAULT_PAGE_SIZE, PaginationComponent } from '@shared/ui/pagination/pa
 import { SkeletonComponent } from '@shared/ui/skeleton/skeleton.component';
 import { EmptyStateComponent } from '@shared/ui/state/empty-state.component';
 import { ErrorStateComponent } from '@shared/ui/state/error-state.component';
+import { AuthService } from '@core/auth/auth.service';
+import { BusinessDiscoveryComponent } from './business-discovery/business-discovery.component';
 import { ImportStatusBadgeComponent } from './import-status-badge.component';
 import { UploadDropzoneComponent } from './upload-dropzone/upload-dropzone.component';
 
@@ -49,15 +51,40 @@ import { UploadDropzoneComponent } from './upload-dropzone/upload-dropzone.compo
     ErrorStateComponent,
     ImportStatusBadgeComponent,
     UploadDropzoneComponent,
+    BusinessDiscoveryComponent,
   ],
   templateUrl: './contact-import.component.html',
 })
 export class ContactImportComponent {
   private readonly imports = inject(ContactImportService);
+  private readonly auth = inject(AuthService);
   private readonly exports = inject(ImportExportService);
   private readonly notifications = inject(ImportNotificationService);
   private readonly toast = inject(ToastService);
   private readonly router = inject(Router);
+
+  /**
+   * Business discovery rides on `contacts.import`.
+   *
+   * A dedicated `contacts.business_import` would be better — discovery spends
+   * provider credits, which uploading a file does not — but that permission does
+   * not exist in the catalogue yet, and inventing one client-side would grant it
+   * to nobody and hide the tab from everyone. Switching is a one-line change
+   * here once the backend adds it; see the backend requirements document.
+   */
+  protected readonly canDiscover = computed(() =>
+    this.auth.hasAnyPermission(['contacts.import']),
+  );
+
+  /** Which tab is showing. Upload stays the default and the landing tab. */
+  protected readonly tab = signal<'upload' | 'discover'>('upload');
+
+  protected setTab(next: 'upload' | 'discover'): void {
+    if (next === 'discover' && !this.canDiscover()) {
+      return;
+    }
+    this.tab.set(next);
+  }
 
   protected readonly breadcrumbs = [
     { label: 'Contacts', route: '/contacts' },

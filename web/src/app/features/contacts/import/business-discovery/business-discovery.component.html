@@ -1,0 +1,481 @@
+<!-- Step 1 — where, how far, what kind -->
+<app-card
+  title="Find businesses"
+  subtitle="Pick a location, a radius and a category. Results come from the map provider your workspace is configured with."
+>
+  <div class="grid gap-4 lg:grid-cols-3">
+    <!-- Location -->
+    <div class="lg:col-span-2">
+      <label for="place-search" class="block text-sm font-medium text-ink">Search location</label>
+      <div class="relative mt-1.5">
+        <app-icon
+          name="search"
+          [size]="16"
+          class="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-ink-muted"
+        />
+        <input
+          id="place-search"
+          type="search"
+          autocomplete="off"
+          placeholder="e.g. Gulberg, Lahore"
+          [value]="placeQuery()"
+          (input)="onPlaceQuery($event)"
+          class="h-10 w-full rounded-lg border-0 bg-surface-sunken py-2 pr-3 pl-9 text-sm text-ink ring-1 ring-line ring-inset transition-all placeholder:text-ink-muted focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
+        />
+
+        @if (suggestions().length > 0) {
+          <ul
+            class="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-lg bg-surface py-1 shadow-lg ring-1 ring-line"
+            role="listbox"
+            aria-label="Location suggestions"
+          >
+            @for (place of suggestions(); track place.id) {
+              <li>
+                <button
+                  type="button"
+                  role="option"
+                  [attr.aria-selected]="false"
+                  class="block w-full px-3 py-2 text-left text-sm text-ink-soft transition-colors hover:bg-surface-muted hover:text-ink focus-visible:bg-surface-muted focus-visible:outline-none"
+                  (click)="choosePlace(place)"
+                >
+                  {{ place.label }}
+                </button>
+              </li>
+            }
+          </ul>
+        }
+      </div>
+
+      <div class="mt-2 flex flex-wrap items-center gap-2">
+        <button
+          appButton
+          variant="ghost"
+          size="sm"
+          [disabled]="locatingMe()"
+          (click)="useMyLocation()"
+        >
+          <app-icon name="grid" [size]="14" />
+          {{ locatingMe() ? 'Locating…' : 'Use my current location' }}
+        </button>
+        <p class="text-xs text-ink-muted">or click the map to drop a pin.</p>
+      </div>
+    </div>
+
+    <!-- Radius -->
+    <div>
+      <label for="radius" class="block text-sm font-medium text-ink">Radius</label>
+      <select
+        id="radius"
+        class="mt-1.5 h-10 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink ring-1 ring-line ring-inset transition-all focus:ring-2 focus:ring-brand-500 focus:outline-none"
+        (change)="setRadius(+$any($event.target).value)"
+      >
+        @for (option of radiusOptions; track option) {
+          <option [value]="option" [selected]="radiusKm() === option">{{ option }} km</option>
+        }
+      </select>
+      <p class="mt-1.5 text-xs text-ink-muted">Shown as a circle on the map.</p>
+    </div>
+  </div>
+
+  <!-- Category -->
+  <div class="mt-4">
+    <span class="block text-sm font-medium text-ink" id="category-label">Business category</span>
+
+    <div class="relative mt-1.5">
+      <button
+        type="button"
+        class="flex h-10 w-full items-center justify-between gap-2 rounded-lg bg-surface-sunken px-3 text-left text-sm ring-1 ring-line ring-inset transition-all focus:ring-2 focus:ring-brand-500 focus:outline-none"
+        [attr.aria-expanded]="categoryOpen()"
+        aria-haspopup="listbox"
+        aria-labelledby="category-label"
+        (click)="toggleCategoryList()"
+      >
+        <span [class]="selectedCategory() === null ? 'text-ink-muted' : 'text-ink'">
+          {{ selectedCategory()?.label ?? 'Choose a category' }}
+        </span>
+        <app-icon
+          name="chevronDown"
+          [size]="16"
+          class="shrink-0 text-ink-muted transition-transform"
+          [class.rotate-180]="categoryOpen()"
+        />
+      </button>
+
+      @if (categoryOpen()) {
+        <div
+          class="absolute z-20 mt-1 w-full rounded-lg bg-surface shadow-lg ring-1 ring-line"
+          role="listbox"
+          aria-labelledby="category-label"
+        >
+          <div class="border-b border-line p-2">
+            <input
+              type="search"
+              placeholder="Search category…"
+              [value]="categoryQuery()"
+              (input)="onCategoryQuery($event)"
+              class="h-9 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink ring-1 ring-line ring-inset focus:ring-2 focus:ring-brand-500 focus:outline-none"
+            />
+          </div>
+
+          <ul class="max-h-56 overflow-y-auto py-1">
+            @for (category of visibleCategories(); track category.id) {
+              <li>
+                <button
+                  type="button"
+                  role="option"
+                  [attr.aria-selected]="categoryId() === category.id"
+                  class="flex w-full items-center justify-between px-3 py-2 text-left text-sm text-ink-soft transition-colors hover:bg-surface-muted hover:text-ink focus-visible:bg-surface-muted focus-visible:outline-none"
+                  (click)="chooseCategory(category)"
+                >
+                  {{ category.label }}
+                  @if (categoryId() === category.id) {
+                    <app-icon name="checkCircle" [size]="15" class="text-brand-600" />
+                  }
+                </button>
+              </li>
+            } @empty {
+              <li class="px-3 py-6 text-center text-sm text-ink-muted">
+                No category matches that.
+              </li>
+            }
+          </ul>
+        </div>
+      }
+    </div>
+  </div>
+
+  <!-- Map -->
+  <div class="mt-4">
+    <app-map-picker
+      class="h-72 sm:h-80"
+      [center]="center()"
+      [radiusKm]="radiusKm()"
+      [markers]="mapMarkers()"
+      [interactive]="!searching()"
+      (centerChanged)="onCenterChanged($event)"
+      (markerClicked)="onMarkerClicked($event)"
+    />
+    <p class="mt-2 text-xs text-ink-muted">
+      @if (placeLabel(); as place) {
+        Searching around <span class="font-medium text-ink">{{ place }}</span> · {{ radiusKm() }} km
+      } @else {
+        Drop a pin or search for a place to set the centre.
+      }
+    </p>
+  </div>
+
+  <div class="mt-4 flex flex-wrap items-center gap-2.5 border-t border-line pt-4">
+    <button appButton size="md" [disabled]="!canSearch()" (click)="search()">
+      <app-icon name="search" [size]="16" [class.animate-spin]="searching()" />
+      {{ searching() ? 'Searching…' : 'Find businesses' }}
+    </button>
+
+    @if (categoryId() === null) {
+      <p class="text-xs text-ink-muted">Choose a category to search.</p>
+    }
+  </div>
+</app-card>
+
+<!-- Step 2 — results -->
+@if (searching()) {
+  <app-card class="mt-4 block" title="Searching">
+    <div class="space-y-2">
+      <app-skeleton height="3rem" />
+      <app-skeleton height="3rem" />
+      <app-skeleton height="3rem" />
+    </div>
+  </app-card>
+} @else if (searchError() !== null) {
+  <app-card class="mt-4 block" [padded]="false">
+    <div class="flex flex-wrap items-start gap-3 p-5">
+      <app-icon name="warning" [size]="20" class="mt-px shrink-0 text-danger" />
+      <div class="min-w-0 flex-1">
+        <p class="text-sm font-medium text-ink">Search could not be completed</p>
+        <p class="mt-0.5 text-sm leading-relaxed text-ink-soft">{{ searchError() }}</p>
+      </div>
+      <button appButton variant="outline" size="sm" (click)="search()">Try again</button>
+    </div>
+  </app-card>
+} @else if (hasSearched() && results().length === 0) {
+  <app-card class="mt-4 block" [padded]="false">
+    <app-empty-state
+      icon="search"
+      title="No businesses found here"
+      description="Try a larger radius, a different category, or move the pin to a busier area."
+    />
+  </app-card>
+} @else if (results().length > 0 && stage() !== 'review') {
+  <app-card class="mt-4 block" [padded]="false">
+    <!-- Toolbar -->
+    <div class="flex flex-wrap items-center gap-3 border-b border-line px-5 py-4">
+      <div class="min-w-0">
+        <h2 class="text-sm font-semibold text-ink">
+          {{ total() | number }} {{ total() === 1 ? 'business' : 'businesses' }} found
+        </h2>
+        <p class="mt-0.5 text-xs text-ink-muted">{{ selectedCount() | number }} selected</p>
+      </div>
+
+      <span class="flex-1"></span>
+
+      <div class="flex flex-wrap items-center gap-1.5" role="group" aria-label="Filter results">
+        @for (option of [{ id: 'all', label: 'All' }, { id: 'new', label: 'New' }, { id: 'existing', label: 'Already imported' }]; track option.id) {
+          <button
+            type="button"
+            [attr.aria-pressed]="filter() === option.id"
+            class="rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all"
+            [class]="
+              filter() === option.id ? 'bg-brand-600 text-white' : 'text-ink-soft hover:bg-surface-muted'
+            "
+            (click)="setFilter($any(option.id))"
+          >
+            {{ option.label }}
+          </button>
+        }
+      </div>
+
+      <button appButton variant="outline" size="sm" (click)="toggleAllVisible()">
+        {{ allVisibleSelected() ? 'Deselect all' : 'Select all' }}
+      </button>
+    </div>
+
+    <!-- List -->
+    <ul class="divide-y divide-line">
+      @for (business of visibleResults(); track business.id) {
+        <li
+          class="flex items-start gap-3 px-5 py-3.5 transition-colors"
+          [class]="isSelected(business.id) ? 'bg-brand-50/60' : 'hover:bg-surface-muted/60'"
+        >
+          <input
+            type="checkbox"
+            class="mt-1 h-4 w-4 shrink-0 rounded border-line text-brand-600 focus:ring-2 focus:ring-brand-500"
+            [checked]="isSelected(business.id)"
+            [disabled]="business.phone === null"
+            [attr.aria-label]="'Select ' + business.name"
+            (change)="toggle(business)"
+          />
+
+          <div class="min-w-0 flex-1">
+            <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <p class="text-sm font-medium text-ink">{{ business.name }}</p>
+
+              @if (business.existsInContacts === true) {
+                <span
+                  class="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-ink-soft ring-1 ring-gray-200"
+                >
+                  <app-icon name="checkCircle" [size]="11" />
+                  Already in Contacts
+                </span>
+              } @else if (business.existsInContacts === false) {
+                <span
+                  class="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-[11px] font-medium text-green-700 ring-1 ring-green-200"
+                >
+                  New contact
+                </span>
+              }
+
+              @if (business.rating !== null) {
+                <span class="text-[11px] text-ink-muted">★ {{ business.rating }}</span>
+              }
+            </div>
+
+            @if (business.phone !== null) {
+              <p class="mt-0.5 font-mono text-xs text-ink-soft">{{ business.phone }}</p>
+            } @else {
+              <p class="mt-0.5 flex items-center gap-1 text-xs text-warning">
+                <app-icon name="warning" [size]="12" />
+                No phone number — cannot be imported
+              </p>
+            }
+
+            @if (business.address !== null) {
+              <p class="mt-0.5 text-xs text-ink-muted">{{ business.address }}</p>
+            }
+
+            <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+              @if (business.category !== null) {
+                <span class="text-[11px] text-ink-muted">{{ business.category }}</span>
+              }
+              @if (business.website !== null) {
+                <a
+                  [href]="business.website"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="text-[11px] font-medium text-brand-700 underline-offset-2 hover:underline"
+                >
+                  Website
+                </a>
+              }
+              @if (business.openingHours !== null) {
+                <span class="text-[11px] text-ink-muted">{{ business.openingHours }}</span>
+              }
+            </div>
+          </div>
+        </li>
+      } @empty {
+        <li class="px-5 py-10">
+          <app-empty-state
+            icon="filter"
+            title="Nothing matches that filter"
+            description="Switch back to All to see every business found."
+          />
+        </li>
+      }
+    </ul>
+
+    @if (hasNextPage()) {
+      <div class="border-t border-line px-5 py-4 text-center">
+        <button appButton variant="outline" size="sm" [disabled]="loadingMore()" (click)="loadMore()">
+          {{ loadingMore() ? 'Loading…' : 'Load more' }}
+        </button>
+        <p class="mt-1.5 text-xs text-ink-muted">
+          Showing {{ results().length | number }} of {{ total() | number }}
+        </p>
+      </div>
+    }
+
+    <!-- Actions -->
+    <div class="flex flex-wrap items-center gap-2.5 border-t border-line px-5 py-4">
+      <button appButton size="md" [disabled]="selectedCount() === 0" (click)="review()">
+        Review {{ selectedCount() | number }} selected
+        <app-icon name="arrowRight" [size]="15" />
+      </button>
+      @if (selectedCount() === 0) {
+        <p class="text-xs text-ink-muted">Select at least one business to continue.</p>
+      }
+    </div>
+  </app-card>
+}
+
+<!-- Step 3 — review -->
+@if (stage() === 'review') {
+  <app-card class="mt-4 block" title="Review business contacts" subtitle="Nothing is saved until you choose below.">
+    <dl class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div class="rounded-lg bg-surface-sunken p-3 ring-1 ring-line">
+        <dt class="text-xs text-ink-muted">Location</dt>
+        <dd class="mt-0.5 text-sm font-medium text-ink">{{ placeLabel() ?? 'Dropped pin' }}</dd>
+      </div>
+      <div class="rounded-lg bg-surface-sunken p-3 ring-1 ring-line">
+        <dt class="text-xs text-ink-muted">Radius</dt>
+        <dd class="mt-0.5 text-sm font-medium text-ink">{{ radiusKm() }} km</dd>
+      </div>
+      <div class="rounded-lg bg-surface-sunken p-3 ring-1 ring-line">
+        <dt class="text-xs text-ink-muted">Category</dt>
+        <dd class="mt-0.5 text-sm font-medium text-ink">{{ selectedCategory()?.label }}</dd>
+      </div>
+      <div class="rounded-lg bg-brand-50 p-3 ring-1 ring-brand-200">
+        <dt class="text-xs text-brand-900/70">Selected</dt>
+        <dd class="mt-0.5 text-sm font-medium text-brand-900">
+          {{ selectedCount() | number }} businesses
+        </dd>
+      </div>
+    </dl>
+
+    <ul class="mt-4 space-y-1.5 text-sm text-ink-soft">
+      <li class="flex items-center gap-2">
+        <app-icon name="checkCircle" [size]="15" class="text-brand-600" />
+        {{ selectedNew() | number }} new {{ selectedNew() === 1 ? 'contact' : 'contacts' }}
+      </li>
+      <li class="flex items-center gap-2">
+        <app-icon name="info" [size]="15" class="text-ink-muted" />
+        {{ selectedExisting() | number }} already in Contacts
+      </li>
+      @if (selectedUncontactable() > 0) {
+        <li class="flex items-start gap-2 text-warning">
+          <app-icon name="warning" [size]="15" class="mt-px shrink-0" />
+          {{ selectedUncontactable() | number }} selected
+          {{ selectedUncontactable() === 1 ? 'business has' : 'businesses have' }} no phone number
+          and will be left out.
+        </li>
+      }
+    </ul>
+
+    @if (groupName(); as group) {
+      <p class="mt-4 rounded-lg bg-surface-sunken p-3 text-xs leading-relaxed text-ink-soft ring-1 ring-line">
+        These contacts will be tagged with their category and added to the group
+        <span class="font-medium text-ink">{{ group }}</span
+        >, so you can find them again without hunting through every contact.
+      </p>
+    }
+
+    <div class="mt-5 flex flex-wrap items-center gap-2.5 border-t border-line pt-4">
+      <button appButton variant="ghost" size="md" (click)="backToResults()">
+        <app-icon name="chevronLeft" [size]="15" />
+        Back
+      </button>
+
+      <span class="flex-1"></span>
+
+      <button appButton variant="outline" size="md" (click)="downloadCsv()">
+        <app-icon name="download" [size]="15" />
+        Download spreadsheet
+      </button>
+      <button appButton size="md" [disabled]="importing()" (click)="askToImport()">
+        {{ importing() ? 'Importing…' : 'Import selected contacts' }}
+      </button>
+    </div>
+
+    <p class="mt-2 text-right text-xs text-ink-muted">
+      The spreadsheet is a CSV that opens in Excel and can be uploaded on the Upload file tab.
+    </p>
+  </app-card>
+}
+
+<!-- Import confirmation -->
+@if (confirmingImport()) {
+  <app-modal title="Import business contacts?" size="sm" (closed)="cancelImport()">
+    <p class="text-sm leading-relaxed text-ink-soft">
+      You are about to import <span class="font-medium text-ink">{{ selectedCount() }}</span>
+      {{ selectedCount() === 1 ? 'business' : 'businesses' }} —
+      {{ selectedNew() }} new and {{ selectedExisting() }} already in Contacts.
+    </p>
+    <p class="mt-2 text-sm leading-relaxed text-ink-soft">
+      Existing contacts are matched on phone number and will not be duplicated.
+    </p>
+
+    <ng-container modalFooter>
+      <button appButton variant="ghost" size="md" (click)="cancelImport()">Cancel</button>
+      <button appButton size="md" (click)="confirmImport()">Confirm import</button>
+    </ng-container>
+  </app-modal>
+}
+
+<!-- Import result -->
+@if (importResult(); as result) {
+  <app-modal
+    [title]="result.failed > 0 ? 'Import completed with issues' : 'Import complete'"
+    size="sm"
+    (closed)="dismissResult()"
+  >
+    <ul class="space-y-2 text-sm">
+      <li class="flex items-center gap-2 text-ink">
+        <app-icon name="checkCircle" [size]="16" class="text-brand-600" />
+        {{ result.imported | number }} {{ result.imported === 1 ? 'contact' : 'contacts' }} imported
+      </li>
+      <li class="flex items-center gap-2 text-ink-soft">
+        <app-icon name="info" [size]="16" class="text-ink-muted" />
+        {{ result.skipped | number }} duplicates skipped
+      </li>
+      <li class="flex items-center gap-2" [class]="result.failed > 0 ? 'text-danger' : 'text-ink-soft'">
+        <app-icon [name]="result.failed > 0 ? 'warning' : 'xCircle'" [size]="16" />
+        {{ result.failed | number }} failed
+      </li>
+    </ul>
+
+    @if (result.failures.length > 0) {
+      <div class="mt-4 max-h-40 overflow-y-auto rounded-lg bg-surface-sunken p-3 ring-1 ring-line">
+        <ul class="space-y-1.5">
+          @for (failure of result.failures; track failure.businessId) {
+            <li class="text-xs leading-relaxed text-ink-soft">
+              <span class="font-medium text-ink">{{ failure.name }}</span> — {{ failure.reason }}
+            </li>
+          }
+        </ul>
+      </div>
+    }
+
+    <ng-container modalFooter>
+      <button appButton variant="ghost" size="md" (click)="dismissResult()">Done</button>
+      <button appButton size="md" (click)="viewContacts()">View contacts</button>
+    </ng-container>
+  </app-modal>
+}

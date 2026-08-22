@@ -20,182 +20,237 @@
     </button>
   </app-page-header>
 
-  <!-- Upload -->
-  <app-upload-dropzone
-    [uploading]="uploading()"
-    [accepted]="accepted()"
-    (fileSelected)="upload($event)"
-    (viewImport)="openBatch($event)"
-    (dismissed)="dismissAccepted()"
-  />
-
-  <!-- History -->
-  <app-card [padded]="false">
-    <div class="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4">
-      <div>
-        <h2 class="text-sm font-semibold text-ink">Import history</h2>
-        <p class="mt-0.5 text-xs text-ink-muted">
-          Every file uploaded to this workspace, newest first.
-        </p>
-      </div>
-
-      <div class="flex items-center gap-2">
-        <!-- Says how the table stays current, so nobody sits refreshing it. -->
-        <span
-          class="inline-flex items-center gap-1.5 rounded-full bg-surface-sunken px-2.5 py-1 text-xs text-ink-muted ring-1 ring-line ring-inset"
+  <!-- Tabs. Only rendered when there is a second tab to switch to, so a user
+       without the permission sees the page exactly as it was before. -->
+  @if (canDiscover()) {
+    <div class="border-b border-line" role="tablist" aria-label="Import method">
+      <div class="-mb-px flex gap-1">
+        <button
+          type="button"
+          role="tab"
+          id="tab-upload"
+          aria-controls="panel-upload"
+          [attr.aria-selected]="tab() === 'upload'"
+          [tabindex]="tab() === 'upload' ? 0 : -1"
+          class="flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none"
+          [class]="
+            tab() === 'upload'
+              ? 'border-brand-600 text-brand-700'
+              : 'border-transparent text-ink-muted hover:border-line hover:text-ink'
+          "
+          (click)="setTab('upload')"
         >
-          <span
-            class="h-1.5 w-1.5 rounded-full"
-            [class]="isLive() ? 'bg-green-500' : 'bg-gray-400'"
-            aria-hidden="true"
-          ></span>
-          {{ isLive() ? 'Live updates on' : 'Checking periodically' }}
-        </span>
-        <button appButton variant="ghost" size="sm" (click)="load()" aria-label="Refresh history">
-          <app-icon name="refresh" [size]="15" />
+          <app-icon name="upload" [size]="16" />
+          Upload file
+        </button>
+
+        <button
+          type="button"
+          role="tab"
+          id="tab-discover"
+          aria-controls="panel-discover"
+          [attr.aria-selected]="tab() === 'discover'"
+          [tabindex]="tab() === 'discover' ? 0 : -1"
+          class="flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none"
+          [class]="
+            tab() === 'discover'
+              ? 'border-brand-600 text-brand-700'
+              : 'border-transparent text-ink-muted hover:border-line hover:text-ink'
+          "
+          (click)="setTab('discover')"
+        >
+          <app-icon name="search" [size]="16" />
+          Import business contacts
         </button>
       </div>
     </div>
+  }
 
-    @switch (state()) {
-      @case ('loading') {
-        <div class="space-y-3 p-5">
-          @for (row of skeletons; track row) {
-            <app-skeleton height="2.75rem" />
-          }
+  @if (tab() === 'discover' && canDiscover()) {
+    <div id="panel-discover" role="tabpanel" aria-labelledby="tab-discover">
+      <app-business-discovery />
+    </div>
+  } @else {
+    <div id="panel-upload" role="tabpanel" aria-labelledby="tab-upload">
+      <!-- Upload -->
+      <app-upload-dropzone
+        [uploading]="uploading()"
+        [accepted]="accepted()"
+        (fileSelected)="upload($event)"
+        (viewImport)="openBatch($event)"
+        (dismissed)="dismissAccepted()"
+      />
+
+      <!-- History -->
+      <app-card [padded]="false">
+        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4">
+          <div>
+            <h2 class="text-sm font-semibold text-ink">Import history</h2>
+            <p class="mt-0.5 text-xs text-ink-muted">
+              Every file uploaded to this workspace, newest first.
+            </p>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <!-- Says how the table stays current, so nobody sits refreshing it. -->
+            <span
+              class="inline-flex items-center gap-1.5 rounded-full bg-surface-sunken px-2.5 py-1 text-xs text-ink-muted ring-1 ring-line ring-inset"
+            >
+              <span
+                class="h-1.5 w-1.5 rounded-full"
+                [class]="isLive() ? 'bg-green-500' : 'bg-gray-400'"
+                aria-hidden="true"
+              ></span>
+              {{ isLive() ? 'Live updates on' : 'Checking periodically' }}
+            </span>
+            <button appButton variant="ghost" size="sm" (click)="load()" aria-label="Refresh history">
+              <app-icon name="refresh" [size]="15" />
+            </button>
+          </div>
         </div>
-      }
 
-      @case ('error') {
-        <div class="p-6">
-          <app-error-state
-            title="Could not load your imports"
-            description="The list is temporarily unavailable. Your files are unaffected."
-            (retry)="load()"
-          />
-        </div>
-      }
-
-      @case ('empty') {
-        <div class="p-6">
-          <app-empty-state
-            icon="upload"
-            title="No imports yet"
-            description="Upload a CSV or XLSX file above and it will appear here while it processes."
-          />
-        </div>
-      }
-
-      @default {
-        <div class="overflow-x-auto">
-          <table class="w-full min-w-[68rem] text-sm">
-            <thead>
-              <tr class="border-b border-line text-left text-xs tracking-wide text-ink-muted uppercase">
-                <th scope="col" class="px-5 py-3 font-medium">File name</th>
-                <th scope="col" class="px-3 py-3 font-medium">Status</th>
-                <th scope="col" class="px-3 py-3 text-right font-medium">Total</th>
-                <th scope="col" class="px-3 py-3 text-right font-medium">Success</th>
-                <th scope="col" class="px-3 py-3 text-right font-medium">Updated</th>
-                <th scope="col" class="px-3 py-3 text-right font-medium">Duplicates</th>
-                <th scope="col" class="px-3 py-3 text-right font-medium">Failed</th>
-                <th scope="col" class="px-3 py-3 text-right font-medium">Skipped</th>
-                <th scope="col" class="px-3 py-3 font-medium">Uploaded</th>
-                <th scope="col" class="px-3 py-3 font-medium">Completed</th>
-                <th scope="col" class="px-5 py-3 text-right font-medium">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (batch of batches(); track batch.batchId) {
-                <tr
-                  class="cursor-pointer border-b border-line/70 transition-colors last:border-0 hover:bg-brand-50/40"
-                  (click)="openBatch(batch.batchId)"
-                >
-                  <td class="px-5 py-3">
-                    <div class="flex items-center gap-2.5">
-                      <app-icon name="tableCells" [size]="17" class="shrink-0 text-ink-muted" />
-                      <div class="min-w-0">
-                        <p class="truncate font-medium text-ink">{{ batch.fileName }}</p>
-                        <p class="text-xs text-ink-muted">
-                          {{ describe(batch.fileSizeBytes) }} · {{ batch.uploadedBy }}
-                        </p>
-                      </div>
-                    </div>
-                  </td>
-                  <td class="px-3 py-3">
-                    <app-import-status-badge [status]="batch.status" />
-                  </td>
-                  <td class="px-3 py-3 text-right tabular-nums text-ink-soft">
-                    {{ batch.statistics.totalRows | number }}
-                  </td>
-                  <td class="px-3 py-3 text-right font-medium tabular-nums text-brand-700">
-                    {{ batch.statistics.successful | number }}
-                  </td>
-                  <td class="px-3 py-3 text-right tabular-nums text-ink-soft">
-                    {{ batch.statistics.updated | number }}
-                  </td>
-                  <td class="px-3 py-3 text-right tabular-nums text-ink-soft">
-                    {{ batch.statistics.duplicates | number }}
-                  </td>
-                  <td
-                    class="px-3 py-3 text-right tabular-nums"
-                    [class]="batch.statistics.failed > 0 ? 'font-medium text-danger' : 'text-ink-soft'"
-                  >
-                    {{ batch.statistics.failed | number }}
-                  </td>
-                  <td class="px-3 py-3 text-right tabular-nums text-ink-soft">
-                    {{ batch.statistics.skipped | number }}
-                  </td>
-                  <td class="px-3 py-3 whitespace-nowrap text-ink-muted">
-                    {{ batch.uploadedAt | timeAgo }}
-                  </td>
-                  <td class="px-3 py-3 whitespace-nowrap text-ink-muted">
-                    {{ batch.completedAt === null ? '—' : (batch.completedAt | timeAgo) }}
-                  </td>
-                  <td class="px-5 py-3">
-                    <div class="flex items-center justify-end gap-1.5">
-                      <button
-                        appButton
-                        variant="ghost"
-                        size="sm"
-                        (click)="$event.stopPropagation(); openBatch(batch.batchId)"
-                      >
-                        View
-                      </button>
-                      @if (batch.hasFailedRecords) {
-                        <button
-                          appButton
-                          variant="ghost"
-                          size="sm"
-                          [disabled]="exportingId() !== null"
-                          [attr.aria-label]="'Download failed records for ' + batch.fileName"
-                          (click)="downloadFailed($event, batch)"
-                        >
-                          <app-icon
-                            [name]="exportingId() === batch.batchId ? 'refresh' : 'download'"
-                            [size]="15"
-                            [class.animate-spin]="exportingId() === batch.batchId"
-                          />
-                          {{ exportingId() === batch.batchId ? 'Preparing…' : 'Failed rows' }}
-                        </button>
-                      }
-                    </div>
-                  </td>
-                </tr>
+        @switch (state()) {
+          @case ('loading') {
+            <div class="space-y-3 p-5">
+              @for (row of skeletons; track row) {
+                <app-skeleton height="2.75rem" />
               }
-            </tbody>
-          </table>
-        </div>
+            </div>
+          }
 
-        <div class="border-t border-line px-5 py-3">
-          <app-pagination
-            [page]="page()"
-            [pageSize]="pageSize()"
-            [totalItems]="totalItems()"
-            (pageChange)="onPageChange($event)"
-            (pageSizeChange)="onPageSizeChange($event)"
-          />
-        </div>
-      }
-    }
-  </app-card>
+          @case ('error') {
+            <div class="p-6">
+              <app-error-state
+                title="Could not load your imports"
+                description="The list is temporarily unavailable. Your files are unaffected."
+                (retry)="load()"
+              />
+            </div>
+          }
+
+          @case ('empty') {
+            <div class="p-6">
+              <app-empty-state
+                icon="upload"
+                title="No imports yet"
+                description="Upload a CSV or XLSX file above and it will appear here while it processes."
+              />
+            </div>
+          }
+
+          @default {
+            <div class="overflow-x-auto">
+              <table class="w-full min-w-[68rem] text-sm">
+                <thead>
+                  <tr class="border-b border-line text-left text-xs tracking-wide text-ink-muted uppercase">
+                    <th scope="col" class="px-5 py-3 font-medium">File name</th>
+                    <th scope="col" class="px-3 py-3 font-medium">Status</th>
+                    <th scope="col" class="px-3 py-3 text-right font-medium">Total</th>
+                    <th scope="col" class="px-3 py-3 text-right font-medium">Success</th>
+                    <th scope="col" class="px-3 py-3 text-right font-medium">Updated</th>
+                    <th scope="col" class="px-3 py-3 text-right font-medium">Duplicates</th>
+                    <th scope="col" class="px-3 py-3 text-right font-medium">Failed</th>
+                    <th scope="col" class="px-3 py-3 text-right font-medium">Skipped</th>
+                    <th scope="col" class="px-3 py-3 font-medium">Uploaded</th>
+                    <th scope="col" class="px-3 py-3 font-medium">Completed</th>
+                    <th scope="col" class="px-5 py-3 text-right font-medium">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (batch of batches(); track batch.batchId) {
+                    <tr
+                      class="cursor-pointer border-b border-line/70 transition-colors last:border-0 hover:bg-brand-50/40"
+                      (click)="openBatch(batch.batchId)"
+                    >
+                      <td class="px-5 py-3">
+                        <div class="flex items-center gap-2.5">
+                          <app-icon name="tableCells" [size]="17" class="shrink-0 text-ink-muted" />
+                          <div class="min-w-0">
+                            <p class="truncate font-medium text-ink">{{ batch.fileName }}</p>
+                            <p class="text-xs text-ink-muted">
+                              {{ describe(batch.fileSizeBytes) }} · {{ batch.uploadedBy }}
+                            </p>
+                          </div>
+                        </div>
+                      </td>
+                      <td class="px-3 py-3">
+                        <app-import-status-badge [status]="batch.status" />
+                      </td>
+                      <td class="px-3 py-3 text-right tabular-nums text-ink-soft">
+                        {{ batch.statistics.totalRows | number }}
+                      </td>
+                      <td class="px-3 py-3 text-right font-medium tabular-nums text-brand-700">
+                        {{ batch.statistics.successful | number }}
+                      </td>
+                      <td class="px-3 py-3 text-right tabular-nums text-ink-soft">
+                        {{ batch.statistics.updated | number }}
+                      </td>
+                      <td class="px-3 py-3 text-right tabular-nums text-ink-soft">
+                        {{ batch.statistics.duplicates | number }}
+                      </td>
+                      <td
+                        class="px-3 py-3 text-right tabular-nums"
+                        [class]="batch.statistics.failed > 0 ? 'font-medium text-danger' : 'text-ink-soft'"
+                      >
+                        {{ batch.statistics.failed | number }}
+                      </td>
+                      <td class="px-3 py-3 text-right tabular-nums text-ink-soft">
+                        {{ batch.statistics.skipped | number }}
+                      </td>
+                      <td class="px-3 py-3 whitespace-nowrap text-ink-muted">
+                        {{ batch.uploadedAt | timeAgo }}
+                      </td>
+                      <td class="px-3 py-3 whitespace-nowrap text-ink-muted">
+                        {{ batch.completedAt === null ? '—' : (batch.completedAt | timeAgo) }}
+                      </td>
+                      <td class="px-5 py-3">
+                        <div class="flex items-center justify-end gap-1.5">
+                          <button
+                            appButton
+                            variant="ghost"
+                            size="sm"
+                            (click)="$event.stopPropagation(); openBatch(batch.batchId)"
+                          >
+                            View
+                          </button>
+                          @if (batch.hasFailedRecords) {
+                            <button
+                              appButton
+                              variant="ghost"
+                              size="sm"
+                              [disabled]="exportingId() !== null"
+                              [attr.aria-label]="'Download failed records for ' + batch.fileName"
+                              (click)="downloadFailed($event, batch)"
+                            >
+                              <app-icon
+                                [name]="exportingId() === batch.batchId ? 'refresh' : 'download'"
+                                [size]="15"
+                                [class.animate-spin]="exportingId() === batch.batchId"
+                              />
+                              {{ exportingId() === batch.batchId ? 'Preparing…' : 'Failed rows' }}
+                            </button>
+                          }
+                        </div>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+
+            <div class="border-t border-line px-5 py-3">
+              <app-pagination
+                [page]="page()"
+                [pageSize]="pageSize()"
+                [totalItems]="totalItems()"
+                (pageChange)="onPageChange($event)"
+                (pageSizeChange)="onPageSizeChange($event)"
+              />
+            </div>
+          }
+        }
+      </app-card>
+    </div>
+  }
+
 </div>
