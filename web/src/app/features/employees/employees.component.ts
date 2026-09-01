@@ -42,6 +42,14 @@ const ROLE_TONE: Readonly<Record<UserRole, BadgeTone>> = {
   Employee: 'neutral',
 };
 
+/**
+ * Granted to every workspace member by the API and not revocable.
+ *
+ * Kept as a list rather than a single value so adding to the floor later is
+ * a one-line change here rather than a hunt through the editor.
+ */
+const PERMISSION_FLOOR: readonly Permission[] = ['dashboard.view'];
+
 @Component({
   selector: 'app-employees',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -195,12 +203,25 @@ export class EmployeesComponent {
   }
 
   protected isGranted(permission: Permission): boolean {
-    return this.effectivePermissions().has(permission);
+    return this.isFloor(permission) || this.effectivePermissions().has(permission);
+  }
+
+  /**
+   * Permissions every member holds whatever the editor says.
+   *
+   * `dashboard.view` is a floor server-side: the API grants it regardless of
+   * what is sent, because an employee invited with nothing ticked would land on
+   * a dashboard they had no permission to see. Showing it as an unticked box
+   * would be a lie — the box would appear to turn something off that the API
+   * immediately turns back on.
+   */
+  protected isFloor(permission: Permission): boolean {
+    return PERMISSION_FLOOR.includes(permission);
   }
 
   protected togglePermission(permission: Permission, granted: boolean): void {
     const employee = this.selected();
-    if (employee === null) {
+    if (employee === null || this.isFloor(permission)) {
       return;
     }
 

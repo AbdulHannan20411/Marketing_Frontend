@@ -52,7 +52,7 @@ export class PricingComponent {
 
   protected readonly moduleLabel = FEATURE_MODULE_LABEL;
   protected readonly supportLabel = SUPPORT_LABEL;
-  protected readonly currentPlanId = computed(() => this.entitlements.plan()?.id ?? null);
+  protected readonly currentPlanId = this.entitlements.planId;
 
   protected readonly visiblePlans = computed(() =>
     [...this.plans()].sort((a, b) => a.sortOrder - b.sortOrder),

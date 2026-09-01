@@ -1356,6 +1356,20 @@ export const mockBackendInterceptor: HttpInterceptorFn = (request, next) => {
         return ok(SYSTEM);
       case '/subscription':
         return ok(SUBSCRIPTION_SNAPSHOT);
+      case '/subscription/entitlements':
+        // The flattened, permission-free view. Deliberately carries no pricing:
+        // every signed-in user loads this, so an amount here would be readable
+        // by every employee in the workspace.
+        return ok({
+          planId: SUBSCRIPTION_SNAPSHOT.plan.id,
+          planName: SUBSCRIPTION_SNAPSHOT.plan.name,
+          status: SUBSCRIPTION_SNAPSHOT.subscription.status,
+          expiresAt: SUBSCRIPTION_SNAPSHOT.subscription.expiresAt,
+          trialEndsAt: SUBSCRIPTION_SNAPSHOT.subscription.trialEndsAt,
+          modules: SUBSCRIPTION_SNAPSHOT.plan.modules,
+          limits: SUBSCRIPTION_SNAPSHOT.plan.limits,
+          usage: SUBSCRIPTION_SNAPSHOT.usage,
+        });
       case '/plans':
         return ok(planStore.filter((plan) => plan.status !== 'archived'));
       // A copy, never the live array: returning the same reference would make
@@ -1378,6 +1392,41 @@ export const mockBackendInterceptor: HttpInterceptorFn = (request, next) => {
         break;
     }
   }
+  if (method === 'POST' && path === '/whatsapp/connect/manual') {
+    const account = accountFromRequest(request);
+    if (account === null) {
+      return fail(401, 'Session expired', 'Please sign in again.');
+    }
+    // Mirrors the API: platform staff only. A tenant admin calling this must be
+    // refused, or the mock would hide the one rule that matters here.
+    if (account.role !== 'SuperAdmin') {
+      return fail(
+        403,
+        'Not permitted',
+        'Only platform staff can connect an account with a token.',
+        'forbidden',
+      );
+    }
+
+    const body = request.body as {
+      accessToken?: string;
+      wabaId?: string;
+      phoneNumberId?: string;
+    };
+
+    if ((body.accessToken ?? '').trim() === '') {
+      return failValidation({ AccessToken: ['An access token is required.'] });
+    }
+    if ((body.wabaId ?? '').trim() === '' || (body.phoneNumberId ?? '').trim() === '') {
+      return failValidation({ WabaId: ['Both account identifiers are required.'] });
+    }
+
+    return ok(
+      { ...WHATSAPP_CONNECTION, status: 'connected', wabaId: body.wabaId },
+      'WhatsApp Business Account connected.',
+    );
+  }
+
   if (method === 'POST' && path === '/whatsapp/connection/sync') {
     return ok(WHATSAPP_CONNECTION, 'Connection refreshed from Meta.');
   }

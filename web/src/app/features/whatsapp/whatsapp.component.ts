@@ -1,10 +1,13 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { DecimalPipe } from '@angular/common';
 
 import { environment } from '@env/environment';
 import type { ApiError, LoadState } from '@core/models/api.model';
 import type { QualityRating, WhatsAppConnection } from '@core/models/whatsapp.model';
 import { MESSAGING_TIER_LABELS } from '@core/models/whatsapp.model';
+import { AuthService } from '@core/auth/auth.service';
+import { AdminScopeService } from '@core/scope/admin-scope.service';
 import { EmbeddedSignupError, MetaSignupService } from '@core/services/meta-signup.service';
 import { ToastService } from '@core/services/toast.service';
 import { WhatsAppService } from '@core/services/whatsapp.service';
@@ -35,6 +38,7 @@ const QUALITY_LABEL: Readonly<Record<QualityRating, string>> = {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     DecimalPipe,
+    ReactiveFormsModule,
     TimeAgoPipe,
     PageHeaderComponent,
     CardComponent,
@@ -51,6 +55,9 @@ export class WhatsAppComponent {
   private readonly whatsapp = inject(WhatsAppService);
   private readonly signup = inject(MetaSignupService);
   private readonly toast = inject(ToastService);
+  private readonly auth = inject(AuthService);
+  private readonly scope = inject(AdminScopeService);
+  private readonly formBuilder = inject(FormBuilder);
 
   protected readonly state = signal<LoadState>('loading');
   protected readonly connection = signal<WhatsAppConnection | null>(null);
@@ -81,6 +88,79 @@ export class WhatsAppComponent {
 
   constructor() {
     this.load();
+  }
+
+  /* ------------------------- manual connect (staff) ------------------------- */
+
+  /**
+   * A testing tool, not an onboarding route.
+   *
+   * A Meta **test number** is already claimed inside the developer app, so
+   * there is no Embedded Signup flow to run against it — and `configId` needs
+   * an app that has been through review. This is how the messaging path gets
+   * exercised before then.
+   *
+   * Super Admin only, matching the API, which refuses anyone else. The token is
+   * held in the form for the length of the request and never stored, logged or
+   * echoed back.
+   */
+  protected readonly canConnectManually = computed(() => this.auth.isSuperAdmin());
+
+  /** The workspace the connection lands in, chosen in the scope bar. */
+  protected readonly scopedAdmin = this.scope.selected;
+  protected readonly hasScope = this.scope.isScoped;
+
+  protected readonly manualOpen = signal(false);
+  protected readonly connectingManually = signal(false);
+
+  protected readonly manualForm = this.formBuilder.nonNullable.group({
+    accessToken: ['', Validators.required],
+    wabaId: ['', Validators.required],
+    phoneNumberId: ['', Validators.required],
+  });
+
+  protected openManual(): void {
+    this.manualForm.reset({ accessToken: '', wabaId: '', phoneNumberId: '' });
+    this.manualOpen.set(true);
+  }
+
+  protected closeManual(): void {
+    // Cleared on the way out so a pasted token does not sit in memory behind a
+    // closed dialog for the rest of the session.
+    this.manualForm.reset({ accessToken: '', wabaId: '', phoneNumberId: '' });
+    this.manualOpen.set(false);
+  }
+
+  protected submitManual(): void {
+    if (this.manualForm.invalid || this.connectingManually()) {
+      return;
+    }
+
+    const raw = this.manualForm.getRawValue();
+    this.connectingManually.set(true);
+
+    this.whatsapp
+      .connectManually({
+        accessToken: raw.accessToken.trim(),
+        wabaId: raw.wabaId.trim(),
+        phoneNumberId: raw.phoneNumberId.trim(),
+      })
+      .subscribe({
+        next: (connection) => {
+          this.connectingManually.set(false);
+          this.connection.set(connection);
+          this.state.set('ready');
+          this.closeManual();
+          this.toast.success(
+            'WhatsApp connected',
+            `${connection.displayPhoneNumber ?? 'The number'} is ready to send.`,
+          );
+        },
+        error: (error: ApiError) => {
+          this.connectingManually.set(false);
+          this.toast.error(error.title, error.detail);
+        },
+      });
   }
 
   protected load(): void {

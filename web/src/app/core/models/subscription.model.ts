@@ -48,6 +48,31 @@ export interface SubscriptionPlan {
   readonly updatedAt: string;
 }
 
+/**
+ * What the workspace may *do* — as opposed to what it pays.
+ *
+ * Served by `GET /subscription/entitlements`, which requires **no permission**
+ * beyond being signed in. That split matters: the shell loads entitlements for
+ * every user on every page, and the billing endpoint is gated on
+ * `settings.subscription`, so employees used to take a 403 on every page load
+ * and run with entitlements permanently unknown.
+ *
+ * Deliberately carries **no pricing** — no amount, currency, billing cycle,
+ * renewal date or auto-renew. Anything priced here would be readable by every
+ * employee in the workspace. What a plan lists publicly is not the same as what
+ * this workspace was charged.
+ */
+export interface EntitlementSnapshot {
+  readonly planId: string;
+  readonly planName: string;
+  readonly status: SubscriptionStatus;
+  readonly expiresAt: string;
+  readonly trialEndsAt: string | null;
+  readonly modules: PlanModules;
+  readonly limits: PlanLimits;
+  readonly usage: readonly UsageMetric[];
+}
+
 export interface Subscription {
   readonly planId: string;
   readonly planName: string;

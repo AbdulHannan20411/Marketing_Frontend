@@ -10,7 +10,7 @@ import type {
   Payment,
   PaymentStatus,
 } from '@core/models/subscription.model';
-import { EntitlementService } from '@core/services/entitlement.service';
+import type { SubscriptionSnapshot } from '@core/models/subscription.model';
 import { SubscriptionService } from '@core/services/subscription.service';
 import { ToastService } from '@core/services/toast.service';
 import { TimeAgoPipe } from '@shared/pipes/time-ago.pipe';
@@ -59,7 +59,6 @@ const PAYMENT_TONE: Readonly<Record<PaymentStatus, BadgeTone>> = {
 })
 export class BillingComponent {
   private readonly subscriptionService = inject(SubscriptionService);
-  private readonly entitlements = inject(EntitlementService);
   private readonly toast = inject(ToastService);
 
   protected readonly state = signal<LoadState>('loading');
@@ -70,7 +69,15 @@ export class BillingComponent {
 
   protected readonly invoiceTone = INVOICE_TONE;
   protected readonly paymentTone = PAYMENT_TONE;
-  protected readonly subscription = this.entitlements.subscription;
+  /**
+   * Billing detail comes from `GET /subscription`, not from entitlements.
+   *
+   * Entitlements are loaded for every signed-in user and carry no pricing by
+   * design — an amount there would be readable by every employee. This screen
+   * is already behind `settings.billing`, so it is the right place to ask.
+   */
+  private readonly billing = signal<SubscriptionSnapshot | null>(null);
+  protected readonly subscription = computed(() => this.billing()?.subscription ?? null);
 
   protected readonly tabs: readonly { value: BillingTab; label: string }[] = [
     { value: 'invoices', label: 'Invoices' },
@@ -99,6 +106,7 @@ export class BillingComponent {
   );
 
   constructor() {
+    this.loadBilling();
     this.load();
   }
 
@@ -150,5 +158,13 @@ export class BillingComponent {
 
   protected total(invoice: Invoice): number {
     return invoice.amount + invoice.tax;
+  }
+
+  /** Silent on failure: the invoice table below is the point of this page. */
+  private loadBilling(): void {
+    this.subscriptionService.getSnapshot().subscribe({
+      next: (snapshot) => this.billing.set(snapshot),
+      error: () => this.billing.set(null),
+    });
   }
 }

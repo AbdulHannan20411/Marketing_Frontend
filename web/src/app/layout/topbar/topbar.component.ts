@@ -68,13 +68,30 @@ export class TopbarComponent {
   );
 
   protected readonly daysRemaining = this.entitlements.daysRemaining;
-  protected readonly planName = computed(() => this.entitlements.plan()?.name ?? null);
+  protected readonly planName = this.entitlements.planName;
 
   /**
    * Subscription and billing belong to a tenant, so they are hidden from
    * platform staff — a Super Admin has no plan of their own to manage.
    */
   protected readonly showBillingLinks = computed(() => !this.auth.isSuperAdmin());
+
+  /**
+   * Billing entries in the account menu, gated on the permissions that guard
+   * the pages behind them.
+   *
+   * Previously shown to every tenant user, so an employee without them got a
+   * menu item that led straight to a 403. A link you are not allowed to follow
+   * is worse than no link: it reads as the product being broken rather than as
+   * a permission you were never given.
+   */
+  protected readonly canSeeSubscription = computed(
+    () => this.showBillingLinks() && this.auth.hasPermission('settings.subscription'),
+  );
+
+  protected readonly canSeeBilling = computed(
+    () => this.showBillingLinks() && this.auth.hasPermission('settings.billing'),
+  );
 
   protected readonly showRenewalWarning = computed(
     () => this.showBillingLinks() && this.entitlements.isExpiringSoon(),

@@ -4,8 +4,7 @@ import { AuthService } from '@core/auth/auth.service';
 import { AdminScopeService } from '@core/scope/admin-scope.service';
 import type { FeatureModule } from '@core/models/permission.model';
 import type {
-  SubscriptionPlan,
-  SubscriptionSnapshot,
+  EntitlementSnapshot,
   UsageMetric,
   UsageMetricKey,
 } from '@core/models/subscription.model';
@@ -60,8 +59,10 @@ export class EntitlementService {
   private readonly auth = inject(AuthService);
   private readonly scope = inject(AdminScopeService);
 
-  private readonly snapshot = signal<SubscriptionSnapshot | null>(null);
+  private readonly snapshot = signal<EntitlementSnapshot | null>(null);
   private readonly loaded = signal(false);
+  /** True when the fetch failed, as opposed to succeeding with nothing. */
+  private readonly failed = signal(false);
 
   /**
    * Plan limits are a property of an Admin's subscription, so they never apply
@@ -71,8 +72,17 @@ export class EntitlementService {
   readonly isUnrestricted = computed(() => this.auth.isSuperAdmin());
 
   readonly isLoaded = this.loaded.asReadonly();
-  readonly subscription = computed(() => this.snapshot()?.subscription ?? null);
-  readonly plan = computed<SubscriptionPlan | null>(() => this.snapshot()?.plan ?? null);
+
+  /**
+   * The entitlement payload is flat — `status` and `expiresAt` sit beside
+   * `modules` and `limits` rather than under a `subscription` and a `plan`.
+   * These keep the old call sites reading naturally without reintroducing the
+   * nesting.
+   */
+  readonly subscription = computed(() => this.snapshot());
+  readonly planId = computed(() => this.snapshot()?.planId ?? null);
+  readonly planName = computed(() => this.snapshot()?.planName ?? null);
+  readonly limits = computed(() => this.snapshot()?.limits ?? null);
 
   readonly usage = computed<readonly UsageView[]>(() => {
     const metrics = this.snapshot()?.usage ?? [];
@@ -136,36 +146,62 @@ export class EntitlementService {
   );
 
   load(): void {
-    // A Super Admin has no tenant of their own, so /subscription would 404 on
-    // every page load. Only fetch when there is a tenant to fetch for: their
-    // own (Admin, Employee) or the one they are scoped to.
+    // A Super Admin has no tenant of their own, so this would 404 on every page
+    // load. Only fetch when there is a tenant to fetch for: their own (Admin,
+    // Employee) or the one they are scoped to.
     if (this.auth.isSuperAdmin() && this.scope.selectedId() === null) {
       this.snapshot.set(null);
+      this.failed.set(false);
       this.loaded.set(true);
       return;
     }
 
-    this.subscriptionService.getSnapshot().subscribe({
+    this.subscriptionService.getEntitlements().subscribe({
       next: (snapshot) => {
         this.snapshot.set(snapshot);
+        this.failed.set(false);
         this.loaded.set(true);
       },
-      // A failed entitlement fetch must not lock the user out of the whole app;
-      // gates fall back to "unknown" and pages render their own error states.
-      error: () => this.loaded.set(true),
+      // A failed fetch must not lock the user out of the whole app. It is
+      // recorded as a *failure* rather than as "loaded with nothing", because
+      // those two need opposite answers from `hasFeature`.
+      error: () => {
+        this.snapshot.set(null);
+        this.failed.set(true);
+        this.loaded.set(true);
+      },
     });
   }
 
   /**
-   * Whether the plan includes a module. Returns `true` while entitlements are
-   * still loading so the shell does not flash-hide navigation on first paint.
+   * Whether the plan includes a module.
+   *
+   * Three states, not two, and the distinction matters more than it looks:
+   *
+   * - **Loading** → `true`, so the shell does not flash-hide navigation.
+   * - **Loaded** → whatever the plan says.
+   * - **Failed** → `true`, deliberately.
+   *
+   * That last one used to answer `false`, and it is what made whole sections of
+   * the app vanish: a failed entitlements fetch left `loaded` true with no
+   * snapshot, so every module read as excluded. The sidebar dropped Contacts,
+   * Import, Groups and Tags, and `featureGuard` bounced anyone who typed the
+   * URL — all of it looking like a permissions problem rather than a failed
+   * request.
+   *
+   * Failing open is the right call here because the API enforces entitlements
+   * anyway. The worst case is a user reaching a screen that then reports the
+   * real error; the alternative silently removes features they are paying for.
    */
   hasFeature(module: FeatureModule): boolean {
     if (this.isUnrestricted()) {
       return true;
     }
-    const plan = this.plan();
-    return plan === null ? !this.loaded() : plan.modules[module];
+    const snapshot = this.snapshot();
+    if (snapshot === null) {
+      return !this.loaded() || this.failed();
+    }
+    return snapshot.modules[module];
   }
 
   usageFor(key: UsageMetricKey): UsageView | null {

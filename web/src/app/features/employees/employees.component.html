@@ -334,6 +334,7 @@
 
                   <app-toggle
                     [checked]="isGranted(permission.key)"
+                    [disabled]="isFloor(permission.key)"
                     (checkedChange)="togglePermission(permission.key, $event)"
                     [disabled]="isCategoryLocked(category)"
                     [label]="permission.label"

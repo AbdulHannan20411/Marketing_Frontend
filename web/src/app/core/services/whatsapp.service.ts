@@ -33,9 +33,29 @@ export interface TemplatePage extends PagedResult<MessageTemplate> {
    * because the whole collection happened to be in hand.
    */
   readonly pagedByServer: boolean;
+
+  /**
+   * Status counts computed here, present **only** when the whole collection was
+   * in hand.
+   *
+   * These are trustworthy precisely because they are derived from the same
+   * array the list came from, under the same search and category. `GET
+   * /templates/counts` currently ignores both filters and counts the entire
+   * workspace, which is what produced "Pending 1" beside an empty list. When
+   * that endpoint honours the filters and the list is genuinely paged, this is
+   * absent and the endpoint's answer is used instead.
+   */
+  readonly counts?: TemplateStatusCounts;
 }
 
-function matchesQuery(template: MessageTemplate, query: TemplateQuery): boolean {
+/**
+ * Search and category only.
+ *
+ * Status is applied separately because the counts are a breakdown *by* status
+ * and must not have it applied — the same rule the counts endpoint is supposed
+ * to follow.
+ */
+function matchesScope(template: MessageTemplate, query: TemplateQuery): boolean {
   const term = query.search.trim().toLowerCase();
 
   const matchesSearch =
@@ -43,11 +63,20 @@ function matchesQuery(template: MessageTemplate, query: TemplateQuery): boolean 
     template.name.toLowerCase().includes(term) ||
     template.bodyText.toLowerCase().includes(term);
 
-  return (
-    matchesSearch &&
-    (query.status === 'all' || template.status === query.status) &&
-    (query.category === 'all' || template.category === query.category)
-  );
+  return matchesSearch && (query.category === 'all' || template.category === query.category);
+}
+
+function countByStatus(templates: readonly MessageTemplate[]): TemplateStatusCounts {
+  const of = (status: MessageTemplate['status']): number =>
+    templates.filter((template) => template.status === status).length;
+
+  return {
+    total: templates.length,
+    approved: of('approved'),
+    pending: of('pending'),
+    rejected: of('rejected'),
+    paused: of('paused'),
+  };
 }
 
 /** Wraps a bare array into the paged shape the screen expects. */
@@ -59,9 +88,16 @@ function normaliseTemplatePage(
     return { ...(response as PagedResult<MessageTemplate>), pagedByServer: true };
   }
 
-  const matched = (response as readonly MessageTemplate[]).filter((template) =>
-    matchesQuery(template, query),
+  // Scoped by search and category first: that set is what the counts describe.
+  const scoped = (response as readonly MessageTemplate[]).filter((template) =>
+    matchesScope(template, query),
   );
+
+  const matched =
+    query.status === 'all'
+      ? scoped
+      : scoped.filter((template) => template.status === query.status);
+
   const start = (query.page - 1) * query.pageSize;
 
   return {
@@ -71,11 +107,30 @@ function normaliseTemplatePage(
     totalItems: matched.length,
     totalPages: Math.max(1, Math.ceil(matched.length / query.pageSize)),
     pagedByServer: false,
+    counts: countByStatus(scoped),
   };
 }
 
 export interface ConnectWhatsAppRequest {
   readonly code: string;
+  readonly wabaId: string;
+  readonly phoneNumberId: string;
+}
+
+/**
+ * Connecting with a token pasted by hand, bypassing Embedded Signup.
+ *
+ * **Platform staff only, and a testing tool rather than an onboarding route.**
+ * It exists because a Meta *test* number is already claimed inside the
+ * developer app — there is no signup flow to run against it — so this is the
+ * only way to exercise the messaging path before the app has been reviewed.
+ *
+ * A token arriving this way has come through a channel nobody audited, which is
+ * why the API restricts it to Super Admins and why tenant administrators must
+ * use Embedded Signup instead.
+ */
+export interface ManualConnectWhatsAppRequest {
+  readonly accessToken: string;
   readonly wabaId: string;
   readonly phoneNumberId: string;
 }
@@ -99,6 +154,21 @@ export class WhatsAppService {
    */
   connect(request: ConnectWhatsAppRequest): Observable<WhatsAppConnection> {
     return this.api.post<WhatsAppConnection, ConnectWhatsAppRequest>('/whatsapp/connect', request);
+  }
+
+  /**
+   * Connects using a token supplied directly. Super Admin only — the API
+   * refuses anyone else.
+   *
+   * The workspace is chosen by the scope bar: `scopeInterceptor` attaches
+   * `?adminId=` automatically, and this endpoint is one of the few writes that
+   * honours it. Nothing about the token is kept client-side.
+   */
+  connectManually(request: ManualConnectWhatsAppRequest): Observable<WhatsAppConnection> {
+    return this.api.post<WhatsAppConnection, ManualConnectWhatsAppRequest>(
+      '/whatsapp/connect/manual',
+      request,
+    );
   }
 
   /** Destroys the stored credential; reconnecting means running signup again. */

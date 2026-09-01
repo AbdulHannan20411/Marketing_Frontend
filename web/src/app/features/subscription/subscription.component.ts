@@ -5,7 +5,8 @@ import { RouterLink } from '@angular/router';
 
 import type { PaymentRequest } from '@core/models/payment-request.model';
 import { FEATURE_MODULE_LABEL, type FeatureModule } from '@core/models/permission.model';
-import type { SubscriptionStatus } from '@core/models/subscription.model';
+import type { SubscriptionSnapshot, SubscriptionStatus } from '@core/models/subscription.model';
+import { SubscriptionService } from '@core/services/subscription.service';
 import { EntitlementService, type UsageView } from '@core/services/entitlement.service';
 import { PaymentRequestService } from '@core/services/payment-request.service';
 import { RealtimeService } from '@core/services/realtime.service';
@@ -59,6 +60,7 @@ const HEADLINE_METRICS = ['contacts', 'campaigns', 'employees', 'storage'] as co
 })
 export class SubscriptionComponent {
   private readonly entitlements = inject(EntitlementService);
+  private readonly subscriptions = inject(SubscriptionService);
   private readonly payments = inject(PaymentRequestService);
   private readonly realtime = inject(RealtimeService);
 
@@ -84,8 +86,21 @@ export class SubscriptionComponent {
   protected readonly lockReason = this.entitlements.lockReason;
 
   protected readonly isLoaded = this.entitlements.isLoaded;
-  protected readonly subscription = this.entitlements.subscription;
-  protected readonly plan = this.entitlements.plan;
+
+  /**
+   * Billing detail, fetched from `GET /subscription` — the permissioned
+   * endpoint — rather than from entitlements.
+   *
+   * Entitlements deliberately carry no pricing, because every signed-in user
+   * loads them and a price on that payload would be readable by every employee
+   * in the workspace. This screen is the one place that legitimately needs the
+   * amount, the cycle and the renewal dates, and it is already behind
+   * `settings.subscription`.
+   */
+  private readonly billing = signal<SubscriptionSnapshot | null>(null);
+
+  protected readonly subscription = computed(() => this.billing()?.subscription ?? null);
+  protected readonly plan = computed(() => this.billing()?.plan ?? null);
   protected readonly usage = this.entitlements.usage;
   protected readonly daysRemaining = this.entitlements.daysRemaining;
   protected readonly isExpiringSoon = this.entitlements.isExpiringSoon;
@@ -143,15 +158,29 @@ export class SubscriptionComponent {
   });
 
   constructor() {
+    this.loadBilling();
     this.loadLatestPayment();
 
     // A decision arrives while the customer is looking at this page.
     this.realtime.paymentRequests$
       .pipe(takeUntilDestroyed())
       .subscribe(() => {
+        this.loadBilling();
         this.loadLatestPayment();
         this.entitlements.load();
       });
+  }
+
+  /**
+   * Silent on failure: entitlements already drive the lock banner and the usage
+   * bars, so a billing fetch that 403s leaves the page useful rather than
+   * replacing it with an error about a card the user may not need to see.
+   */
+  private loadBilling(): void {
+    this.subscriptions.getSnapshot().subscribe({
+      next: (snapshot) => this.billing.set(snapshot),
+      error: () => this.billing.set(null),
+    });
   }
 
   /** Withdraws the open request, freeing the workspace to submit another. */

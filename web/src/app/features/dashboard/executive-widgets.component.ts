@@ -47,7 +47,7 @@ export class ExecutiveWidgetsComponent {
 
   private readonly entitlements = inject(EntitlementService);
 
-  protected readonly plan = this.entitlements.plan;
+  protected readonly planName = this.entitlements.planName;
   protected readonly subscription = this.entitlements.subscription;
   protected readonly daysRemaining = this.entitlements.daysRemaining;
 

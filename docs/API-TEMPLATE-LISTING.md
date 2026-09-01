@@ -122,17 +122,26 @@ status changes.
 A failure here is not fatal — the client drops the badges and shows the chips unnumbered rather than
 erroring the page. But it is a cheap query and worth having.
 
+### ⚠️ Live bug — `CountTemplatesAsync` ignores the filters
+
+`WhatsAppService.CountTemplatesAsync(CancellationToken)` takes **no parameters**. It groups every
+template in the tenant by status and returns that, regardless of `search` or `category`.
+
+The symptom, reported from production: with **category = Authentication** selected and the list
+correctly empty, the chips read **All 1 · Pending 1** — the workspace's one pending *Marketing*
+template, counted under a category it does not belong to. The user reasonably reads that as the
+filter being broken.
+
+**The fix is to accept `search` and `category` and apply them to the grouped query**, exactly as §2
+describes. Status still must not be applied — that is the breakdown itself.
+
+Until then the client is no longer affected: because `GET /templates` still returns the **whole
+collection** unpaged, the client now derives the counts from that same array under the same filters
+and ignores the endpoint's answer. That is exact, not a guess. The moment `GET /templates` returns a
+real page, the client can no longer see the whole set, stops deriving counts, and goes back to
+trusting this endpoint — so **the two changes need to land together**, or the counts break again.
+
 ### ⚠️ Route ordering — this one will bite
-
-`counts` is a literal segment competing with `{id}`. Registered after it, ASP.NET binds
-`id = "counts"` and the endpoint answers **404 for a template that does not exist** rather than
-returning counts.
-
-**Register `/templates/counts` before `/templates/{id}`.** This is not hypothetical: the mock hit
-exactly this bug when the counts route was added after the id route, and it is the same collision
-`/campaigns/preview-audience` currently has on the live API.
-
-A `{id:int}` route constraint would also resolve it, if template ids are numeric server-side.
 
 ---
 
@@ -192,6 +201,10 @@ Against the mock, which filters and pages server-side exactly as this document a
 
 - 17 seeded templates, 10 per page, "Showing 1–10 of 17", "Page 1 of 2"; page 2 shows 11–17.
 - Status chips read All 17 · Approved 10 · Pending 3 · Rejected 2 · Paused 2, and sum correctly.
+- **With the mock emulating the deployed backend** — bare unpaged array, unfiltered counts —
+  selecting Authentication shows All 2 · Approved 2 · Pending 0 with two cards, and then selecting
+  Pending shows **Pending 0** beside the empty state. The endpoint's unfiltered 17/10/3/2/2 is
+  correctly ignored.
 - Filtering to a category with no pending templates shows **Pending 0**, not a stale count, and the
   chips stop claiming templates the list does not contain. Selecting that empty status shows the
   "no templates match" state beside a chip reading 0, which agree with each other.

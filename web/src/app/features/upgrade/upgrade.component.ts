@@ -45,5 +45,5 @@ export class UpgradeComponent {
     return module === null ? 'this module' : FEATURE_MODULE_LABEL[module];
   });
 
-  protected readonly planName = computed(() => this.entitlements.plan()?.name ?? null);
+  protected readonly planName = this.entitlements.planName;
 }

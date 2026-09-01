@@ -9,7 +9,12 @@ import type { NavSection } from '@core/models/navigation.model';
 export const NAVIGATION: readonly NavSection[] = [
   {
     title: null,
-    items: [{ label: 'Dashboard', route: '/dashboard', icon: 'home', permissions: [] }],
+    items: [
+      // Gated on the real permission rather than shown unconditionally. It is a
+      // floor the API grants every member, so everyone still sees it — but the
+      // sidebar now states a fact instead of making an exception.
+      { label: 'Dashboard', route: '/dashboard', icon: 'home', permissions: ['dashboard.view'] },
+    ],
   },
   {
     title: 'Audience',
@@ -118,12 +123,18 @@ export const NAVIGATION: readonly NavSection[] = [
   {
     title: null,
     items: [
-      // No permission: the route has never had a guard, and the page is now
-      // almost entirely personal — appearance, your own profile, help, and the
-      // product tour. Gating the link behind `settings.company` hid a reachable
-      // page from employees, leaving them unable to edit their own profile or
-      // restart the tour while the URL worked perfectly well if they guessed it.
-      { label: 'Settings', route: '/settings', icon: 'cog', permissions: [] },
+      // Back behind a permission — but only because personal settings are now
+      // reachable from the account menu under the avatar, which is where they
+      // conventionally live. That was the missing piece before: gating this
+      // entry used to leave an employee with no route to their own profile at
+      // all. The sidebar is for workspace features you can use; your own
+      // account is not one of them.
+      {
+        label: 'Settings',
+        route: '/settings',
+        icon: 'cog',
+        permissions: ['settings.company'],
+      },
     ],
   },
 ];

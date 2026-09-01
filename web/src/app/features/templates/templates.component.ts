@@ -164,6 +164,16 @@ export class TemplatesComponent {
           this.templates.set(result.items);
           this.totalItems.set(result.totalItems);
           this.state.set(result.totalItems === 0 ? 'empty' : 'ready');
+
+          // Counts computed alongside the list are exact, because they came
+          // from the same array under the same filters. Preferred over the
+          // endpoint, which today counts the whole workspace regardless of
+          // search or category — the cause of a chip reading "Pending 1" over
+          // an empty list.
+          if (result.counts !== undefined) {
+            this.hasExactCounts = true;
+            this.counts.set(result.counts);
+          }
         },
         error: () => this.state.set('error'),
       });
@@ -181,10 +191,23 @@ export class TemplatesComponent {
    */
   private loadCounts(): void {
     this.whatsapp.countTemplates({ search: this.search(), category: this.category() }).subscribe({
-      next: (counts) => this.counts.set(counts),
-      error: () => this.counts.set(null),
+      // Only adopted if the list did not already supply exact counts. Whichever
+      // arrives second must not overwrite a better answer.
+      next: (counts) => {
+        if (!this.hasExactCounts) {
+          this.counts.set(counts);
+        }
+      },
+      error: () => {
+        if (!this.hasExactCounts) {
+          this.counts.set(null);
+        }
+      },
     });
   }
+
+  /** True once a list response has supplied counts derived from the full set. */
+  private hasExactCounts = false;
 
   protected sync(): void {
     this.syncing.set(true);

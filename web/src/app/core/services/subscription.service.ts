@@ -6,6 +6,7 @@ import type {
   BillingHistory,
   BillingProfile,
   CancelSubscriptionRequest,
+  EntitlementSnapshot,
   ChangePlanRequest,
   Invoice,
   PaymentMethod,
@@ -35,6 +36,18 @@ export class SubscriptionService {
       '/subscription/change-plan',
       request,
     );
+  }
+
+  /**
+   * What the plan allows, without the billing detail.
+   *
+   * Separate from `getSnapshot()` because this one needs no permission: the
+   * shell loads it for every user on every page, and gating it behind
+   * `settings.subscription` gave employees a 403 on every page load and left
+   * every plan-gated feature falling back to its unknown state.
+   */
+  getEntitlements(): Observable<EntitlementSnapshot> {
+    return this.api.get<EntitlementSnapshot>('/subscription/entitlements');
   }
 
   cancel(request: CancelSubscriptionRequest = {}): Observable<SubscriptionSnapshot> {

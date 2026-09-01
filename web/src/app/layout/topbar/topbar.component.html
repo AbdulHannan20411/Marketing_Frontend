@@ -186,7 +186,7 @@
           </div>
         </div>
 
-        @if (showBillingLinks() && planName() !== null) {
+        @if (canSeeSubscription() && planName() !== null) {
           <a
             routerLink="/subscription"
             class="flex items-center justify-between gap-2 border-b border-line px-4 py-2.5 transition-colors hover:bg-surface-muted"
@@ -201,7 +201,7 @@
         }
 
         <div class="p-1.5">
-          @if (showBillingLinks()) {
+          @if (canSeeSubscription()) {
             <a
               routerLink="/subscription"
               role="menuitem"
@@ -211,6 +211,8 @@
               <app-icon name="sparkles" [size]="17" />
               Subscription & usage
             </a>
+          }
+          @if (canSeeBilling()) {
             <a
               routerLink="/billing"
               role="menuitem"
@@ -228,7 +230,7 @@
             (click)="closeMenus()"
           >
             <app-icon name="cog" [size]="17" />
-            Workspace settings
+            Settings
           </a>
           <button
             type="button"

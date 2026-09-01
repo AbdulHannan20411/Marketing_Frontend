@@ -27,7 +27,7 @@
           </div>
 
           <p class="mt-1.5 truncate text-lg font-semibold text-ink">
-            {{ plan()?.name ?? 'No plan' }}
+            {{ planName() ?? 'No plan' }}
           </p>
           <p class="mt-0.5 text-xs text-ink-muted">
             {{ daysRemaining() }} days until renewal

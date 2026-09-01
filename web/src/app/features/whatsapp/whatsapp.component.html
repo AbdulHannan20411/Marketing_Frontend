@@ -255,6 +255,44 @@
   </app-card>
   }
 
+  <!-- Staff-only. Deliberately below the signup card and visually quieter: this
+       is a testing tool for Meta's test number, not a second way to onboard. -->
+  @if (canConnectManually()) {
+    <app-card class="mt-4 block" [padded]="false">
+      <div class="flex flex-wrap items-start gap-3 border-l-2 border-warning p-5">
+        <app-icon name="key" [size]="18" class="mt-px shrink-0 text-warning" />
+        <div class="min-w-0 flex-1">
+          <h2 class="text-sm font-semibold text-ink">Connect with a token (platform staff)</h2>
+          <p class="mt-1 max-w-2xl text-sm leading-relaxed text-ink-soft">
+            For Meta's <span class="font-medium text-ink">test number</span>, which is already
+            claimed inside the developer app and has no signup flow to run. Customers onboard
+            through Meta signup above.
+          </p>
+          @if (hasScope()) {
+            <p class="mt-1.5 text-xs text-ink-muted">
+              Connects into
+              <span class="font-medium text-ink">{{ scopedAdmin()?.name }}</span>.
+            </p>
+          } @else {
+            <p class="mt-1.5 flex items-center gap-1.5 text-xs text-warning">
+              <app-icon name="warning" [size]="13" />
+              Choose an admin in the scope bar first — there is no workspace to connect into.
+            </p>
+          }
+        </div>
+        <button
+          appButton
+          variant="outline"
+          size="sm"
+          [disabled]="!hasScope()"
+          (click)="openManual()"
+        >
+          Connect with token
+        </button>
+      </div>
+    </app-card>
+  }
+
   <!-- Disconnecting stops every campaign from sending, so it is confirmed. -->
   @if (disconnecting()) {
     <app-modal
@@ -276,4 +314,78 @@
       </ng-container>
     </app-modal>
   }
+}
+@if (manualOpen()) {
+  <app-modal
+    title="Connect with a token"
+    subtitle="Platform staff only. Use this for Meta test numbers."
+    size="md"
+    (closed)="closeManual()"
+  >
+    <form [formGroup]="manualForm" class="space-y-4">
+      <div>
+        <label for="manual-token" class="block text-sm font-medium text-ink">Access token</label>
+        <input
+          id="manual-token"
+          type="password"
+          autocomplete="off"
+          spellcheck="false"
+          formControlName="accessToken"
+          placeholder="EAAN…"
+          class="mt-1.5 h-10 w-full rounded-lg border-0 bg-surface-sunken px-3 font-mono text-sm text-ink ring-1 ring-line ring-inset transition-all focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
+        />
+        <p class="mt-1.5 text-xs text-ink-muted">
+          Sent straight to the server and never stored in this browser. Masked because it is a
+          credential, and screens get shared.
+        </p>
+      </div>
+
+      <div class="grid gap-4 sm:grid-cols-2">
+        <div>
+          <label for="manual-waba" class="block text-sm font-medium text-ink">
+            WhatsApp Business account ID
+          </label>
+          <input
+            id="manual-waba"
+            type="text"
+            autocomplete="off"
+            spellcheck="false"
+            formControlName="wabaId"
+            class="mt-1.5 h-10 w-full rounded-lg border-0 bg-surface-sunken px-3 font-mono text-sm text-ink ring-1 ring-line ring-inset transition-all focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
+          />
+        </div>
+        <div>
+          <label for="manual-phone" class="block text-sm font-medium text-ink">
+            Phone number ID
+          </label>
+          <input
+            id="manual-phone"
+            type="text"
+            autocomplete="off"
+            spellcheck="false"
+            formControlName="phoneNumberId"
+            class="mt-1.5 h-10 w-full rounded-lg border-0 bg-surface-sunken px-3 font-mono text-sm text-ink ring-1 ring-line ring-inset transition-all focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
+          />
+        </div>
+      </div>
+
+      <p class="rounded-lg bg-surface-sunken p-3 text-xs leading-relaxed text-ink-soft ring-1 ring-line">
+        A test number only reaches recipients you have added to the allow-list in the Meta
+        dashboard, and its token expires after 24 hours — you will be back here tomorrow. It proves
+        the send path works; it will not demonstrate a campaign to a real audience.
+      </p>
+    </form>
+
+    <ng-container modalFooter>
+      <button appButton variant="ghost" size="md" (click)="closeManual()">Cancel</button>
+      <button
+        appButton
+        size="md"
+        [disabled]="manualForm.invalid || connectingManually()"
+        (click)="submitManual()"
+      >
+        {{ connectingManually() ? 'Connecting…' : 'Connect' }}
+      </button>
+    </ng-container>
+  </app-modal>
 }
