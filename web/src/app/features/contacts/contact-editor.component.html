@@ -1,6 +1,9 @@
 <app-modal
-  title="Add contact"
-  subtitle="Creates one contact in this workspace."
+   [title]="isEditMode() ? 'Edit contact' : 'Add contact'"
+  [subtitle]="
+    isEditMode()
+      ? 'Update this contact in your workspace.'
+      : 'Creates one contact in this workspace.' "
   size="lg"
   (closed)="cancel.emit()"
 >
@@ -188,7 +191,6 @@
     <button appButton variant="ghost" size="md" (click)="cancel.emit()">Cancel</button>
     <button appButton size="md" [disabled]="invalid() || saving()" (click)="submit()">
       <app-icon name="checkCircle" [size]="16" [class.animate-spin]="saving()" />
-      {{ saving() ? 'Saving…' : 'Add contact' }}
-    </button>
+{{ saving() ? 'Saving…' : isEditMode() ? 'Save changes' : 'Add contact' }}    </button>
   </ng-container>
 </app-modal>

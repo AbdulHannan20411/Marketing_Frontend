@@ -1,9 +1,18 @@
 <app-page-header
   title="Contacts"
   description="Everyone you can reach on WhatsApp, with opt-in status and engagement history."
-  [breadcrumbs]="[{ label: 'Home', route: '/dashboard' }, { label: 'Contacts', route: null }]"
+  [breadcrumbs]="[
+    { label: 'Home', route: '/dashboard' },
+    { label: 'Contacts', route: null },
+  ]"
 >
-  <button appButton variant="outline" size="md" [disabled]="busy()" (click)="exportCsv()">
+  <button
+    appButton
+    variant="outline"
+    size="md"
+    [disabled]="busy()"
+    (click)="exportCsv()"
+  >
     <app-icon name="download" [size]="16" />
     Export
   </button>
@@ -41,7 +50,11 @@
           role="radio"
           [attr.aria-checked]="bulkMode() === 'add'"
           class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors duration-150"
-          [class]="bulkMode() === 'add' ? 'bg-brand-600 text-white' : 'text-ink-soft hover:bg-surface-muted'"
+          [class]="
+            bulkMode() === 'add'
+              ? 'bg-brand-600 text-white'
+              : 'text-ink-soft hover:bg-surface-muted'
+          "
           (click)="bulkMode.set('add')"
         >
           Add
@@ -51,7 +64,11 @@
           role="radio"
           [attr.aria-checked]="bulkMode() === 'remove'"
           class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors duration-150"
-          [class]="bulkMode() === 'remove' ? 'bg-brand-600 text-white' : 'text-ink-soft hover:bg-surface-muted'"
+          [class]="
+            bulkMode() === 'remove'
+              ? 'bg-brand-600 text-white'
+              : 'text-ink-soft hover:bg-surface-muted'
+          "
           (click)="bulkMode.set('remove')"
         >
           Remove
@@ -63,15 +80,18 @@
       <select
         id="bulk-tag"
         [disabled]="busy() || tagPickerEmpty()"
-        (change)="bulkApplyTag($any($event.target).value); $any($event.target).value = ''"
+        (change)="
+          bulkApplyTag($any($event.target).value);
+          $any($event.target).value = ''
+        "
         class="h-8 rounded-lg border-0 bg-surface px-2.5 text-xs text-ink-soft ring-1 ring-brand-200 ring-inset focus:ring-2 focus:ring-brand-500 focus:outline-none disabled:opacity-50"
       >
         <option value="" selected>
           {{
             tagPickerEmpty()
-              ? bulkMode() === 'remove'
-                ? 'No tags to remove'
-                : 'All tags applied'
+              ? bulkMode() === "remove"
+                ? "No tags to remove"
+                : "All tags applied"
               : tagPickerLabel()
           }}
         </option>
@@ -84,15 +104,18 @@
       <select
         id="bulk-group"
         [disabled]="busy() || groupPickerEmpty()"
-        (change)="bulkApplyGroup($any($event.target).value); $any($event.target).value = ''"
+        (change)="
+          bulkApplyGroup($any($event.target).value);
+          $any($event.target).value = ''
+        "
         class="h-8 rounded-lg border-0 bg-surface px-2.5 text-xs text-ink-soft ring-1 ring-brand-200 ring-inset focus:ring-2 focus:ring-brand-500 focus:outline-none disabled:opacity-50"
       >
         <option value="" selected>
           {{
             groupPickerEmpty()
-              ? bulkMode() === 'remove'
-                ? 'Not in any group'
-                : 'In every group'
+              ? bulkMode() === "remove"
+                ? "Not in any group"
+                : "In every group"
               : groupPickerLabel()
           }}
         </option>
@@ -101,11 +124,29 @@
         }
       </select>
 
-      <button appButton variant="danger" size="sm" [disabled]="busy()" (click)="bulkDelete()">
+      <button
+        appButton
+        variant="danger"
+        size="sm"
+        [disabled]="busy()"
+        (click)="bulkDelete()"
+      >
         <app-icon name="trash" [size]="15" />
         Delete
       </button>
-      <button appButton variant="ghost" size="sm" (click)="clearSelection()">Clear</button>
+      <button appButton variant="ghost" size="sm" (click)="clearSelection()">
+        Clear
+      </button>
+      <button
+        appButton
+        variant="outline"
+        size="sm"
+        [disabled]="selectedCount() !== 1 || busy() || saving()"
+        (click)="openEdit()"
+      >
+        <app-icon name="tag" [size]="15" />
+        Edit
+      </button>
     </div>
   </div>
 }
@@ -196,7 +237,9 @@
 
   <div tableEmptyAction class="flex flex-wrap justify-center gap-2">
     @if (hasFilters()) {
-      <button appButton variant="outline" size="sm" (click)="clearFilters()">Clear filters</button>
+      <button appButton variant="outline" size="sm" (click)="clearFilters()">
+        Clear filters
+      </button>
     }
     @if (canCreate()) {
       <button appButton size="sm" (click)="openCreate()">
@@ -220,15 +263,25 @@
 
     <td class="px-4 py-3">
       <div class="flex items-center gap-3">
-        <app-avatar [name]="contact.fullName" [initials]="contact.initials" size="sm" />
+        <app-avatar
+          [name]="contact.fullName"
+          [initials]="contact.initials"
+          size="sm"
+        />
         <div class="min-w-0">
-          <p class="truncate text-sm font-medium text-ink">{{ contact.fullName }}</p>
-          <p class="truncate text-xs text-ink-muted">{{ contact.email ?? contact.phoneNumber }}</p>
+          <p class="truncate text-sm font-medium text-ink">
+            {{ contact.fullName }}
+          </p>
+          <p class="truncate text-xs text-ink-muted">
+            {{ contact.email ?? contact.phoneNumber }}
+          </p>
         </div>
       </div>
     </td>
 
-    <td class="hidden px-4 py-3 text-sm whitespace-nowrap text-ink-soft tabular-nums md:table-cell">
+    <td
+      class="hidden px-4 py-3 text-sm whitespace-nowrap text-ink-soft tabular-nums md:table-cell"
+    >
       {{ contact.phoneNumber }}
       <!-- Stored in national format, so it will never deliver. Flagged rather
            than rewritten: silently editing stored phone numbers is not
@@ -244,7 +297,9 @@
       }
     </td>
 
-    <td class="hidden px-4 py-3 text-sm whitespace-nowrap text-ink-soft md:table-cell">
+    <td
+      class="hidden px-4 py-3 text-sm whitespace-nowrap text-ink-soft md:table-cell"
+    >
       {{ contact.country }}
     </td>
 
@@ -295,7 +350,9 @@
     </td>
 
     <td class="px-4 py-3">
-      <app-badge [tone]="statusTone[contact.status]" [dot]="true">{{ contact.status }}</app-badge>
+      <app-badge [tone]="statusTone[contact.status]" [dot]="true">{{
+        contact.status
+      }}</app-badge>
     </td>
 
     <td
@@ -314,5 +371,16 @@
     [fieldErrors]="createFieldErrors()"
     (save)="createContact($event)"
     (cancel)="closeCreate()"
+  />
+}
+@if (editing() && editingContact(); as contact) {
+  <app-contact-editor
+    [contact]="contact"
+    [groups]="groups()"
+    [tags]="tags()"
+    [saving]="saving()"
+    [fieldErrors]="editFieldErrors()"
+    (save)="updateContact($event)"
+    (cancel)="closeEdit()"
   />
 }

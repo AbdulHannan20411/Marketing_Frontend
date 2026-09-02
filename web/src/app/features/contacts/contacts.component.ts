@@ -1,10 +1,20 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { Subject, debounceTime, distinctUntilChanged } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
 
-import type { ApiError, BulkOperationResult, LoadState } from '@core/models/api.model';
+import type {
+  ApiError,
+  BulkOperationResult,
+  LoadState,
+} from '@core/models/api.model';
 import { AuthService } from '@core/auth/auth.service';
 import type {
   BulkMode,
@@ -13,13 +23,20 @@ import type {
   ContactStatus,
   ContactTag,
   CreateContactRequest,
+  UpdateContactRequest,
 } from '@core/models/contact.model';
-import { NATIONAL_FORMAT_WARNING, isStoredNonInternational } from '@core/models/phone.model';
+import {
+  NATIONAL_FORMAT_WARNING,
+  isStoredNonInternational,
+} from '@core/models/phone.model';
 import { ContactsService } from '@core/services/contacts.service';
 import { ToastService } from '@core/services/toast.service';
 import { TimeAgoPipe } from '@shared/pipes/time-ago.pipe';
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
-import { BadgeComponent, type BadgeTone } from '@shared/ui/badge/badge.component';
+import {
+  BadgeComponent,
+  type BadgeTone,
+} from '@shared/ui/badge/badge.component';
 import { ButtonDirective } from '@shared/ui/button/button.directive';
 import {
   DataTableComponent,
@@ -36,8 +53,6 @@ const STATUS_TONE: Readonly<Record<ContactStatus, BadgeTone>> = {
   unsubscribed: 'neutral',
   blocked: 'danger',
 };
-
-
 
 @Component({
   selector: 'app-contacts',
@@ -86,6 +101,22 @@ export class ContactsComponent {
   protected readonly status = signal<ContactStatus | 'all'>('all');
   protected readonly groupId = signal<string | 'all'>('all');
   protected readonly tagId = signal<string | 'all'>('all');
+
+  protected readonly creating = signal(false);
+  protected readonly editing = signal(false);
+
+  protected readonly editingContact = signal<Contact | null>(null);
+
+  protected readonly saving = signal(false);
+
+  protected readonly createFieldErrors = signal<
+    Readonly<Record<string, readonly string[]>>
+  >({});
+
+  protected readonly editFieldErrors = signal<
+    Readonly<Record<string, readonly string[]>>
+  >({});
+
   /**
    * Selected rows, keyed by id and holding the whole contact.
    *
@@ -107,12 +138,10 @@ export class ContactsComponent {
     this.bulkMode() === 'add' ? 'Add to group…' : 'Remove from group…',
   );
 
-  protected readonly creating = signal(false);
-  protected readonly saving = signal(false);
-  protected readonly createFieldErrors = signal<Readonly<Record<string, readonly string[]>>>({});
-
   /** The API rejects a create the user lacks the permission for; hide the button too. */
-  protected readonly canCreate = computed(() => this.auth.hasPermission('contacts.create'));
+  protected readonly canCreate = computed(() =>
+    this.auth.hasPermission('contacts.create'),
+  );
 
   protected readonly pageSize = signal(DEFAULT_PAGE_SIZE);
   protected readonly statusTone = STATUS_TONE;
@@ -124,7 +153,12 @@ export class ContactsComponent {
     { key: 'country', header: 'Country', hideOnMobile: true },
     { key: 'tags', header: 'Tags', hideOnMobile: true },
     { key: 'status', header: 'Status' },
-    { key: 'lastMessaged', header: 'Last messaged', align: 'right', hideOnMobile: true },
+    {
+      key: 'lastMessaged',
+      header: 'Last messaged',
+      align: 'right',
+      hideOnMobile: true,
+    },
   ];
 
   protected readonly selectedCount = computed(() => this.selected().size);
@@ -148,8 +182,12 @@ export class ContactsComponent {
       return all;
     }
     return this.bulkMode() === 'remove'
-      ? all.filter((tag) => rows.some((contact) => contact.tagIds.includes(tag.id)))
-      : all.filter((tag) => rows.some((contact) => !contact.tagIds.includes(tag.id)));
+      ? all.filter((tag) =>
+          rows.some((contact) => contact.tagIds.includes(tag.id)),
+        )
+      : all.filter((tag) =>
+          rows.some((contact) => !contact.tagIds.includes(tag.id)),
+        );
   });
 
   protected readonly groupOptions = computed(() => {
@@ -159,12 +197,20 @@ export class ContactsComponent {
       return all;
     }
     return this.bulkMode() === 'remove'
-      ? all.filter((group) => rows.some((contact) => contact.groupIds.includes(group.id)))
-      : all.filter((group) => rows.some((contact) => !contact.groupIds.includes(group.id)));
+      ? all.filter((group) =>
+          rows.some((contact) => contact.groupIds.includes(group.id)),
+        )
+      : all.filter((group) =>
+          rows.some((contact) => !contact.groupIds.includes(group.id)),
+        );
   });
 
-  protected readonly tagPickerEmpty = computed(() => this.tagOptions().length === 0);
-  protected readonly groupPickerEmpty = computed(() => this.groupOptions().length === 0);
+  protected readonly tagPickerEmpty = computed(
+    () => this.tagOptions().length === 0,
+  );
+  protected readonly groupPickerEmpty = computed(
+    () => this.groupOptions().length === 0,
+  );
 
   protected readonly hasFilters = computed(
     () =>
@@ -191,8 +237,12 @@ export class ContactsComponent {
         this.load();
       });
 
-    this.contactsService.listGroups().subscribe({ next: (groups) => this.groups.set(groups) });
-    this.contactsService.listTags().subscribe({ next: (tags) => this.tags.set(tags) });
+    this.contactsService
+      .listGroups()
+      .subscribe({ next: (groups) => this.groups.set(groups) });
+    this.contactsService
+      .listTags()
+      .subscribe({ next: (tags) => this.tags.set(tags) });
     this.load();
   }
 
@@ -223,7 +273,9 @@ export class ContactsComponent {
   }
 
   protected onStatusChange(event: Event): void {
-    this.status.set((event.target as HTMLSelectElement).value as ContactStatus | 'all');
+    this.status.set(
+      (event.target as HTMLSelectElement).value as ContactStatus | 'all',
+    );
     this.page.set(1);
     this.load();
   }
@@ -292,6 +344,48 @@ export class ContactsComponent {
     this.selected.set(new Map());
   }
 
+  protected updateContact(request: UpdateContactRequest): void {
+    if (this.saving()) {
+      return;
+    }
+
+    const contact = this.editingContact();
+
+    if (!contact) {
+      return;
+    }
+
+    this.saving.set(true);
+    this.editFieldErrors.set({});
+
+    this.contactsService.update(contact.id, request).subscribe({
+      next: (updatedContact) => {
+        this.saving.set(false);
+        this.editing.set(false);
+        this.editingContact.set(null);
+
+        this.toast.success(
+          'Contact updated',
+          `${updatedContact.fullName} has been updated.`,
+        );
+
+        this.clearSelection();
+        this.load();
+      },
+
+      error: (error: ApiError) => {
+        this.saving.set(false);
+
+        if (Object.keys(error.fieldErrors).length > 0) {
+          this.editFieldErrors.set(error.fieldErrors);
+          return;
+        }
+
+        this.toast.error(error.title, error.detail);
+      },
+    });
+  }
+
   protected isSelected(id: string): boolean {
     return this.selected().has(id);
   }
@@ -336,7 +430,10 @@ export class ContactsComponent {
 
   private failBulk(action: string): void {
     this.busy.set(false);
-    this.toast.error(`Could not ${action}`, 'The request failed. Please try again.');
+    this.toast.error(
+      `Could not ${action}`,
+      'The request failed. Please try again.',
+    );
   }
 
   protected bulkDelete(): void {
@@ -366,8 +463,12 @@ export class ContactsComponent {
 
     this.contactsService.bulkTag({ ids, tagIds: [tagId], mode }).subscribe({
       next: (result) =>
-        this.applyBulkResult(result, mode === 'add' ? 'Tag added' : 'Tag removed'),
-      error: () => this.failBulk(mode === 'add' ? 'add the tag' : 'remove the tag'),
+        this.applyBulkResult(
+          result,
+          mode === 'add' ? 'Tag added' : 'Tag removed',
+        ),
+      error: () =>
+        this.failBulk(mode === 'add' ? 'add the tag' : 'remove the tag'),
     });
   }
 
@@ -379,14 +480,19 @@ export class ContactsComponent {
     this.busy.set(true);
     const mode = this.bulkMode();
 
-    this.contactsService.bulkGroup({ ids, groupIds: [groupId], mode }).subscribe({
-      next: (result) =>
-        this.applyBulkResult(
-          result,
-          mode === 'add' ? 'Added to group' : 'Removed from group',
-        ),
-      error: () => this.failBulk(mode === 'add' ? 'assign the group' : 'remove from the group'),
-    });
+    this.contactsService
+      .bulkGroup({ ids, groupIds: [groupId], mode })
+      .subscribe({
+        next: (result) =>
+          this.applyBulkResult(
+            result,
+            mode === 'add' ? 'Added to group' : 'Removed from group',
+          ),
+        error: () =>
+          this.failBulk(
+            mode === 'add' ? 'assign the group' : 'remove from the group',
+          ),
+      });
   }
 
   /** Exports the current filter, or just the selection when rows are ticked. */
@@ -441,7 +547,10 @@ export class ContactsComponent {
       next: (contact) => {
         this.saving.set(false);
         this.creating.set(false);
-        this.toast.success('Contact added', `${contact.fullName} is now in your audience.`);
+        this.toast.success(
+          'Contact added',
+          `${contact.fullName} is now in your audience.`,
+        );
         // Show the newcomer rather than leaving the user on a stale page.
         this.page.set(1);
         this.load();
@@ -458,5 +567,25 @@ export class ContactsComponent {
         this.toast.error(error.title, error.detail);
       },
     });
+  }
+
+  /* ------------------------------ edit ------------------------------ */
+
+  protected openEdit(): void {
+    const contacts = this.selectedList();
+
+    if (contacts.length !== 1 || this.saving()) {
+      return;
+    }
+
+    this.editFieldErrors.set({});
+    this.editingContact.set(contacts[0]);
+    this.editing.set(true);
+  }
+
+  protected closeEdit(): void {
+    this.editing.set(false);
+    this.editingContact.set(null);
+    this.editFieldErrors.set({});
   }
 }

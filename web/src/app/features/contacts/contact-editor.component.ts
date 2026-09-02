@@ -1,4 +1,12 @@
-import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  input,
+  output,
+  signal,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
 import {
@@ -13,10 +21,11 @@ import {
   toInternational,
 } from '@core/models/phone.model';
 import type {
+  Contact,
   ContactGroup,
   ContactStatus,
   ContactTag,
-  CreateContactRequest,
+  CreateContactRequest
 } from '@core/models/contact.model';
 import { ButtonDirective } from '@shared/ui/button/button.directive';
 import { IconComponent } from '@shared/ui/icon/icon.component';
@@ -28,10 +37,26 @@ import { ModalComponent } from '@shared/ui/modal/modal.component';
  * infer it from the dialling prefix, which is right far more often than not.
  */
 
-const STATUSES: readonly { value: ContactStatus; label: string; hint: string }[] = [
-  { value: 'subscribed', label: 'Subscribed', hint: 'Consented — can be messaged.' },
-  { value: 'unsubscribed', label: 'Unsubscribed', hint: 'Opted out; excluded from campaigns.' },
-  { value: 'blocked', label: 'Blocked', hint: 'Never messaged. Needs a fresh opt-in to undo.' },
+const STATUSES: readonly {
+  value: ContactStatus;
+  label: string;
+  hint: string;
+}[] = [
+  {
+    value: 'subscribed',
+    label: 'Subscribed',
+    hint: 'Consented — can be messaged.',
+  },
+  {
+    value: 'unsubscribed',
+    label: 'Unsubscribed',
+    hint: 'Opted out; excluded from campaigns.',
+  },
+  {
+    value: 'blocked',
+    label: 'Blocked',
+    hint: 'Never messaged. Needs a fresh opt-in to undo.',
+  },
 ];
 
 /** Create a single contact. Mirrors the API's validation so failures are rare. */
@@ -42,9 +67,34 @@ const STATUSES: readonly { value: ContactStatus; label: string; hint: string }[]
   templateUrl: './contact-editor.component.html',
 })
 export class ContactEditorComponent {
+  
+  constructor() {
+      console.log('🔥 ContactEditorComponent CREATED');
+
+  effect(() => {
+    const contact = this.contact();
+
+    console.log('Honey Log:', contact);
+
+    if (!contact) {
+      return;
+    }
+
+    this.fullName.set(contact.fullName);
+    this.phoneNumber.set(contact.phoneNumber);
+    this.email.set(contact.email ?? '');
+    this.country.set(contact.country ?? '');
+    this.status.set(contact.status);
+    this.selectedTags.set(new Set(contact.tagIds));
+    this.selectedGroups.set(new Set(contact.groupIds));
+  });
+}
+
   readonly groups = input.required<readonly ContactGroup[]>();
   readonly tags = input.required<readonly ContactTag[]>();
   readonly saving = input(false);
+  readonly contact = input<Contact | null>(null);
+
   /** Field errors from a 422, keyed by field name. */
   readonly fieldErrors = input<Readonly<Record<string, readonly string[]>>>({});
 
@@ -69,22 +119,32 @@ export class ContactEditorComponent {
     return value.length === 0 || value.length > 120;
   });
 
+  protected readonly isEditMode = computed(() => this.contact() !== null);
+
   /**
    * Deliberately permissive about *shape*: the server owns real E.164 parsing,
    * and reformatting as somebody types fights the paste from their phone.
    */
-  protected readonly phoneInvalid = computed(() => !hasEnoughDigits(this.phoneNumber()));
+  protected readonly phoneInvalid = computed(
+    () => !hasEnoughDigits(this.phoneNumber()),
+  );
 
   protected readonly minDigits = MIN_PHONE_DIGITS;
   protected readonly nationalWarning = NATIONAL_FORMAT_WARNING;
 
   /** A leading zero is a national trunk prefix — see `phone.model.ts`. */
-  protected readonly isNational = computed(() => looksNational(this.phoneNumber()));
+  protected readonly isNational = computed(() =>
+    looksNational(this.phoneNumber()),
+  );
 
   /** `00…` already carries its country code, so no country is needed to expand it. */
-  protected readonly isExitPrefixed = computed(() => hasExitPrefix(this.phoneNumber()));
+  protected readonly isExitPrefixed = computed(() =>
+    hasExitPrefix(this.phoneNumber()),
+  );
 
-  protected readonly countryKnown = computed(() => findCountry(this.country()) !== null);
+  protected readonly countryKnown = computed(
+    () => findCountry(this.country()) !== null,
+  );
 
   /**
    * The only case the API refuses outright: a national number it cannot expand.
@@ -92,7 +152,10 @@ export class ContactEditorComponent {
    * user can see and fix immediately.
    */
   protected readonly countryRequired = computed(
-    () => this.isNational() && !this.isExitPrefixed() && this.country().trim() === '',
+    () =>
+      this.isNational() &&
+      !this.isExitPrefixed() &&
+      this.country().trim() === '',
   );
 
   /**
@@ -118,7 +181,10 @@ export class ContactEditorComponent {
 
   protected readonly invalid = computed(
     () =>
-      this.nameInvalid() || this.phoneInvalid() || this.emailInvalid() || this.countryRequired(),
+      this.nameInvalid() ||
+      this.phoneInvalid() ||
+      this.emailInvalid() ||
+      this.countryRequired(),
   );
 
   protected errorFor(field: string): string | null {
