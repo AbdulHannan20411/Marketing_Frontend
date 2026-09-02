@@ -1,6 +1,17 @@
 import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
+import {
+  DIALLING_COUNTRIES,
+  MIN_PHONE_DIGITS,
+  NATIONAL_FORMAT_WARNING,
+  findCountry,
+  hasExitPrefix,
+  formatInternational,
+  hasEnoughDigits,
+  looksNational,
+  toInternational,
+} from '@core/models/phone.model';
 import type {
   ContactGroup,
   ContactStatus,
@@ -16,32 +27,6 @@ import { ModalComponent } from '@shared/ui/modal/modal.component';
  * display name, so the value must be the code. Leaving it blank lets the server
  * infer it from the dialling prefix, which is right far more often than not.
  */
-const COUNTRIES: readonly { code: string; name: string }[] = [
-  { code: 'GB', name: 'United Kingdom' },
-  { code: 'US', name: 'United States' },
-  { code: 'IE', name: 'Ireland' },
-  { code: 'DE', name: 'Germany' },
-  { code: 'FR', name: 'France' },
-  { code: 'ES', name: 'Spain' },
-  { code: 'IT', name: 'Italy' },
-  { code: 'NL', name: 'Netherlands' },
-  { code: 'PT', name: 'Portugal' },
-  { code: 'PL', name: 'Poland' },
-  { code: 'AE', name: 'United Arab Emirates' },
-  { code: 'SA', name: 'Saudi Arabia' },
-  { code: 'PK', name: 'Pakistan' },
-  { code: 'IN', name: 'India' },
-  { code: 'BD', name: 'Bangladesh' },
-  { code: 'NG', name: 'Nigeria' },
-  { code: 'ZA', name: 'South Africa' },
-  { code: 'KE', name: 'Kenya' },
-  { code: 'BR', name: 'Brazil' },
-  { code: 'MX', name: 'Mexico' },
-  { code: 'CA', name: 'Canada' },
-  { code: 'AU', name: 'Australia' },
-  { code: 'SG', name: 'Singapore' },
-  { code: 'MY', name: 'Malaysia' },
-];
 
 const STATUSES: readonly { value: ContactStatus; label: string; hint: string }[] = [
   { value: 'subscribed', label: 'Subscribed', hint: 'Consented — can be messaged.' },
@@ -66,7 +51,9 @@ export class ContactEditorComponent {
   readonly save = output<CreateContactRequest>();
   readonly cancel = output<void>();
 
-  protected readonly countries = COUNTRIES;
+  // One list, shared with the phone model, so every selectable country is
+  // guaranteed to have a dialling code and the preview can always resolve.
+  protected readonly countries = DIALLING_COUNTRIES;
   protected readonly statuses = STATUSES;
 
   protected readonly fullName = signal('');
@@ -82,10 +69,46 @@ export class ContactEditorComponent {
     return value.length === 0 || value.length > 120;
   });
 
-  /** Deliberately permissive: the server owns real E.164 parsing. */
-  protected readonly phoneInvalid = computed(() => {
-    const digits = this.phoneNumber().replace(/[^\d]/g, '');
-    return digits.length < 6;
+  /**
+   * Deliberately permissive about *shape*: the server owns real E.164 parsing,
+   * and reformatting as somebody types fights the paste from their phone.
+   */
+  protected readonly phoneInvalid = computed(() => !hasEnoughDigits(this.phoneNumber()));
+
+  protected readonly minDigits = MIN_PHONE_DIGITS;
+  protected readonly nationalWarning = NATIONAL_FORMAT_WARNING;
+
+  /** A leading zero is a national trunk prefix — see `phone.model.ts`. */
+  protected readonly isNational = computed(() => looksNational(this.phoneNumber()));
+
+  /** `00…` already carries its country code, so no country is needed to expand it. */
+  protected readonly isExitPrefixed = computed(() => hasExitPrefix(this.phoneNumber()));
+
+  protected readonly countryKnown = computed(() => findCountry(this.country()) !== null);
+
+  /**
+   * The only case the API refuses outright: a national number it cannot expand.
+   * Blocking here saves a round trip and a field-level error for something the
+   * user can see and fix immediately.
+   */
+  protected readonly countryRequired = computed(
+    () => this.isNational() && !this.isExitPrefixed() && this.country().trim() === '',
+  );
+
+  /**
+   * What will actually be stored.
+   *
+   * The single highest-value thing on this form: the number typed and the
+   * number messaged are different, and showing the conversion makes that
+   * visible rather than surprising. It also catches a wrong country instantly —
+   * the preview shows a prefix the user does not recognise.
+   */
+  protected readonly savedAsPreview = computed(() => {
+    if (!this.isNational() || !hasEnoughDigits(this.phoneNumber())) {
+      return null;
+    }
+    const converted = toInternational(this.phoneNumber(), this.country());
+    return converted === null ? null : formatInternational(converted);
   });
 
   protected readonly emailInvalid = computed(() => {
@@ -94,7 +117,8 @@ export class ContactEditorComponent {
   });
 
   protected readonly invalid = computed(
-    () => this.nameInvalid() || this.phoneInvalid() || this.emailInvalid(),
+    () =>
+      this.nameInvalid() || this.phoneInvalid() || this.emailInvalid() || this.countryRequired(),
   );
 
   protected errorFor(field: string): string | null {

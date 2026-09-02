@@ -230,6 +230,18 @@
 
     <td class="hidden px-4 py-3 text-sm whitespace-nowrap text-ink-soft tabular-nums md:table-cell">
       {{ contact.phoneNumber }}
+      <!-- Stored in national format, so it will never deliver. Flagged rather
+           than rewritten: silently editing stored phone numbers is not
+           something to do without a person looking at it. -->
+      @if (isNonInternational(contact)) {
+        <span
+          class="ml-1.5 inline-flex items-center gap-1 rounded-full bg-amber-50 px-1.5 py-0.5 text-[11px] font-medium text-amber-700 ring-1 ring-amber-200"
+          [title]="nationalWarning"
+        >
+          <app-icon name="warning" [size]="11" />
+          Not deliverable
+        </span>
+      }
     </td>
 
     <td class="hidden px-4 py-3 text-sm whitespace-nowrap text-ink-soft md:table-cell">

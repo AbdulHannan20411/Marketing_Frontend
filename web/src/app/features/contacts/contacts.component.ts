@@ -14,6 +14,7 @@ import type {
   ContactTag,
   CreateContactRequest,
 } from '@core/models/contact.model';
+import { NATIONAL_FORMAT_WARNING, isStoredNonInternational } from '@core/models/phone.model';
 import { ContactsService } from '@core/services/contacts.service';
 import { ToastService } from '@core/services/toast.service';
 import { TimeAgoPipe } from '@shared/pipes/time-ago.pipe';
@@ -64,6 +65,19 @@ export class ContactsComponent {
 
   protected readonly state = signal<LoadState>('loading');
   protected readonly contacts = signal<readonly Contact[]>([]);
+
+  protected readonly nationalWarning = NATIONAL_FORMAT_WARNING;
+
+  /**
+   * A stored number that is not in international form.
+   *
+   * These predate the API converting on save and will never reach a handset.
+   * Badging them turns an invisible problem into a list somebody can work
+   * through; nothing rewrites them automatically.
+   */
+  protected isNonInternational(contact: Contact): boolean {
+    return isStoredNonInternational(contact.phoneNumber);
+  }
   protected readonly groups = signal<readonly ContactGroup[]>([]);
   protected readonly tags = signal<readonly ContactTag[]>([]);
   protected readonly totalItems = signal(0);

@@ -30,6 +30,7 @@ import {
   isTerminalImportStatus,
   unmappedRequiredFields,
 } from '@core/models/contact-import.model';
+import { NATIONAL_FORMAT_WARNING, looksNational } from '@core/models/phone.model';
 import { ContactImportService, type ImportRowFilter } from '@core/services/contact-import.service';
 import { ImportExportService } from '@core/services/import-export.service';
 import { ImportNotificationService } from '@core/services/import-notification.service';
@@ -96,6 +97,46 @@ export class ImportDetailComponent {
   protected readonly draftMapping = signal<ImportFieldMapping>({});
 
   protected readonly rows = signal<readonly ImportRow[]>([]);
+
+  /* ----------------------- national-format warning ----------------------- */
+
+  /**
+   * The source column feeding `phoneNumber`, from the batch's own mapping.
+   *
+   * Read from the mapping rather than guessed from the header text: a file can
+   * call the column anything, and the mapping is the only thing that knows
+   * which one the importer will actually use.
+   */
+  protected readonly phoneColumn = computed(() => {
+    const batch = this.batch();
+    return batch?.mapping?.phoneNumber ?? batch?.suggestedMapping?.phoneNumber ?? null;
+  });
+
+  protected readonly nationalWarning = NATIONAL_FORMAT_WARNING;
+
+  /**
+   * Whether a row's phone number was written the local way.
+   *
+   * **A warning, not an error.** The import will succeed and the rows will look
+   * correct — and then every message will fail at send time, because the file
+   * path does not yet convert national numbers the way contact create does.
+   * This screen is currently the only place that gap is visible.
+   */
+  protected isNationalPhone(row: ImportRow): boolean {
+    const column = this.phoneColumn();
+    return column !== null && looksNational(row.values[column] ?? '');
+  }
+
+  /** How many rows on this page carry the problem, for the banner. */
+  protected readonly nationalCount = computed(
+    () => this.rows().filter((row) => this.isNationalPhone(row)).length,
+  );
+
+  /** Avoids a quoted ternary in the template. */
+  protected nationalCountLabel(): string {
+    const count = this.nationalCount();
+    return count === 1 ? '1 number is' : `${count} numbers are`;
+  }
   protected readonly rowsState = signal<LoadState>('idle');
   protected readonly rowPage = signal(1);
   protected readonly rowPageSize = signal(DEFAULT_PAGE_SIZE);

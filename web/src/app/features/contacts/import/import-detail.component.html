@@ -396,6 +396,22 @@
             }
 
             @default {
+              @if (nationalCount() > 0) {
+                <!-- The import will succeed and every message will then fail. That gap is
+                     only visible here, so it is stated plainly rather than left to a row colour. -->
+                <div class="mb-3 flex flex-wrap items-start gap-2.5 rounded-lg bg-amber-50 px-4 py-3 ring-1 ring-amber-200">
+                  <app-icon name="warning" [size]="16" class="mt-px shrink-0 text-warning" />
+                  <div class="min-w-0 flex-1">
+                    <p class="text-sm font-medium text-amber-900">
+                      {{ nationalCountLabel() }} in national format
+                    </p>
+                    <p class="mt-0.5 text-sm leading-relaxed text-amber-900/80">
+                      {{ nationalWarning }} These rows import without an error and then fail to send.
+                    </p>
+                  </div>
+                </div>
+              }
+              
               <div class="overflow-x-auto">
                 <table class="w-full min-w-[48rem] text-sm">
                   <thead>
@@ -415,6 +431,7 @@
                       <tr
                         class="border-b border-line/70 last:border-0"
                         [class.bg-red-50]="row.errors.length > 0"
+                        [class.bg-amber-50]="row.errors.length === 0 && isNationalPhone(row)"
                       >
                         <td class="px-5 py-2.5 tabular-nums text-ink-muted">{{ row.rowNumber }}</td>
                         <td class="px-3 py-2.5 capitalize text-ink-soft">{{ row.status }}</td>
@@ -423,7 +440,16 @@
                             {{ row.values[column] }}
                           </td>
                         }
-                        <td class="px-5 py-2.5 text-xs text-danger">{{ errorText(row) }}</td>
+                        <td class="px-5 py-2.5 text-xs">
+                          @if (row.errors.length > 0) {
+                            <span class="text-danger">{{ errorText(row) }}</span>
+                          } @else if (isNationalPhone(row)) {
+                            <span class="flex items-start gap-1 text-warning">
+                              <app-icon name="warning" [size]="12" class="mt-px shrink-0" />
+                              National format — may not deliver
+                            </span>
+                          }
+                        </td>
                       </tr>
                     }
                   </tbody>

@@ -25,6 +25,36 @@
       }
     </div>
 
+    <!-- Country. Above the number on purpose: it decides how the number is
+         read, and people fill fields in the order they are shown. -->
+    <div>
+      <label for="contact-country" class="block text-sm font-medium text-ink-soft">
+        Country
+        @if (countryRequired()) {
+          <span class="text-danger">*</span>
+        }
+      </label>
+      <select
+        id="contact-country"
+        [ngModel]="country()"
+        (ngModelChange)="country.set($event)"
+        class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink ring-1 ring-line ring-inset focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
+        [class.ring-red-400]="errorFor('country') || countryRequired()"
+      >
+        <option value="">Detect from the number</option>
+        @for (option of countries; track option.iso) {
+          <option [value]="option.iso">{{ option.name }} (+{{ option.dial }})</option>
+        }
+      </select>
+      @if (errorFor('country'); as message) {
+        <p class="mt-1 text-xs text-danger">{{ message }}</p>
+      } @else if (countryRequired()) {
+        <p class="mt-1 text-xs text-danger">
+          Choose a country — a number starting with 0 cannot be dialled internationally without one.
+        </p>
+      }
+    </div>
+
     <!-- Phone -->
     <div>
       <label for="contact-phone" class="block text-sm font-medium text-ink-soft">
@@ -43,7 +73,21 @@
       @if (errorFor('phoneNumber'); as message) {
         <p class="mt-1 text-xs text-danger">{{ message }}</p>
       } @else if (phoneInvalid()) {
-        <p class="mt-1 text-xs text-danger">Enter a phone number, including the country code.</p>
+        <p class="mt-1 text-xs text-danger">
+          Enter at least {{ minDigits }} digits, including the country code.
+        </p>
+      } @else if (savedAsPreview() !== null) {
+        <!-- The number typed and the number messaged are different. Showing the
+             conversion also catches a wrong country instantly: the prefix is
+             one the user will not recognise. -->
+        <p class="mt-1 flex flex-wrap items-center gap-1 text-xs text-brand-700">
+          <app-icon name="checkCircle" [size]="12" class="shrink-0" />
+          Will be saved as <span class="font-semibold tabular-nums">{{ savedAsPreview() }}</span>
+        </p>
+      } @else if (isNational() && !countryRequired()) {
+        <p class="mt-1 text-xs text-ink-muted">
+          Starts with 0, so the country code will be added when it is saved.
+        </p>
       } @else {
         <p class="mt-1 text-xs text-ink-muted">Must be unique within this workspace.</p>
       }
@@ -68,26 +112,6 @@
         <p class="mt-1 text-xs text-danger">{{ message }}</p>
       } @else if (emailInvalid()) {
         <p class="mt-1 text-xs text-danger">Enter a valid email address.</p>
-      }
-    </div>
-
-    <!-- Country -->
-    <div>
-      <label for="contact-country" class="block text-sm font-medium text-ink-soft">Country</label>
-      <select
-        id="contact-country"
-        [ngModel]="country()"
-        (ngModelChange)="country.set($event)"
-        class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink ring-1 ring-line ring-inset focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
-        [class.ring-red-400]="errorFor('country')"
-      >
-        <option value="">Detect from the number</option>
-        @for (option of countries; track option.code) {
-          <option [value]="option.code">{{ option.name }}</option>
-        }
-      </select>
-      @if (errorFor('country'); as message) {
-        <p class="mt-1 text-xs text-danger">{{ message }}</p>
       }
     </div>
 
