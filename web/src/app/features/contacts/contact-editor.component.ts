@@ -73,9 +73,6 @@ export class ContactEditorComponent {
 
   effect(() => {
     const contact = this.contact();
-
-    console.log('Honey Log:', contact);
-
     if (!contact) {
       return;
     }
