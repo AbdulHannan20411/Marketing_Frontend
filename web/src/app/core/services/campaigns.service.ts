@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import type { Observable } from 'rxjs';
+import { map, type Observable } from 'rxjs';
 
 import type { PagedResult } from '@core/models/api.model';
 import type { Campaign, CampaignRun } from '@core/models/campaign.model';
@@ -38,12 +38,141 @@ export interface CampaignDraft {
   readonly recurrence?: RecurrenceRule | null;
 }
 
+
+/** `all` is a real wire value, not the absence of a filter. */
+export type CampaignStatusFilter = Campaign['status'] | 'all';
+
+export interface CampaignQuery {
+  readonly page: number;
+  readonly pageSize: number;
+  /** Matches the campaign name and the template name. */
+  readonly search: string;
+  readonly status: CampaignStatusFilter;
+}
+
+/**
+ * Totals across the whole workspace, not the current page.
+ *
+ * `active` counts sending and scheduled together — the two states an operator
+ * opens this screen to check on.
+ */
+export interface CampaignSummary {
+  readonly active: number;
+  readonly sent: number;
+  readonly delivered: number;
+  readonly read: number;
+}
+
+export interface CampaignPage extends PagedResult<Campaign> {
+  /**
+   * Whether the API did the filtering and slicing.
+   *
+   * False means this page was cut from a full array client-side — correct, but
+   * it does not scale, and it means the summary below is exact only because
+   * the whole collection happened to be in hand.
+   */
+  readonly pagedByServer: boolean;
+
+  /**
+   * Totals computed here, present **only** when the whole collection arrived.
+   *
+   * When the API pages properly this is absent and `GET /campaigns/summary`
+   * is the answer instead. Deriving tiles from a single page would make them
+   * change as the user pages, which is the bug this flag exists to prevent.
+   */
+  readonly summary?: CampaignSummary;
+}
+
+function matchesCampaign(campaign: Campaign, query: CampaignQuery): boolean {
+  const term = query.search.trim().toLowerCase();
+  const matchesSearch =
+    term === '' ||
+    campaign.name.toLowerCase().includes(term) ||
+    campaign.templateName.toLowerCase().includes(term);
+
+  return matchesSearch && (query.status === 'all' || campaign.status === query.status);
+}
+
+function summarise(campaigns: readonly Campaign[]): CampaignSummary {
+  return campaigns.reduce<CampaignSummary>(
+    (totals, campaign) => ({
+      active:
+        totals.active +
+        (campaign.status === 'sending' || campaign.status === 'scheduled' ? 1 : 0),
+      sent: totals.sent + campaign.metrics.sent,
+      delivered: totals.delivered + campaign.metrics.delivered,
+      read: totals.read + campaign.metrics.read,
+    }),
+    { active: 0, sent: 0, delivered: 0, read: 0 },
+  );
+}
+
+/** Wraps a bare array into the paged shape the screen expects. */
+function normaliseCampaignPage(
+  response: PagedResult<Campaign> | readonly Campaign[],
+  query: CampaignQuery,
+): CampaignPage {
+  if (!Array.isArray(response)) {
+    return { ...(response as PagedResult<Campaign>), pagedByServer: true };
+  }
+
+  const all = response as readonly Campaign[];
+  const matched = all.filter((campaign) => matchesCampaign(campaign, query));
+  const start = (query.page - 1) * query.pageSize;
+
+  return {
+    items: matched.slice(start, start + query.pageSize),
+    page: query.page,
+    pageSize: query.pageSize,
+    totalItems: matched.length,
+    totalPages: Math.max(1, Math.ceil(matched.length / query.pageSize)),
+    pagedByServer: false,
+    // Every campaign is in hand here, so the tiles are exact.
+    summary: summarise(all),
+  };
+}
+
 @Injectable({ providedIn: 'root' })
 export class CampaignsService {
   private readonly api = inject(ApiService);
 
-  list(): Observable<readonly Campaign[]> {
-    return this.api.get<readonly Campaign[]>('/campaigns');
+  /**
+   * One page of campaigns, filtered and searched **by the API**.
+   *
+   * This used to fetch every campaign in the workspace and slice it in the
+   * browser. That works until a customer has a few thousand, at which point
+   * the page downloads all of them to show ten — and the summary tiles were
+   * the only thing that genuinely needed the whole set.
+   *
+   * **Accepts both shapes.** The endpoint returns a bare array today and a
+   * `PagedResult` once the paging work lands; rather than break until then, an
+   * array response is filtered and sliced here so the screen behaves the same
+   * either way. `pagedByServer` says which happened, because the difference
+   * decides whether the summary can be trusted from this response.
+   */
+  list(query: CampaignQuery): Observable<CampaignPage> {
+    return this.api
+      .get<PagedResult<Campaign> | readonly Campaign[]>('/campaigns', {
+        page: query.page,
+        pageSize: query.pageSize,
+        search: query.search,
+        // The literal "all" clears a filter, matching the contacts convention,
+        // so the API never has to tell "absent" from "cleared".
+        status: query.status,
+      })
+      .pipe(map((response) => normaliseCampaignPage(response, query)));
+  }
+
+  /**
+   * Workspace-wide totals for the summary tiles.
+   *
+   * Separate from the list on purpose: the tiles describe **every** campaign,
+   * and once the list is a page of ten it can no longer answer that. Deriving
+   * them from the current page would produce a "Sent" figure that changes as
+   * you page through, which is worse than no figure at all.
+   */
+  summary(): Observable<CampaignSummary> {
+    return this.api.get<CampaignSummary>('/campaigns/summary');
   }
 
   create(draft: CampaignDraft): Observable<Campaign> {

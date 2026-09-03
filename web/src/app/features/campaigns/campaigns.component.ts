@@ -1,10 +1,11 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
-import type { Observable } from 'rxjs';
+import { Subject, debounceTime, distinctUntilChanged, type Observable } from 'rxjs';
 
 import type { ApiError, LoadState } from '@core/models/api.model';
 import type { Campaign, CampaignStatus } from '@core/models/campaign.model';
+import type { CampaignSummary } from '@core/services/campaigns.service';
 import { CampaignsService } from '@core/services/campaigns.service';
 import { RealtimeService } from '@core/services/realtime.service';
 import { ToastService } from '@core/services/toast.service';
@@ -23,6 +24,9 @@ import { StatCardComponent } from '@shared/ui/stat-card/stat-card.component';
 type StatusFilter = CampaignStatus | 'all';
 
 
+
+/** Long enough to swallow a burst of typing, short enough to feel live. */
+const SEARCH_DEBOUNCE_MS = 300;
 
 @Component({
   selector: 'app-campaigns',
@@ -81,27 +85,25 @@ export class CampaignsComponent {
     { value: 'failed', label: 'Failed' },
   ];
 
-  private readonly filtered = computed(() => {
-    const status = this.statusFilter();
-    const term = this.search().trim().toLowerCase();
+  /**
+   * The current page, exactly as the API returned it.
+   *
+   * No client-side filtering left: `search` and `statusFilter` are sent with
+   * the request, so what arrives is already the answer. Filtering here as well
+   * would quietly drop rows the server had legitimately included.
+   */
+  protected readonly visibleCampaigns = this.campaigns;
 
-    return this.campaigns().filter((campaign) => {
-      const matchesStatus = status === 'all' || campaign.status === status;
-      const matchesSearch =
-        term === '' ||
-        campaign.name.toLowerCase().includes(term) ||
-        campaign.templateName.toLowerCase().includes(term);
-      return matchesStatus && matchesSearch;
-    });
-  });
+  protected readonly totalItems = signal(0);
 
-  protected readonly totalItems = computed(() => this.filtered().length);
-
-  protected readonly visibleCampaigns = computed(() => {
-    const size = this.pageSize();
-    const start = (this.page() - 1) * size;
-    return this.filtered().slice(start, start + size);
-  });
+  /**
+   * Whether the API is doing the paging.
+   *
+   * False while it still returns the whole array — the service slices in that
+   * case so the screen works either way. Worth keeping visible because it
+   * decides where the summary tiles get their numbers.
+   */
+  protected readonly pagedByServer = signal(false);
 
   protected readonly tableState = computed<LoadState>(() => {
     const state = this.state();
@@ -111,22 +113,46 @@ export class CampaignsComponent {
     return this.totalItems() === 0 ? 'empty' : 'ready';
   });
 
-  protected readonly totals = computed(() => {
-    const all = this.campaigns();
-    const sent = all.reduce((sum, campaign) => sum + campaign.metrics.sent, 0);
-    const delivered = all.reduce((sum, campaign) => sum + campaign.metrics.delivered, 0);
-    const read = all.reduce((sum, campaign) => sum + campaign.metrics.read, 0);
+  /**
+   * Workspace totals, from their own endpoint.
+   *
+   * They cannot come from the list any more. A page of ten cannot say how many
+   * campaigns are active, and computing tiles from the visible rows would make
+   * them change as the user pages — a "Sent" figure that moves when you click
+   * Next is worse than no figure at all.
+   */
+  private readonly summarySnapshot = signal<CampaignSummary | null>(null);
 
+  protected readonly totals = computed(() => {
+    const summary = this.summarySnapshot();
+    if (summary === null) {
+      return { active: 0, sent: 0, deliveryRate: 0, readRate: 0 };
+    }
+    const { active, sent, delivered, read } = summary;
     return {
-      active: all.filter((c) => c.status === 'sending' || c.status === 'scheduled').length,
+      active,
       sent,
       deliveryRate: sent === 0 ? 0 : Number(((delivered / sent) * 100).toFixed(1)),
       readRate: delivered === 0 ? 0 : Number(((read / delivered) * 100).toFixed(1)),
     };
   });
 
+  /** Tiles stay blank rather than showing zeroes they cannot vouch for. */
+  protected readonly hasTotals = computed(() => this.summarySnapshot() !== null);
+
+  /** Keystrokes, before debouncing. See `onSearch`. */
+  private readonly searchInput$ = new Subject<string>();
+
   constructor() {
     this.load();
+
+    this.searchInput$
+      .pipe(debounceTime(SEARCH_DEBOUNCE_MS), distinctUntilChanged(), takeUntilDestroyed())
+      .subscribe((term) => {
+        this.search.set(term);
+        this.page.set(1);
+        this.load();
+      });
 
     // The dispatcher runs on a one-minute cadence, so progress arrives by push
     // rather than polling — the reports endpoints are rate limited to 4.
@@ -230,20 +256,63 @@ export class CampaignsComponent {
 
   protected load(): void {
     this.state.set('loading');
-    this.campaignsService.list().subscribe({
-      next: (campaigns) => {
-        this.campaigns.set(campaigns);
-        this.state.set('ready');
-      },
-      error: () => this.state.set('error'),
+
+    this.campaignsService
+      .list({
+        page: this.page(),
+        pageSize: this.pageSize(),
+        search: this.search().trim(),
+        status: this.statusFilter(),
+      })
+      .subscribe({
+        next: (result) => {
+          this.campaigns.set(result.items);
+          this.totalItems.set(result.totalItems);
+          this.pagedByServer.set(result.pagedByServer);
+          this.state.set('ready');
+
+          // Present only when the whole collection was in hand, in which case
+          // it is exact and there is no reason to ask twice.
+          if (result.summary !== undefined) {
+            this.summarySnapshot.set(result.summary);
+            return;
+          }
+
+          // Only when we have none. The tiles describe the workspace, so they
+          // do not change when the page or the filter does — refetching them
+          // on every Next click would be exactly the wasted round trip that
+          // server-side paging was meant to remove.
+          if (this.summarySnapshot() === null) {
+            this.loadSummary();
+          }
+        },
+        error: () => this.state.set('error'),
+      });
+  }
+
+  /** Fetched once the API pages properly and the list can no longer total. */
+  private loadSummary(): void {
+    this.campaignsService.summary().subscribe({
+      next: (summary) => this.summarySnapshot.set(summary),
+      // A failed summary must not take the list down with it: the rows are the
+      // point of the screen, the tiles are a garnish. They stay blank.
+      error: () => this.summarySnapshot.set(null),
     });
   }
 
+  /**
+   * Applies a live progress event to the row it belongs to.
+   *
+   * Only updates rows already on this page. It used to prepend an unknown
+   * campaign, which was right when the array was everything — but now it would
+   * inject a row the current filter and page never asked for, and push the
+   * page to eleven items.
+   */
   private upsert(updated: Campaign): void {
     this.campaigns.update((current) => {
       const index = current.findIndex((candidate) => candidate.id === updated.id);
       if (index === -1) {
-        return [updated, ...current];
+        return current;
       }
       const next = [...current];
       next[index] = updated;
@@ -266,6 +335,11 @@ export class CampaignsComponent {
         this.busyId.set(null);
         this.upsert(updated);
         this.toast.success(successMessage, campaign.name);
+        // Pausing, cancelling or sending changes the workspace totals, so the
+        // tiles are stale from this moment. Dropped and refetched rather than
+        // adjusted by hand: guessing the delta is how tiles drift.
+        this.summarySnapshot.set(null);
+        this.loadSummary();
       },
       // Business rules (invalid transition, empty audience) arrive as 409 and
       // are surfaced by the caller rather than the global handler.
@@ -318,19 +392,32 @@ export class CampaignsComponent {
     );
   }
 
+  protected onPageChange(page: number): void {
+    this.page.set(page);
+    this.load();
+  }
+
   protected onPageSizeChange(size: number): void {
     this.pageSize.set(size);
     this.page.set(1);
+    this.load();
   }
 
   protected setStatus(value: StatusFilter): void {
     this.statusFilter.set(value);
     this.page.set(1);
+    this.load();
   }
 
+  /**
+   * Typing now costs a request, so it is debounced.
+   *
+   * Without this every keystroke is a round trip; `searchInput$` collapses a
+   * burst of them into one, and `distinctUntilChanged` drops the request that
+   * a backspace-and-retype would otherwise duplicate.
+   */
   protected onSearch(event: Event): void {
-    this.search.set((event.target as HTMLInputElement).value);
-    this.page.set(1);
+    this.searchInput$.next((event.target as HTMLInputElement).value);
   }
 
   protected readRate(campaign: Campaign): number {

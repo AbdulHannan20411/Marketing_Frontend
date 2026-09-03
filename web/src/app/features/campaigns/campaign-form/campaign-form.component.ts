@@ -57,6 +57,9 @@ const STEPS: readonly { key: Step; label: string }[] = [
  * and when.
  */
 import { ConnectionExpiryNoticeComponent } from '@shared/ui/connection-expiry/connection-expiry-notice.component';
+/** A single lookup, not a listing. Well above any plausible workspace. */
+const LOOKUP_PAGE_SIZE = 500;
+
 @Component({
   selector: 'app-campaign-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -373,9 +376,15 @@ export class CampaignFormComponent {
   }
 
   private hydrateFromList(id: string): void {
-    this.campaigns.list().subscribe({
-      next: (campaigns) => {
-        const campaign = campaigns.find((entry) => entry.id === id) ?? null;
+    // Last resort, only after `getById` failed. Asks for one large page rather
+    // than the whole collection: this is a lookup for a single id, and if the
+    // workspace has more campaigns than this the by-id endpoint is the fix,
+    // not a bigger number here.
+    this.campaigns
+      .list({ page: 1, pageSize: LOOKUP_PAGE_SIZE, search: '', status: 'all' })
+      .subscribe({
+      next: (result) => {
+        const campaign = result.items.find((entry) => entry.id === id) ?? null;
         if (campaign === null) {
           this.state.set('error');
           return;

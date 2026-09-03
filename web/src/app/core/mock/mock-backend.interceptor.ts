@@ -32,6 +32,7 @@ import type {
   WhatsAppConnection,
 } from '@core/models/whatsapp.model';
 import { ONBOARDING_STEPS, isWindowOpen } from '@core/models/whatsapp.model';
+import type { Campaign } from '@core/models/campaign.model';
 import type { AppNotification } from '@core/models/notification.model';
 import { PERMISSIONS, type Permission } from '@core/models/permission.model';
 import type { SubscriptionPlan } from '@core/models/subscription.model';
@@ -175,6 +176,42 @@ function failValidation(errors: Readonly<Record<string, readonly string[]>>): Ob
       }),
   );
 }
+/**
+ * Search and status, applied server-side.
+ *
+ * Search covers the campaign name and the template name — an operator hunting
+ * for "the one that used the shipping template" will not remember what they
+ * called the campaign.
+ */
+function filterCampaigns(all: readonly Campaign[], params: HttpParams): readonly Campaign[] {
+  const term = (params.get('search') ?? '').trim().toLowerCase();
+  const status = params.get('status') ?? 'all';
+
+  return all.filter((campaign) => {
+    const matchesStatus = status === 'all' || campaign.status === status;
+    const matchesSearch =
+      term === '' ||
+      campaign.name.toLowerCase().includes(term) ||
+      campaign.templateName.toLowerCase().includes(term);
+    return matchesStatus && matchesSearch;
+  });
+}
+
+/**
+ * Totals across every campaign, deliberately ignoring search and status.
+ *
+ * The tiles describe the workspace. Applying the list's filters would make
+ * them agree with the table and stop meaning anything.
+ */
+function summariseCampaigns(all: readonly Campaign[]) {
+  return {
+    active: all.filter((c) => c.status === 'sending' || c.status === 'scheduled').length,
+    sent: all.reduce((total, c) => total + c.metrics.sent, 0),
+    delivered: all.reduce((total, c) => total + c.metrics.delivered, 0),
+    read: all.reduce((total, c) => total + c.metrics.read, 0),
+  };
+}
+
 function paginate<T>(items: readonly T[], params: HttpParams): PagedResult<T> {
   const page = Number(params.get('page') ?? '1');
   const pageSize = Number(params.get('pageSize') ?? '10');
@@ -1523,6 +1560,14 @@ export const mockBackendInterceptor: HttpInterceptorFn = (request, next) => {
   if (businessResponse !== null) {
     return businessResponse;
   }
+  // Registered BEFORE the campaign router, which matches `/campaigns/{id}`.
+  // Left after it, "summary" is read as a campaign id, missed, and answered
+  // 404 — the same collision `/templates/counts` has, and the reason this is
+  // fixed by ordering rather than by special-casing the id lookup.
+  if (method === 'GET' && path === '/campaigns/summary') {
+    const adminId = scopeOf(params);
+    return ok(summariseCampaigns(adminId === null ? campaignStore : campaignsForAdmin(adminId)));
+  }
   const campaignResponse = handleCampaigns(path, method, request.body, params, templateStore, { ok, fail });
   if (campaignResponse !== null) {
     return campaignResponse;
@@ -1556,7 +1601,10 @@ export const mockBackendInterceptor: HttpInterceptorFn = (request, next) => {
         return ok(pageTemplates(params));
       case '/campaigns': {
         const adminId = scopeOf(params);
-        return ok(adminId === null ? [...campaignStore] : campaignsForAdmin(adminId));
+        const all = adminId === null ? [...campaignStore] : campaignsForAdmin(adminId);
+        // Filtered and sliced here, as the API must: returning the whole array
+        // let the client slice it and hid the fact that nothing was paged.
+        return ok(paginate(filterCampaigns(all, params), params));
       }
       case '/reports/failures':
         return ok(paginate(DELIVERY_FAILURES, params));

@@ -48,6 +48,9 @@ const NOT_IMPLEMENTED_YET: readonly number[] = [404, 405, 501];
  * lifetime totals sits the history of every firing — including the occurrences
  * that were skipped, which are part of the story even though nothing went out.
  */
+/** A single lookup, not a listing. Well above any plausible workspace. */
+const LOOKUP_PAGE_SIZE = 500;
+
 @Component({
   selector: 'app-campaign-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -299,9 +302,15 @@ export class CampaignDetailComponent {
   }
 
   private loadFromList(id: string): void {
-    this.campaigns.list().subscribe({
-      next: (campaigns) => {
-        const found = campaigns.find((entry) => entry.id === id) ?? null;
+    // Last resort, only after `getById` failed. Asks for one large page rather
+    // than the whole collection: this is a lookup for a single id, and if the
+    // workspace has more campaigns than this the by-id endpoint is the fix,
+    // not a bigger number here.
+    this.campaigns
+      .list({ page: 1, pageSize: LOOKUP_PAGE_SIZE, search: '', status: 'all' })
+      .subscribe({
+      next: (result) => {
+        const found = result.items.find((entry) => entry.id === id) ?? null;
         this.campaign.set(found);
         this.state.set(found === null ? 'error' : 'ready');
         if (found !== null) {

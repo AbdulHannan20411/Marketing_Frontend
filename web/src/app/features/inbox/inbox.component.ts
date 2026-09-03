@@ -56,6 +56,9 @@ const PAGE_SIZE = 30;
  * reply that sends and one Meta rejects, so it ticks live and the composer
  * closes with it.
  */
+/** Enough to fill the pane without a second request in the common case. */
+const CONVERSATION_PAGE_SIZE = 30;
+
 @Component({
   selector: 'app-inbox',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -84,6 +87,7 @@ export class InboxComponent {
 
   protected readonly state = signal<LoadState>('loading');
   protected readonly conversations = signal<readonly Conversation[]>([]);
+  private readonly page = signal(1);
   protected readonly search = signal('');
 
   protected readonly selectedId = signal<string | null>(null);
@@ -118,16 +122,23 @@ export class InboxComponent {
     () => this.conversations().find((entry) => entry.id === this.selectedId()) ?? null,
   );
 
-  protected readonly visibleConversations = computed(() => {
-    const term = this.search().trim().toLowerCase();
-    if (term === '') {
-      return this.conversations();
-    }
-    return this.conversations().filter(
-      (entry) =>
-        entry.contactName.toLowerCase().includes(term) || entry.phoneNumber.includes(term),
-    );
-  });
+  /**
+   * What the API returned, unfiltered.
+   *
+   * The search term is sent with the request, so filtering again here is not
+   * just redundant — it is wrong. The server matches message bodies too, and
+   * this filter only looked at the name and number, so it silently discarded
+   * conversations the server had correctly matched.
+   */
+  protected readonly visibleConversations = this.conversations;
+
+  /** How many the API says exist, against how many have been fetched. */
+  protected readonly totalItems = signal(0);
+  protected readonly loadingMore = signal(false);
+
+  protected readonly remaining = computed(() =>
+    Math.max(0, this.totalItems() - this.conversations().length),
+  );
 
   protected readonly windowOpen = computed(() => {
     const conversation = this.selected();
@@ -193,10 +204,12 @@ export class InboxComponent {
     if (!silent) {
       this.state.set('loading');
     }
+    this.page.set(1);
 
-    this.whatsapp.listConversations(1, 50, this.search().trim()).subscribe({
+    this.whatsapp.listConversations(1, CONVERSATION_PAGE_SIZE, this.search().trim()).subscribe({
       next: (result) => {
         this.conversations.set(result.items);
+        this.totalItems.set(result.totalItems);
         this.state.set(result.totalItems === 0 ? 'empty' : 'ready');
 
         // Open the newest thread on first load so the pane is never blank.
@@ -210,6 +223,41 @@ export class InboxComponent {
         }
       },
     });
+  }
+
+  /**
+   * Fetches the next page and appends it.
+   *
+   * This list used to ask for fifty and stop. Not "fifty then paginate" —
+   * fifty, full stop: the fifty-first conversation simply did not exist as far
+   * as the screen was concerned, with nothing on the page to suggest otherwise.
+   * Appending suits a thread list better than page numbers, but either way the
+   * rest has to be reachable.
+   */
+  protected loadMore(): void {
+    if (this.loadingMore() || this.remaining() === 0) {
+      return;
+    }
+
+    const next = this.page() + 1;
+    this.loadingMore.set(true);
+
+    this.whatsapp
+      .listConversations(next, CONVERSATION_PAGE_SIZE, this.search().trim())
+      .subscribe({
+        next: (result) => {
+          this.loadingMore.set(false);
+          this.page.set(next);
+          this.totalItems.set(result.totalItems);
+          // Guards against a conversation arriving twice when its last message
+          // lands between two page requests and reorders the list.
+          this.conversations.update((current) => {
+            const seen = new Set(current.map((entry) => entry.id));
+            return [...current, ...result.items.filter((entry) => !seen.has(entry.id))];
+          });
+        },
+        error: () => this.loadingMore.set(false),
+      });
   }
 
   protected select(conversation: Conversation): void {

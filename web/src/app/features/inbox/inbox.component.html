@@ -101,6 +101,22 @@
               </button>
             </li>
           }
+
+          <!-- Without this the list just stops, and nothing on screen says
+               there is more. A count is the difference between "that is
+               everyone" and "there are ninety more". -->
+          @if (remaining() > 0) {
+            <li class="p-2">
+              <button
+                type="button"
+                class="w-full rounded-lg px-3 py-2 text-sm font-medium text-brand-700 transition-colors hover:bg-brand-50 disabled:opacity-60"
+                [disabled]="loadingMore()"
+                (click)="loadMore()"
+              >
+                {{ loadingMore() ? 'Loading…' : 'Load ' + remaining() + ' more' }}
+              </button>
+            </li>
+          }
         </ul>
       </div>
 

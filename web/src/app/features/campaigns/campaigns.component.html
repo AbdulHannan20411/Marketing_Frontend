@@ -54,7 +54,7 @@
   [totalItems]="totalItems()"
   emptyTitle="No campaigns match those filters"
   emptyDescription="Try another status, or clear the search to see everything."
-  (pageChange)="page.set($event)"
+  (pageChange)="onPageChange($event)"
   (pageSizeChange)="onPageSizeChange($event)"
   (retry)="load()"
 >
