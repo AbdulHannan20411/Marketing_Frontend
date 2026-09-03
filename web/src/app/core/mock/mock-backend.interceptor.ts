@@ -23,8 +23,15 @@ import type {
 } from '@core/models/auth.model';
 import type { Contact } from '@core/models/contact.model';
 import type { Employee } from '@core/models/employee.model';
-import type { ConversationMessage, MessageTemplate } from '@core/models/whatsapp.model';
-import { isWindowOpen } from '@core/models/whatsapp.model';
+import type {
+  ConnectionOnboarding,
+  ConversationMessage,
+  MessageTemplate,
+  OnboardingStep,
+  OnboardingStepState,
+  WhatsAppConnection,
+} from '@core/models/whatsapp.model';
+import { ONBOARDING_STEPS, isWindowOpen } from '@core/models/whatsapp.model';
 import type { AppNotification } from '@core/models/notification.model';
 import { PERMISSIONS, type Permission } from '@core/models/permission.model';
 import type { SubscriptionPlan } from '@core/models/subscription.model';
@@ -938,6 +945,210 @@ function handleEmployees(
  * The window rule is enforced here as well as in the UI, so the closed-window
  * path can actually be exercised rather than only reasoned about.
  */
+/* ------------------------------------------------------------------ *
+ * Embedded Signup
+ * ------------------------------------------------------------------ */
+
+/**
+ * The connection being onboarded, if any.
+ *
+ * Module-level rather than derived from the seed, because signup is a
+ * *process*: the screen polls the same endpoint repeatedly and has to see it
+ * change. A constant would freeze the progress panel on step one, which is
+ * exactly the behaviour the panel exists to replace.
+ */
+let signupConnection: WhatsAppConnection | null = null;
+
+/**
+ * Scenarios, chosen by the phone number id the caller sends.
+ *
+ * Without these the mock only ever proves the happy path and the failure panel
+ * — the half carrying the remedies — could never be looked at. `-skip-register`
+ * is the important one: it reproduces the *normal* case for a number that came
+ * through signup, which must not render as a failure.
+ */
+const SIGNUP_SCENARIOS: readonly {
+  readonly suffix: string;
+  readonly step: OnboardingStep;
+  readonly outcome: 'failed' | 'skipped';
+  readonly code: string | null;
+  readonly message: string | null;
+}[] = [
+  {
+    suffix: '-fail-token',
+    step: 'token',
+    outcome: 'failed',
+    code: 'token_rejected',
+    message: 'The access token was rejected: it has expired or been revoked.',
+  },
+  {
+    suffix: '-fail-subscribe',
+    step: 'subscribe',
+    outcome: 'failed',
+    code: 'subscribe_refused',
+    message: "Meta refused to subscribe this app to the account's updates.",
+  },
+  {
+    suffix: '-fail-register',
+    step: 'register',
+    outcome: 'failed',
+    code: 'register_refused',
+    message: 'Meta rejected the registration for this phone number.',
+  },
+  {
+    suffix: '-fail-profile',
+    step: 'profile',
+    outcome: 'failed',
+    code: 'profile_unreadable',
+    message: 'The business profile could not be read for this number.',
+  },
+  {
+    // A code this build has never seen. Proves the unknown-code fallback,
+    // which is the one that silently breaks when the server adds a case.
+    suffix: '-fail-unknown',
+    step: 'subscribe',
+    outcome: 'failed',
+    code: 'some_future_code',
+    message: 'A failure this version of the client does not recognise.',
+  },
+  { suffix: '-skip-register', step: 'register', outcome: 'skipped', code: null, message: null },
+];
+
+function scenarioFor(phoneNumberId: string) {
+  return SIGNUP_SCENARIOS.find((entry) => phoneNumberId.endsWith(entry.suffix)) ?? null;
+}
+
+function idleSteps(): OnboardingStepState[] {
+  return ONBOARDING_STEPS.map((step) => ({
+    step,
+    status: 'pending' as const,
+    code: null,
+    message: null,
+    completedAt: null,
+  }));
+}
+
+/** Remembered only so `advanceSignup` can pick the scenario back up on a GET. */
+let signupPhoneNumberId = '';
+
+/**
+ * A fresh onboarding.
+ *
+ * `token` is already succeeded because the real endpoint exchanges the code
+ * inline before returning — only the remaining steps are deferred.
+ */
+function beginSignup(phoneNumberId: string): WhatsAppConnection {
+  const now = new Date().toISOString();
+  const steps = idleSteps();
+  const scenario = scenarioFor(phoneNumberId);
+
+  if (scenario !== null && scenario.step === 'token') {
+    steps[0] = {
+      step: 'token',
+      status: 'failed',
+      code: scenario.code,
+      message: scenario.message,
+      completedAt: now,
+    };
+    signupConnection = {
+      ...WHATSAPP_CONNECTION,
+      status: 'error',
+      connectedAt: null,
+      verifiedName: '',
+      onboarding: { running: false, currentStep: 'token', steps },
+    };
+    return signupConnection;
+  }
+
+  steps[0] = { ...steps[0], status: 'succeeded', completedAt: now };
+  steps[1] = { ...steps[1], status: 'running' };
+
+  signupConnection = {
+    ...WHATSAPP_CONNECTION,
+    status: 'pending',
+    connectedAt: null,
+    verifiedName: '',
+    onboarding: { running: true, currentStep: 'subscribe', steps },
+  };
+  return signupConnection;
+}
+
+/**
+ * Moves onboarding along by one step.
+ *
+ * Driven from the GET rather than a timer: a read with a side effect is not how
+ * the real API behaves, but it makes the flow deterministic — one poll, one
+ * step — instead of depending on wall-clock timing inside a mock.
+ */
+function advanceSignup(phoneNumberId: string): WhatsAppConnection {
+  const current = signupConnection;
+  if (current === null) {
+    return WHATSAPP_CONNECTION;
+  }
+
+  const onboarding = current.onboarding;
+  if (!onboarding.running) {
+    return current;
+  }
+
+  const now = new Date().toISOString();
+  const steps = [...onboarding.steps];
+  const index = steps.findIndex((entry) => entry.status === 'running');
+  if (index === -1) {
+    return current;
+  }
+
+  const step = steps[index].step;
+  const scenario = scenarioFor(phoneNumberId);
+
+  if (scenario !== null && scenario.step === step && scenario.outcome === 'failed') {
+    steps[index] = {
+      step,
+      status: 'failed',
+      code: scenario.code,
+      message: scenario.message,
+      completedAt: now,
+    };
+    // Later steps stay `pending`, never `failed`: they were not attempted, and
+    // marking them failed says four things are broken when one is.
+    signupConnection = {
+      ...current,
+      status: 'error',
+      onboarding: { running: false, currentStep: step, steps },
+    };
+    return signupConnection;
+  }
+
+  const skipped = scenario !== null && scenario.step === step && scenario.outcome === 'skipped';
+  steps[index] = {
+    ...steps[index],
+    status: skipped ? 'skipped' : 'succeeded',
+    completedAt: now,
+  };
+
+  if (index === steps.length - 1) {
+    signupConnection = null;
+    return {
+      ...WHATSAPP_CONNECTION,
+      status: 'connected',
+      connectedAt: now,
+      onboarding: { running: false, currentStep: null, steps },
+    };
+  }
+
+  steps[index + 1] = { ...steps[index + 1], status: 'running' };
+  signupConnection = {
+    ...current,
+    onboarding: { running: true, currentStep: steps[index + 1].step, steps },
+  };
+  return signupConnection;
+}
+
+/** The idle set the API sends for a connection nothing was attempted on. */
+function idleOnboarding(): ConnectionOnboarding {
+  return { running: false, currentStep: null, steps: idleSteps() };
+}
+
 function handleWhatsApp(
   path: string,
   method: string,
@@ -1333,6 +1544,11 @@ export const mockBackendInterceptor: HttpInterceptorFn = (request, next) => {
       case '/tags':
         return ok(TAGS_WITH_COUNTS);
       case '/whatsapp/connection': {
+        // An onboarding in flight outranks the seed: the screen is polling
+        // this endpoint precisely because it expects the answer to change.
+        if (signupConnection !== null) {
+          return ok(advanceSignup(signupPhoneNumberId));
+        }
         const adminId = scopeOf(params);
         return ok(adminId === null ? WHATSAPP_CONNECTION : connectionForAdmin(adminId));
       }
@@ -1392,6 +1608,52 @@ export const mockBackendInterceptor: HttpInterceptorFn = (request, next) => {
         break;
     }
   }
+  // Embedded Signup. The code is single-use and is not stored here for the
+  // same reason it is not stored in the browser: it is worthless after the
+  // exchange, and keeping it around only creates somewhere for it to leak.
+  if (method === 'POST' && path === '/whatsapp/connect') {
+    const body = request.body as {
+      code?: string;
+      wabaId?: string;
+      phoneNumberId?: string;
+    };
+
+    if ((body.code ?? '').trim() === '') {
+      return failValidation({ Code: ['The authorisation code is required.'] });
+    }
+    if ((body.wabaId ?? '').trim() === '') {
+      return failValidation({ WabaId: ['A WhatsApp Business Account id is required.'] });
+    }
+
+    // Expiry is the failure most likely to be hit in production and the one
+    // most easily missed in testing, so it is reproduced rather than assumed.
+    if ((body.code ?? '').startsWith('expired')) {
+      return fail(
+        400,
+        'Authorisation expired',
+        "Meta's authorisation code had already expired. Please run signup again.",
+        'code_expired',
+      );
+    }
+
+    signupPhoneNumberId = body.phoneNumberId ?? '';
+    return ok(beginSignup(signupPhoneNumberId), 'Setting up your account.');
+  }
+
+  if (method === 'POST' && path === '/whatsapp/disconnect') {
+    signupConnection = null;
+    signupPhoneNumberId = '';
+    return ok(
+      {
+        ...WHATSAPP_CONNECTION,
+        status: 'disconnected',
+        connectedAt: null,
+        onboarding: idleOnboarding(),
+      },
+      'WhatsApp disconnected.',
+    );
+  }
+
   if (method === 'POST' && path === '/whatsapp/connect/manual') {
     const account = accountFromRequest(request);
     if (account === null) {

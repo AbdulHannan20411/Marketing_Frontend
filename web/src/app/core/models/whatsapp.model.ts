@@ -17,6 +17,145 @@ export const MESSAGING_TIER_LABELS: Readonly<Record<MessagingTier, string>> = {
   unlimited: 'Unlimited',
 };
 
+/* ------------------------------------------------------------------ *
+ * Embedded Signup — server-side onboarding
+ * ------------------------------------------------------------------ */
+
+/**
+ * What the server does after the popup closes.
+ *
+ * The popup is the fast half. `connect` exchanges the code, stores the
+ * credential and returns; a scheduler then runs the remaining Meta round trips,
+ * each of which takes seconds and fails for its own reason. A single spinner
+ * over that window cannot say whether the number failed to register or the
+ * webhook subscription did, and those have different remedies.
+ */
+export type OnboardingStep = 'token' | 'subscribe' | 'register' | 'profile';
+
+/** Display order, and the order the server runs them in. */
+export const ONBOARDING_STEPS: readonly OnboardingStep[] = [
+  'token',
+  'subscribe',
+  'register',
+  'profile',
+];
+
+/**
+ * `skipped` is not a failure.
+ *
+ * A number onboarded through Embedded Signup — and every Meta test number — is
+ * already registered, and rejects a second registration. That is a step that
+ * needed no doing, not a broken connection, and rendering it as an error makes
+ * every test number look broken.
+ */
+export type OnboardingStepStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'skipped';
+
+export interface OnboardingStepState {
+  readonly step: OnboardingStep;
+  readonly status: OnboardingStepStatus;
+  /** Stable failure cause. Open set — unrecognised values fall back to generic. */
+  readonly code: string | null;
+  /** Meta's own words. Operator detail for a support ticket, never primary copy. */
+  readonly message: string | null;
+  readonly completedAt: string | null;
+}
+
+/**
+ * Always present, even when nothing was ever attempted — an idle set rather
+ * than an absence, so there is one shape to render instead of a branch.
+ */
+export interface ConnectionOnboarding {
+  /**
+   * Whether the server is still working.
+   *
+   * **Poll on this, never on the step array.** It comes from the connection's
+   * own status; deriving "am I finished" from the steps means eventually
+   * disagreeing with the server about when to stop.
+   */
+  readonly running: boolean;
+  readonly currentStep: OnboardingStep | null;
+  /** All four, from the first response, including ones not yet started. */
+  readonly steps: readonly OnboardingStepState[];
+}
+
+export const ONBOARDING_STEP_LABEL: Readonly<Record<OnboardingStep, string>> = {
+  token: 'Verifying authorisation',
+  subscribe: 'Subscribing to delivery updates',
+  register: 'Registering your phone number',
+  profile: 'Loading your business profile',
+};
+
+/** One line of *why this step exists*, for the admin watching it run. */
+export const ONBOARDING_STEP_DETAIL: Readonly<Record<OnboardingStep, string>> = {
+  token: 'Exchanging the code Meta returned for a long-lived credential.',
+  subscribe: 'Without this, messages send but no delivery status ever comes back.',
+  register: 'Enabling the number for sending on the Cloud API.',
+  profile: 'Display name, quality rating and messaging tier.',
+};
+
+/**
+ * What a skipped step means, per step.
+ *
+ * Worded as a fact rather than a warning. `register` is the one that actually
+ * occurs in practice, and "Already registered" is the whole explanation.
+ */
+export const ONBOARDING_STEP_SKIPPED: Readonly<Record<OnboardingStep, string>> = {
+  token: 'Already authorised',
+  subscribe: 'Already subscribed',
+  register: 'Already registered',
+  profile: 'Already up to date',
+};
+
+/**
+ * What the admin should *do*, per failure code.
+ *
+ * Client-side on purpose: copy that lives in the database cannot be changed
+ * without a deployment and cannot be translated.
+ *
+ * The set is **open** — the server will add codes — so every lookup goes
+ * through {@link onboardingRemedy}, which falls back rather than rendering an
+ * empty panel for a code this build has never heard of.
+ */
+export const ONBOARDING_REMEDIES: Readonly<Record<string, string>> = {
+  token_rejected: 'Your connection has expired. Reconnect to continue.',
+  subscribe_refused:
+    "Meta would not grant access to this account's updates. Check the app has whatsapp_business_management permission, then reconnect.",
+  register_refused:
+    'The number could not be registered. Check it is not connected to another WhatsApp account.',
+  profile_unreadable:
+    'The number was linked but Meta would not return its details. Check the number is verified in Business Manager.',
+  onboarding_failed: 'Onboarding could not be completed. Try connecting again.',
+};
+
+export const ONBOARDING_GENERIC_REMEDY =
+  'Onboarding could not be completed. Try connecting again, and contact support if it persists.';
+
+/** Never returns empty: an unknown code is still a failure that needs a remedy. */
+export function onboardingRemedy(code: string | null): string {
+  if (code === null || code === '') {
+    return ONBOARDING_GENERIC_REMEDY;
+  }
+  return ONBOARDING_REMEDIES[code] ?? ONBOARDING_GENERIC_REMEDY;
+}
+
+/** The idle set, for a server too old to send one. */
+export const IDLE_ONBOARDING: ConnectionOnboarding = {
+  running: false,
+  currentStep: null,
+  steps: ONBOARDING_STEPS.map((step) => ({
+    step,
+    status: 'pending' as const,
+    code: null,
+    message: null,
+    completedAt: null,
+  })),
+};
+
+/** The step that stopped, or `null`. At most one can be failed at a time. */
+export function failedStep(onboarding: ConnectionOnboarding): OnboardingStepState | null {
+  return onboarding.steps.find((entry) => entry.status === 'failed') ?? null;
+}
+
 export interface WhatsAppConnection {
   readonly status: ConnectionStatus;
   readonly displayPhoneNumber: string;
@@ -32,6 +171,23 @@ export interface WhatsAppConnection {
   readonly connectedAt: string | null;
   readonly webhookHealthy: boolean;
   readonly templateNamespaceAlias: string;
+  /**
+   * When the stored credential stops working, or `null`.
+   *
+   * **`null` means no stated end, not "expired long ago".** A system-user
+   * token — the manual-connect path — genuinely has no expiry, so treating an
+   * absent date as a lapsed one would put a permanent red warning on the one
+   * connection that can never lapse.
+   */
+  readonly tokenExpiresAt: string | null;
+  /**
+   * Server-side onboarding progress.
+   *
+   * Always sent, including for a connection nothing was ever attempted on —
+   * which is why there is no `| null` here and no branch on absence at the
+   * call sites. {@link IDLE_ONBOARDING} covers a server too old to send it.
+   */
+  readonly onboarding: ConnectionOnboarding;
 }
 
 export type TemplateStatus = 'approved' | 'pending' | 'rejected' | 'paused';
@@ -309,4 +465,72 @@ export interface SendMessageRequest {
   readonly kind: Extract<MessageKind, 'text' | 'image' | 'video' | 'document' | 'audio'>;
   readonly body: string;
   readonly mediaId: string | null;
+}
+
+/* ------------------------------------------------------------------ *
+ * Credential expiry
+ * ------------------------------------------------------------------ */
+
+/**
+ * How loudly an approaching expiry should be said.
+ *
+ * `lapsed` exists for completeness — the API turns a lapsed connection into
+ * `status: 'error'`, so in practice the error state renders first — but the
+ * calculation should not quietly report "expires in -3 days" if that ever
+ * changes.
+ */
+export type ExpiryUrgency = 'none' | 'notice' | 'urgent' | 'lapsed';
+
+export interface ConnectionExpiry {
+  readonly urgency: ExpiryUrgency;
+  /** Whole days remaining; negative once past. */
+  readonly days: number;
+  /** `expires in 6 days` · `expires tomorrow` · `expires today` · `has expired`. */
+  readonly phrase: string;
+}
+
+/** More than this and nothing is said: it is not yet news. */
+const EXPIRY_NOTICE_DAYS = 14;
+
+/** Inside this, reconnecting stops being a chore and becomes urgent. */
+const EXPIRY_URGENT_DAYS = 3;
+
+/**
+ * Whether an expiry is worth mentioning, and how.
+ *
+ * Returns `null` when there is nothing to say — no date, or far enough out
+ * that a warning would just be noise the customer learns to ignore.
+ *
+ * The whole point is that they find out while reconnecting is a two-minute
+ * job, rather than when a campaign fails with an opaque 401.
+ */
+export function connectionExpiry(
+  tokenExpiresAt: string | null | undefined,
+  now: Date = new Date(),
+): ConnectionExpiry | null {
+  if (tokenExpiresAt === null || tokenExpiresAt === undefined || tokenExpiresAt === '') {
+    return null;
+  }
+
+  const expiry = new Date(tokenExpiresAt);
+  if (Number.isNaN(expiry.getTime())) {
+    return null;
+  }
+
+  const millis = expiry.getTime() - now.getTime();
+  // Rounded down, so "1.9 days left" reads as tomorrow rather than two days.
+  const days = Math.floor(millis / 86_400_000);
+
+  if (millis <= 0) {
+    return { urgency: 'lapsed', days, phrase: 'has expired' };
+  }
+  if (days > EXPIRY_NOTICE_DAYS) {
+    return null;
+  }
+
+  const urgency: ExpiryUrgency = days < EXPIRY_URGENT_DAYS ? 'urgent' : 'notice';
+  const phrase =
+    days === 0 ? 'expires today' : days === 1 ? 'expires tomorrow' : `expires in ${days} days`;
+
+  return { urgency, days, phrase };
 }

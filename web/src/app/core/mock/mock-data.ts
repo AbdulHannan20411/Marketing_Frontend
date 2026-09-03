@@ -223,6 +223,34 @@ export const WHATSAPP_CONNECTION: WhatsAppConnection = {
   connectedAt: daysAgo(214),
   webhookHealthy: true,
   templateNamespaceAlias: 'northwind_retail',
+  // Embedded Signup credentials expire; a system-user token would be `null`.
+  // Seeded six days out (negative days ago) so the notice is exercisable.
+  tokenExpiresAt: daysAgo(-6),
+  // A finished run, not an absence: the API always sends this. `register` is
+  // skipped because a number that came through signup is already registered —
+  // the case that must never render as a failure.
+  onboarding: {
+    running: false,
+    currentStep: null,
+    steps: [
+      { step: 'token', status: 'succeeded', code: null, message: null, completedAt: daysAgo(214) },
+      {
+        step: 'subscribe',
+        status: 'succeeded',
+        code: null,
+        message: null,
+        completedAt: daysAgo(214),
+      },
+      { step: 'register', status: 'skipped', code: null, message: null, completedAt: daysAgo(214) },
+      {
+        step: 'profile',
+        status: 'succeeded',
+        code: null,
+        message: null,
+        completedAt: daysAgo(214),
+      },
+    ],
+  },
 };
 
 /* ------------------------------------------------------------------ *

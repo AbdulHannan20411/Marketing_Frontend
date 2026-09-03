@@ -24,6 +24,13 @@
   </app-card>
 } @else {
   @if (isConnected() && connection(); as conn) {
+  <!-- Above the hero, not below it: a warning under the fold is not a warning.
+       No action link here — the reconnect controls are already on this page. -->
+  <app-connection-expiry-notice
+    class="mt-6 block"
+    [connection]="conn"
+    [showAction]="false"
+  />
   <!-- Hero connection card -->
   <section
     class="mt-6 overflow-hidden rounded-xl bg-surface ring-1 ring-line shadow-card animate-rise"
@@ -213,6 +220,149 @@
       </ul>
     </app-card>
   </div>
+  } @else if (inProgress()) {
+  <!-- Running. The popup is the fast half; everything that can actually fail
+       happens after it closes, on the server, so the steps are shown one by one. -->
+  <app-card class="mt-6 block">
+    <div class="px-2 py-4 sm:px-6 sm:py-6">
+      <div class="flex items-start gap-4">
+        <span class="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-600">
+          <app-icon name="refresh" [size]="20" class="animate-spin" />
+        </span>
+        <div class="min-w-0 flex-1">
+          <h2 class="text-base font-semibold text-ink">Connecting your account</h2>
+          <p class="mt-1 text-sm leading-relaxed text-ink-muted">
+            @if (connecting()) {
+              Finish the steps in the Meta window. This page updates on its own.
+            } @else {
+              Meta is setting up your number. This usually takes under a minute &mdash; you can
+              leave this page open.
+            }
+          </p>
+        </div>
+      </div>
+
+      <!-- aria-live so a screen reader hears each step change, rather than
+           sitting silently on a spinner for a minute. -->
+      <ol class="mt-6 space-y-1" aria-live="polite">
+        @for (step of steps; track step) {
+          <li
+            class="flex items-start gap-3 rounded-lg px-3 py-2.5 transition-colors"
+            [class.bg-brand-50]="stepStatus(step) === 'running'"
+            [class.bg-red-50]="stepStatus(step) === 'failed'"
+          >
+            <span class="mt-px shrink-0">
+              @switch (stepStatus(step)) {
+                @case ('succeeded') {
+                  <app-icon name="checkCircle" [size]="18" class="text-brand-600" />
+                }
+                @case ('running') {
+                  <app-icon name="refresh" [size]="18" class="animate-spin text-brand-600" />
+                }
+                @case ('failed') {
+                  <app-icon name="xCircle" [size]="18" class="text-danger" />
+                }
+                @case ('skipped') {
+                  <!-- Not a failure. A number that came through signup is
+                       already registered, and every Meta test number is too;
+                       a warning icon here would make both look broken. -->
+                  <app-icon name="checkCircle" [size]="18" class="text-ink-muted" />
+                }
+                @default {
+                  <span class="block h-[18px] w-[18px] rounded-full ring-2 ring-line"></span>
+                }
+              }
+            </span>
+            <span class="min-w-0 flex-1">
+              <span
+                class="block text-sm font-medium"
+                [class.text-ink]="stepStatus(step) !== 'pending'"
+                [class.text-ink-muted]="stepStatus(step) === 'pending'"
+              >
+                {{ stepLabel[step] }}
+              </span>
+              @if (stepNote(step); as note) {
+                <span class="mt-0.5 block text-xs leading-relaxed text-ink-muted">{{ note }}</span>
+              }
+            </span>
+          </li>
+        }
+      </ol>
+    </div>
+  </app-card>
+  } @else if (hasFailure()) {
+  <!-- Failed. The step, the reason, and the part that matters most: what to do,
+       because several of these can only be fixed inside Meta's own console. -->
+  <app-card class="mt-6 block">
+    <div class="px-2 py-4 sm:px-6 sm:py-6">
+      <div class="flex items-start gap-4">
+        <span class="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-red-50 text-danger">
+          <app-icon name="xCircle" [size]="20" />
+        </span>
+        <div class="min-w-0 flex-1">
+          <h2 class="text-base font-semibold text-ink">
+            Stopped at: {{ failureStepLabel() }}
+          </h2>
+          <!-- The server's `message` is deliberately NOT here: it is Meta's
+               wording, untranslated, and written for an operator. The heading
+               names the step and the remedy below says what to do; the raw
+               text sits behind "Show details" for a support ticket. -->
+          <p class="mt-1.5 text-sm leading-relaxed text-ink-soft">
+            The connection was not completed. Nothing that already succeeded has been undone.
+          </p>
+
+          <div class="mt-4 rounded-lg bg-surface-sunken p-4 ring-1 ring-line">
+            <p class="text-xs font-semibold tracking-wide text-ink-soft uppercase">What to do</p>
+            <p class="mt-1.5 text-sm leading-relaxed text-ink">{{ failureRemedy() }}</p>
+          </div>
+
+          <!-- Meta's own wording, in Meta's own voice and untranslated. Useful
+               in a support ticket, wrong as the first thing an admin reads. -->
+          @if (failureMessage(); as detail) {
+            <button
+              type="button"
+              class="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-ink-soft hover:text-ink"
+              [attr.aria-expanded]="detailOpen()"
+              (click)="toggleDetail()"
+            >
+              <app-icon
+                name="chevronDown"
+                [size]="13"
+                class="transition-transform"
+                [class.rotate-180]="detailOpen()"
+              />
+              {{ detailOpen() ? 'Hide details' : 'Show details' }}
+            </button>
+            @if (detailOpen()) {
+              <p
+                class="mt-2 rounded-lg bg-surface-sunken px-3 py-2 font-mono text-xs leading-relaxed break-words text-ink-soft ring-1 ring-line"
+              >
+                {{ detail }}
+              </p>
+            }
+          }
+
+          <div class="mt-5 flex flex-wrap items-center gap-3">
+            <!-- Always offered: every remedy above ends in reconnecting, and
+                 the server never re-runs a step that already succeeded. -->
+            <button appButton size="md" (click)="retryConnect()">
+              <app-icon name="refresh" [size]="16" />
+              Try again
+            </button>
+            <a
+              href="https://business.facebook.com/settings"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="inline-flex items-center gap-1.5 text-sm font-medium text-brand-700 hover:underline"
+            >
+              Open Meta Business Settings
+              <app-icon name="arrowRight" [size]="14" />
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </app-card>
   } @else {
   <!-- Disconnected: Embedded Signup entry point -->
   <app-card class="mt-6 block">
@@ -223,8 +373,28 @@
       <h2 class="mt-5 text-lg font-semibold text-ink">Connect your WhatsApp Business number</h2>
       <p class="mt-2 max-w-md text-sm leading-relaxed text-ink-muted">
         Sign in with Meta to link your WhatsApp Business Account. You'll pick a phone number and
-        confirm your business profile — it takes about two minutes.
+        confirm your business profile &mdash; it takes about two minutes.
       </p>
+
+      <!-- Stated before the button rather than after a failure. Every one of
+           these is something signup cannot fix on the admin's behalf, and
+           discovering it at step four means starting the whole flow again. -->
+      <ul class="mt-6 w-full max-w-md space-y-2.5 text-left">
+        <li class="flex items-start gap-2.5 text-sm text-ink-soft">
+          <app-icon name="checkCircle" [size]="16" class="mt-0.5 shrink-0 text-ink-muted" />
+          A Meta Business account that has completed Business Verification.
+        </li>
+        <li class="flex items-start gap-2.5 text-sm text-ink-soft">
+          <app-icon name="checkCircle" [size]="16" class="mt-0.5 shrink-0 text-ink-muted" />
+          A phone number that can receive an SMS or call and is
+          <span class="font-medium text-ink">not already registered on WhatsApp</span>.
+        </li>
+        <li class="flex items-start gap-2.5 text-sm text-ink-soft">
+          <app-icon name="checkCircle" [size]="16" class="mt-0.5 shrink-0 text-ink-muted" />
+          Two-step verification turned off on that number, or its PIN to hand.
+        </li>
+      </ul>
+
       <button
         appButton
         size="lg"
@@ -234,12 +404,26 @@
       >
         @if (connecting()) {
           <app-icon name="refresh" [size]="18" class="animate-spin" />
-          Waiting for Meta…
+          Waiting for Meta&hellip;
         } @else {
           <app-icon name="chat" [size]="18" />
           Connect with Meta
         }
       </button>
+
+      @if (popupError(); as message) {
+        <p
+          class="mt-4 flex max-w-md items-start gap-2 rounded-lg bg-amber-50 px-3 py-2.5 text-left text-xs leading-relaxed text-amber-900 ring-1 ring-amber-200"
+        >
+          <app-icon name="warning" [size]="14" class="mt-px shrink-0 text-warning" />
+          {{ message }}
+        </p>
+        @if (popupDiagnostic(); as trail) {
+          <p class="mt-1.5 max-w-md font-mono text-[11px] leading-relaxed text-ink-muted">
+            {{ trail }}
+          </p>
+        }
+      }
 
       @if (!signupConfigured()) {
         <p class="mt-3 max-w-md text-xs text-danger">
@@ -248,7 +432,7 @@
       } @else {
         <p class="mt-3 max-w-md text-xs text-ink-muted">
           A Meta window opens. We never see your Meta password, and the authorisation it returns is
-          exchanged on our server — it is never stored in your browser.
+          exchanged on our server &mdash; it is never stored in your browser.
         </p>
       }
     </div>

@@ -10,6 +10,10 @@
     </button>
   </app-page-header>
 
+  <!-- The last point at which this can still be said before a scheduled send
+       is what discovers the credential has lapsed. -->
+  <app-connection-expiry-notice [connection]="connection()" />
+
   @switch (state()) {
     @case ('loading') {
       <div class="space-y-4">

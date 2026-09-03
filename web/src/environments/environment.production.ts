@@ -7,10 +7,13 @@ export const environment: AppEnvironment = {
   realtimeUrl: '/hubs/realtime',
   useMockApi: false,
   appName: 'NextReach',
-  // Replace with the real values from your Meta app before running signup.
+  // The same Meta app serves development and production, so these match environment.ts. Should
+  // production ever move to its own app, both values change together: an app id paired with
+  // another app's configuration id opens a signup that returns no WhatsApp account at all.
+  // graphVersion stays pinned to the server's Graph version; v21.0 expires on 21 January 2027.
   meta: {
-    appId: '',
-    configId: '',
+    appId: '934175505679137',
+    configId: '1597003388716127',
     graphVersion: 'v21.0',
   },
 };

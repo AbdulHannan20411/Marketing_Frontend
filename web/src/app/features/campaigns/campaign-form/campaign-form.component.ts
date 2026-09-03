@@ -17,7 +17,7 @@ import {
   formatInstant,
   validateRecurrence,
 } from '@core/models/recurrence.model';
-import type { MessageTemplate } from '@core/models/whatsapp.model';
+import type { MessageTemplate, WhatsAppConnection } from '@core/models/whatsapp.model';
 import { CampaignsService, type CampaignDraft } from '@core/services/campaigns.service';
 import { ContactsService } from '@core/services/contacts.service';
 import { ToastService } from '@core/services/toast.service';
@@ -56,10 +56,12 @@ const STEPS: readonly { key: Step; label: string }[] = [
  * questions the operator is actually answering: what is sent, who receives it,
  * and when.
  */
+import { ConnectionExpiryNoticeComponent } from '@shared/ui/connection-expiry/connection-expiry-notice.component';
 @Component({
   selector: 'app-campaign-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    ConnectionExpiryNoticeComponent,
     ReactiveFormsModule,
     RouterLink,
     TimeAgoPipe,
@@ -82,6 +84,15 @@ export class CampaignFormComponent {
 
   private readonly campaigns = inject(CampaignsService);
   private readonly whatsapp = inject(WhatsAppService);
+
+  /**
+   * Only for the expiry warning.
+   *
+   * This is the screen where a campaign gets scheduled, so it is the last
+   * moment the customer can be told before the send is the thing that
+   * discovers the credential has lapsed.
+   */
+  protected readonly connection = signal<WhatsAppConnection | null>(null);
   private readonly contacts = inject(ContactsService);
   private readonly toast = inject(ToastService);
   private readonly router = inject(Router);
@@ -322,10 +333,12 @@ export class CampaignFormComponent {
     forkJoin({
       templates: this.whatsapp.listAllTemplates(),
       groups: this.contacts.listGroups(),
+      connection: this.whatsapp.getConnection(),
     }).subscribe({
-      next: ({ templates, groups }) => {
+      next: ({ templates, groups, connection }) => {
         this.templates.set(templates);
         this.groups.set(groups);
+        this.connection.set(connection);
 
         if (id === undefined) {
           this.state.set('ready');

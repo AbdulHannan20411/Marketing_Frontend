@@ -25,11 +25,12 @@ import { IconComponent } from '@shared/ui/icon/icon.component';
 import { PageHeaderComponent } from '@shared/ui/page-header/page-header.component';
 import { SkeletonComponent } from '@shared/ui/skeleton/skeleton.component';
 import { StatCardComponent } from '@shared/ui/stat-card/stat-card.component';
-
+import { ConnectionExpiryNoticeComponent } from '@shared/ui/connection-expiry/connection-expiry-notice.component';
 @Component({
   selector: 'app-dashboard',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    ConnectionExpiryNoticeComponent,
     RouterLink,
     DecimalPipe,
     TimeAgoPipe,

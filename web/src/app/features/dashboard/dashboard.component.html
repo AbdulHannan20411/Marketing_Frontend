@@ -9,6 +9,10 @@
   </a>
 </app-page-header>
 
+<!-- Surfaced here as well as on the WhatsApp page: an admin who never opens
+     that screen would otherwise learn about the expiry from a failed campaign. -->
+<app-connection-expiry-notice class="mt-6 block" [connection]="connection()" />
+
 @if (state() === 'error') {
   <div class="mt-6 rounded-xl bg-surface p-14 text-center ring-1 ring-line shadow-card" role="alert">
     <div class="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-red-50 text-danger">
