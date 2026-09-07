@@ -16,7 +16,8 @@ import type { PaymentRequestNotificationDto } from '@core/dto/payment-request.dt
 import { toPaymentRequestEvent } from '@core/dto/payment-request.dto';
 import type { Campaign } from '@core/models/campaign.model';
 import type { ImportProgressEvent } from '@core/models/contact-import.model';
-import type { AppNotification } from '@core/models/notification.model';
+import type { AppNotification, AppNotificationDto } from '@core/models/notification.model';
+import { toNotification } from '@core/models/notification.model';
 import type { PaymentRequestEvent } from '@core/models/payment-request.model';
 
 export type RealtimeState = 'disconnected' | 'connecting' | 'connected';
@@ -90,8 +91,11 @@ export class RealtimeService {
     connection.on('paymentRequestUpdated', (event: PaymentRequestNotificationDto) =>
       this.paymentRequests.next(toPaymentRequestEvent(event)),
     );
-    connection.on('notificationReceived', (notification: AppNotification) =>
-      this.notifications.next(notification),
+    // Normalised on the way in, exactly as the REST payload is. A pushed
+    // notification is the same untrusted shape from the same server; the only
+    // difference is which door it arrived through.
+    connection.on('notificationReceived', (notification: AppNotificationDto) =>
+      this.notifications.next(toNotification(notification)),
     );
 
     connection.onreconnecting(() => this.state.set('connecting'));

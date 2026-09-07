@@ -7,7 +7,7 @@
     <app-icon name="download" [size]="16" />
     Export
   </button>
-  <button appButton size="md" (click)="create()">
+  <button appButton size="md" data-tour="campaigns.new" (click)="create()">
     <app-icon name="plus" [size]="16" />
     New campaign
   </button>
@@ -68,6 +68,7 @@
       />
       <input
         id="campaign-search"
+        data-tour="campaigns.search"
         type="search"
         placeholder="Search campaign or template"
         [value]="search()"

@@ -1,9 +1,21 @@
+<!-- `data-tour-ready` appears once the connection has loaded. It tells the
+     product tour that what is on screen is the final state, so steps whose
+     target belongs to the other state can be dropped rather than skipped one
+     at a time while the user watches the counter jump. -->
 <app-page-header
+  [attr.data-tour-ready]="state() === 'ready' ? '' : null"
   title="WhatsApp"
   description="Your Business Platform connection, sending health and profile."
   [breadcrumbs]="[{ label: 'Home', route: '/dashboard' }, { label: 'WhatsApp', route: null }]"
 >
-  <button appButton variant="outline" size="md" [disabled]="syncing()" (click)="sync()">
+  <button
+    appButton
+    variant="outline"
+    size="md"
+    [attr.data-tour]="isConnected() ? 'whatsapp.refresh' : null"
+    [disabled]="syncing()"
+    (click)="sync()"
+  >
     <app-icon name="refresh" [size]="16" [class.animate-spin]="syncing()" />
     {{ syncing() ? 'Refreshing…' : 'Refresh' }}
   </button>
@@ -33,6 +45,7 @@
   />
   <!-- Hero connection card -->
   <section
+    data-tour="whatsapp.status"
     class="mt-6 overflow-hidden rounded-xl bg-surface ring-1 ring-line shadow-card animate-rise"
   >
     <div class="relative bg-gradient-to-br from-brand-600 to-brand-700 px-6 py-7 sm:px-8">
@@ -164,7 +177,12 @@
 
   <div class="mt-4 grid gap-4 lg:grid-cols-3">
     <!-- Messaging limit -->
-    <app-card class="lg:col-span-2" title="Messaging limit" subtitle="Rolling 24-hour send ceiling">
+    <app-card
+      class="lg:col-span-2"
+      data-tour="whatsapp.limit"
+      title="Messaging limit"
+      subtitle="Rolling 24-hour send ceiling"
+    >
       <div class="flex items-end justify-between gap-4">
         <div>
           <p class="text-3xl font-semibold tracking-tight text-ink tabular-nums">
@@ -197,7 +215,11 @@
     </app-card>
 
     <!-- Namespace -->
-    <app-card title="Template namespace" subtitle="Used when submitting templates">
+    <app-card
+      data-tour="whatsapp.namespace"
+      title="Template namespace"
+      subtitle="Used when submitting templates"
+    >
       <code
         class="block truncate rounded-lg bg-surface-sunken px-3 py-2.5 font-mono text-xs text-ink-soft ring-1 ring-line"
       >
@@ -244,7 +266,7 @@
 
       <!-- aria-live so a screen reader hears each step change, rather than
            sitting silently on a spinner for a minute. -->
-      <ol class="mt-6 space-y-1" aria-live="polite">
+      <ol class="mt-6 space-y-1" data-tour="whatsapp.progress" aria-live="polite">
         @for (step of steps; track step) {
           <li
             class="flex items-start gap-3 rounded-lg px-3 py-2.5 transition-colors"
@@ -379,7 +401,7 @@
       <!-- Stated before the button rather than after a failure. Every one of
            these is something signup cannot fix on the admin's behalf, and
            discovering it at step four means starting the whole flow again. -->
-      <ul class="mt-6 w-full max-w-md space-y-2.5 text-left">
+      <ul class="mt-6 w-full max-w-md space-y-2.5 text-left" data-tour="whatsapp.preflight">
         <li class="flex items-start gap-2.5 text-sm text-ink-soft">
           <app-icon name="checkCircle" [size]="16" class="mt-0.5 shrink-0 text-ink-muted" />
           A Meta Business account that has completed Business Verification.
@@ -399,6 +421,7 @@
         appButton
         size="lg"
         class="mt-6"
+        data-tour="whatsapp.connect"
         [disabled]="connecting() || !signupConfigured()"
         (click)="connect()"
       >

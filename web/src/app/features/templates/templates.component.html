@@ -7,7 +7,7 @@
     <app-icon name="refresh" [size]="16" [class.animate-spin]="syncing()" />
     {{ syncing() ? 'Syncing…' : 'Sync from Meta' }}
   </button>
-  <button appButton size="md" (click)="compose()">
+  <button appButton size="md" data-tour="templates.new" (click)="compose()">
     <app-icon name="plus" [size]="16" />
     New template
   </button>
@@ -26,6 +26,7 @@
       />
       <input
         id="template-search"
+        data-tour="templates.search"
         type="search"
         placeholder="Search name or message text"
         [value]="search()"

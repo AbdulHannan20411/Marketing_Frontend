@@ -16,12 +16,12 @@
     <app-icon name="download" [size]="16" />
     Export
   </button>
-  <a appButton variant="outline" size="md" routerLink="/contacts/import">
+  <a appButton variant="outline" size="md" data-tour="contacts.import" routerLink="/contacts/import">
     <app-icon name="upload" [size]="16" />
     Import
   </a>
   @if (canCreate()) {
-    <button appButton size="md" (click)="openCreate()">
+    <button appButton size="md" data-tour="contacts.add" (click)="openCreate()">
       <app-icon name="plus" [size]="16" />
       Add contact
     </button>

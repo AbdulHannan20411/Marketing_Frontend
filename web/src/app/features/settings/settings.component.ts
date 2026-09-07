@@ -410,6 +410,30 @@ export class SettingsComponent {
   /** How many steps this user's tour has — the same number the tour will show. */
   protected readonly tourStepCount = this.onboarding.total;
 
+  /* --------------------------- guiding tours --------------------------- */
+
+  /**
+   * Module tours this user can actually take.
+   *
+   * Comes straight from the registry, filtered by what their sidebar offers —
+   * so a workspace without the WhatsApp module is never offered a WhatsApp
+   * tour, and adding a tour needs no change here.
+   */
+  protected readonly moduleTours = this.onboarding.availableModuleTours;
+
+  /** Which tour is running, so the list can say so rather than look inert. */
+  protected readonly runningTourId = this.onboarding.runningTourId;
+
+  /**
+   * Starts a module tour.
+   *
+   * Anything already running is ended first — by the service, which owns that
+   * rule. Settings just asks.
+   */
+  protected startModuleTour(id: string): void {
+    this.onboarding.startTour(id);
+  }
+
   /**
    * Restarts the tour and closes the help panel, so the first spotlight is not
    * hidden behind the thing that launched it.

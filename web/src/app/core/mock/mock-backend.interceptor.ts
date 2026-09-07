@@ -33,7 +33,7 @@ import type {
 } from '@core/models/whatsapp.model';
 import { ONBOARDING_STEPS, isWindowOpen } from '@core/models/whatsapp.model';
 import type { Campaign } from '@core/models/campaign.model';
-import type { AppNotification } from '@core/models/notification.model';
+import type { AppNotificationDto } from '@core/models/notification.model';
 import { PERMISSIONS, type Permission } from '@core/models/permission.model';
 import type { SubscriptionPlan } from '@core/models/subscription.model';
 import {
@@ -116,7 +116,7 @@ const LATENCY_MS: number = 380;
  * lifetime of the page rather than pretending the writes succeeded.
  */
 const planStore: SubscriptionPlan[] = PLANS.map((plan) => ({ ...plan }));
-const notificationStore: AppNotification[] = NOTIFICATIONS.map((entry) => ({ ...entry }));
+const notificationStore: AppNotificationDto[] = NOTIFICATIONS.map((entry) => ({ ...entry }));
 const employeeStore: Employee[] = EMPLOYEES.map((entry) => ({ ...entry }));
 const templateStore: MessageTemplate[] = TEMPLATES.map((entry) => ({ ...entry }));
 function nextPlanId(): string {

@@ -1,5 +1,5 @@
 import type { Employee, PermissionSet } from '@core/models/employee.model';
-import type { AppNotification } from '@core/models/notification.model';
+import type { AppNotificationDto } from '@core/models/notification.model';
 import type { FeatureModule, Permission } from '@core/models/permission.model';
 import { PERMISSIONS } from '@core/models/permission.model';
 import type {
@@ -510,11 +510,13 @@ export const PERMISSION_SETS: readonly PermissionSet[] = [
  * Notifications
  * ------------------------------------------------------------------ */
 interface NotificationSeed {
-  readonly kind: AppNotification['kind'];
+  readonly kind: AppNotificationDto['kind'];
   readonly title: string;
   readonly body: string;
-  readonly priority: AppNotification['priority'];
-  readonly icon: AppNotification['icon'];
+  // Raw wire strings: the seeds deliberately include a kebab-case icon and a
+  // name this build has no path for, because that is what the API can send.
+  readonly priority: AppNotificationDto['priority'];
+  readonly icon: AppNotificationDto['icon'];
   readonly read: boolean;
   readonly actionLabel: string | null;
   readonly actionRoute: string | null;
@@ -522,6 +524,34 @@ interface NotificationSeed {
 }
 
 const NOTIFICATION_SEEDS: readonly NotificationSeed[] = [
+  // The payment payload exactly as the API sends it: kebab-case `credit-card`,
+  // which the icon registry calls `creditCard`. Seeded in that form on purpose
+  // — a mock that sends the tidy name would hide the one mismatch the
+  // normaliser exists to absorb.
+  {
+    kind: 'payment.submitted',
+    title: 'Payment awaiting review',
+    body: 'Northwind Retail submitted proof of payment for the Growth plan.',
+    priority: 'info',
+    icon: 'credit-card',
+    read: false,
+    actionLabel: 'Review payment',
+    actionRoute: '/superadmin/payments',
+    hoursAgo: 1,
+  },
+  // A kind this build has never heard of, to prove a future backend feature
+  // still renders rather than silently vanishing.
+  {
+    kind: 'something.invented.later',
+    title: 'A notification from a newer server',
+    body: 'This kind did not exist when this client was built. It should still appear.',
+    priority: 'info',
+    icon: 'not-a-real-icon',
+    read: false,
+    actionLabel: null,
+    actionRoute: null,
+    hoursAgo: 2,
+  },
   {
     kind: 'subscription.expiring',
     title: 'Subscription renews in 18 days',
@@ -656,7 +686,14 @@ const NOTIFICATION_SEEDS: readonly NotificationSeed[] = [
   },
 ];
 
-export const NOTIFICATIONS: readonly AppNotification[] = NOTIFICATION_SEEDS.map((seed, index) => {
+/**
+ * The wire shape, not the normalised one.
+ *
+ * `AppNotificationDto` on purpose: this stands in for the API, and the API
+ * sends raw strings for `icon` and `kind`. Typing it as `AppNotification`
+ * would let the mock promise a tidiness the real server does not.
+ */
+export const NOTIFICATIONS: readonly AppNotificationDto[] = NOTIFICATION_SEEDS.map((seed, index) => {
   const occurred = new Date(NOW);
   occurred.setUTCHours(occurred.getUTCHours() - seed.hoursAgo);
 

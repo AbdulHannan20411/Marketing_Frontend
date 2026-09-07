@@ -295,6 +295,67 @@
   </app-card>
 }
 
+<!-- Guiding tours. Placed directly above Help & FAQ because they answer the
+     same question — "how do I use this" — and a walkthrough is the thing to
+     reach for before reading a list of answers. -->
+<app-card class="mt-4 block" title="Guiding tours" subtitle="Walkthroughs of the product">
+  <!-- General tour -->
+  <div
+    class="flex flex-wrap items-center gap-3 rounded-xl bg-surface-sunken px-4 py-3.5 ring-1 ring-line"
+  >
+    <app-icon name="rocket" [size]="18" class="shrink-0 text-ink-muted" />
+    <div class="min-w-0 flex-1">
+      <p class="text-sm font-medium text-ink">General tour</p>
+      <p class="mt-0.5 text-xs leading-relaxed text-ink-muted">
+        Learn how to navigate and use the main areas of the application.
+        @if (tourStepCount() > 0) {
+          <span class="whitespace-nowrap">{{ tourStepCount() }} steps.</span>
+        }
+      </p>
+    </div>
+    <button appButton variant="outline" size="sm" (click)="restartTour()">
+      Start general tour again
+    </button>
+  </div>
+
+  <!-- Module tours. Only those whose section this user can actually open. -->
+  @if (moduleTours().length > 0) {
+    <h3 class="mt-6 text-xs font-semibold tracking-wide text-ink-soft uppercase">Module tours</h3>
+    <p class="mt-1 text-xs leading-relaxed text-ink-muted">
+      Shorter walkthroughs of one feature, without the whole application tour.
+    </p>
+
+    <ul class="mt-3 space-y-2.5">
+      @for (tour of moduleTours(); track tour.id) {
+        <li
+          class="flex flex-wrap items-center gap-3 rounded-xl px-4 py-3.5 ring-1 transition-colors"
+          [class]="
+            runningTourId() === tour.id
+              ? 'bg-brand-50 ring-brand-200'
+              : 'bg-surface-sunken ring-line'
+          "
+        >
+          <div class="min-w-0 flex-1">
+            <p class="text-sm font-medium text-ink">{{ tour.title }}</p>
+            <p class="mt-0.5 text-xs leading-relaxed text-ink-muted">{{ tour.description }}</p>
+          </div>
+
+          <!-- Says which one is running, because starting a second tour ends
+               the first — better to show that than to let it look like
+               nothing happened. -->
+          @if (runningTourId() === tour.id) {
+            <span class="text-xs font-medium text-brand-700">Running…</span>
+          } @else {
+            <button appButton variant="outline" size="sm" (click)="startModuleTour(tour.id)">
+              Start tour
+            </button>
+          }
+        </li>
+      }
+    </ul>
+  }
+</app-card>
+
 <!-- Help & FAQ. Collapsed on arrival: Settings is opened to change a setting,
      and seventeen questions is a lot of page for the exception. -->
 <app-card class="mt-4 block" [padded]="false">
@@ -412,23 +473,6 @@
 
   <!-- Product tour. Sits above "contact support" because retaking the tour is
        the cheaper answer to "how does this work?" and should be tried first. -->
-  @if (tourStepCount() > 0) {
-    <div
-      class="mt-5 flex flex-wrap items-center gap-3 rounded-xl bg-surface-sunken px-4 py-3.5 ring-1 ring-line"
-    >
-      <app-icon name="rocket" [size]="18" class="shrink-0 text-ink-muted" />
-      <div class="min-w-0 flex-1">
-        <p class="text-sm font-medium text-ink">Product tour</p>
-        <p class="mt-0.5 text-xs text-ink-muted">
-          A {{ tourStepCount() }}-step walkthrough of the sections you have access to.
-        </p>
-      </div>
-      <button appButton variant="outline" size="sm" (click)="restartTour()">
-        Restart product tour
-      </button>
-    </div>
-  }
-
   <!-- Still stuck. The workspace and account travel with the message so support
        does not have to ask for them first. -->
   <div
