@@ -146,8 +146,104 @@ const TRUSTED_ORIGINS = new Set([
   'https://facebook.com',
 ]);
 
+/** Payload shape Meta posts back. Pinned here so it cannot drift silently. */
+const SESSION_INFO_VERSION = '3';
+
 const SDK_URL = 'https://connect.facebook.net/en_US/sdk.js';
 const SDK_ELEMENT_ID = 'facebook-jssdk';
+
+/**
+ * A message's shape, for the diagnostic trail — never its contents.
+ *
+ * Meta posts plenty of unrelated chatter on this channel, and payloads can
+ * carry tokens. Enough to tell a signup event from noise, and nothing more.
+ */
+function describeShape(data: unknown): string {
+  if (typeof data === 'string') {
+    const trimmed = data.trim();
+    if (!trimmed.startsWith('{')) {
+      return `string(${trimmed.slice(0, 24)})`;
+    }
+    try {
+      const parsed = JSON.parse(trimmed) as { type?: unknown };
+      return typeof parsed.type === 'string' ? `json:${parsed.type}` : 'json(no type)';
+    } catch {
+      return 'string(unparsed)';
+    }
+  }
+  if (typeof data === 'object' && data !== null) {
+    const type = (data as { type?: unknown }).type;
+    return typeof type === 'string' ? `object:${type}` : 'object(no type)';
+  }
+  return typeof data;
+}
+
+/**
+ * The `extras` object for `FB.login`, assembled from configuration.
+ *
+ * Built rather than written literally so that matching a new configuration is
+ * an environment change, not a code change — this has already been wrong
+ * twice, and each correction cost a rebuild and a round trip.
+ *
+ * Which of `features` and `featureType` a config wants is only knowable from
+ * Meta's own generated snippet, so both are supported and whichever is left
+ * blank is left out entirely.
+ */
+function buildSignupExtras(): Record<string, unknown> {
+  const extras: Record<string, unknown> = {
+    // Kept although Meta's JS snippet omits it: this is what asks for the
+    // FINISH postMessage carrying `waba_id` and `phone_number_id`, which the
+    // whole connect call depends on. Meta's own hosted launcher sends it, and
+    // their step 2 tells you to listen for exactly that message — the snippet
+    // simply leaves it at its default.
+    sessionInfoVersion: SESSION_INFO_VERSION,
+    version: environment.meta.signupVersion,
+  };
+
+  const variant = extrasVariant();
+
+  if (variant.features && environment.meta.signupFeatures.length > 0) {
+    extras['features'] = environment.meta.signupFeatures.map((name) => ({ name }));
+  }
+  if (variant.featureType && environment.meta.signupFeatureType !== '') {
+    extras['featureType'] = environment.meta.signupFeatureType;
+  }
+  return extras;
+}
+
+/**
+ * Which optional extras to include, overridable from the URL outside production.
+ *
+ * `extras` are a *request*, not a description of the configuration: asking for
+ * `app_only_install` may narrow the dialog rather than describe it. Which
+ * combination a given configuration actually wants has taken several rebuilds
+ * to explore, so `?esExtras=` makes the remaining ones testable in one sitting:
+ *
+ *   ?esExtras=none        neither key
+ *   ?esExtras=features    features only
+ *   ?esExtras=featureType featureType only
+ *   ?esExtras=both        both (the configured default)
+ *
+ * Ignored in production, where the environment is the only source.
+ */
+function extrasVariant(): { features: boolean; featureType: boolean } {
+  const both = { features: true, featureType: true };
+  if (environment.production) {
+    return both;
+  }
+
+  const requested = new URLSearchParams(window.location.search).get('esExtras');
+  switch (requested) {
+    case 'none':
+      return { features: false, featureType: false };
+    case 'features':
+      return { features: true, featureType: false };
+    case 'featureType':
+      return { features: false, featureType: true };
+    default:
+      return both;
+  }
+}
 
 /**
  * Meta Embedded Signup.
@@ -200,9 +296,19 @@ export class MetaSignupService {
       let wabaOnly = false;
       const seenEvents: string[] = [];
       const rejectedOrigins = new Set<string>();
+      // Message `type` values only — never payload contents.
+      const observedTypes = new Set<string>();
+      // Origin + shape of every message, trusted or not. Never contents.
+      const allMessages: string[] = [];
 
       // Meta posts the account ids here; the code arrives via the callback.
       const onMessage = (event: MessageEvent): void => {
+        // Counted before any filtering. The previous trail only saw messages
+        // that passed the origin check *and* parsed with a `type`, so the one
+        // case we most need to distinguish — Meta posting something we do not
+        // recognise — looked identical to Meta posting nothing at all.
+        allMessages.push(`${originHost(event.origin)}:${describeShape(event.data)}`);
+
         // Exact hosts, not `endsWith('facebook.com')` — that also matches
         // `notfacebook.com`, letting any such origin post a forged FINISH here.
         if (!TRUSTED_ORIGINS.has(event.origin)) {
@@ -215,6 +321,16 @@ export class MetaSignupService {
           return;
         }
         const payload = readSignupPayload(event.data);
+
+        // Every message from Meta is noted, not only the ones we understand.
+        // "Meta sent nothing at all" and "Meta sent something we failed to
+        // parse" have completely different causes — one is the Meta app's
+        // configuration, the other is a bug here — and without this trail the
+        // two are indistinguishable from the outside.
+        if (payload !== null && typeof payload.type === 'string') {
+          observedTypes.add(payload.type);
+        }
+
         if (payload === null || payload.type !== 'WA_EMBEDDED_SIGNUP') {
           return;
         }
@@ -258,8 +374,21 @@ export class MetaSignupService {
       const done = (): void => window.removeEventListener('message', onMessage);
 
       sdk.login(
-        (response) => {
-          done();
+  (response) => {
+    console.log('=== META FB.LOGIN RESPONSE ===');
+    console.log(response);
+    console.log('=== META CONFIG ===');
+    console.log({
+      appId: environment.meta.appId,
+      configId: environment.meta.configId,
+      graphVersion: environment.meta.graphVersion,
+      signupFeatureType: environment.meta.signupFeatureType,
+      signupVersion: environment.meta.signupVersion,
+      origin: window.location.origin,
+    });
+
+    done();
+
 
           // An error Meta reported outranks the shape of the callback: without
           // this, a genuine failure is indistinguishable from a cancellation
@@ -271,6 +400,12 @@ export class MetaSignupService {
             rejectedOrigins.size === 0
               ? null
               : `Ignored messages from: ${[...rejectedOrigins].join(', ')}.`,
+            observedTypes.size === 0
+              ? 'No recognised signup messages arrived.'
+              : `Message types seen: ${[...observedTypes].join(', ')}.`,
+            allMessages.length === 0
+              ? 'No window messages arrived at all — the signup flow never started.'
+              : `${allMessages.length} window message(s): ${[...new Set(allMessages)].slice(0, 8).join(' | ')}.`,
           ]
             .filter((part): part is string => part !== null)
             .join(' ');
@@ -328,7 +463,12 @@ export class MetaSignupService {
           // `code` rather than a token: the exchange happens server-side.
           response_type: 'code',
           override_default_response_type: true,
-          extras: { setup: {}, featureType: '', sessionInfoVersion: '3' },
+          // Exactly the extras Meta's console generates for this config id,
+          // and nothing more. Keys are omitted rather than sent empty: a
+          // `featureType: ''` alongside `features` is not a harmless default,
+          // it is a contradictory instruction, and Meta answers it by running
+          // an ordinary login instead of signup.
+          extras: buildSignupExtras(),
         },
       );
     });
@@ -352,7 +492,7 @@ export class MetaSignupService {
           appId: environment.meta.appId,
           cookie: true,
           xfbml: false,
-          version: environment.meta.graphVersion,
+          version: environment.meta.sdkVersion,
         });
         this.ready.set(true);
         resolve();

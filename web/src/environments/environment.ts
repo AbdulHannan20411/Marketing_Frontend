@@ -16,5 +16,14 @@ export const environment: AppEnvironment = {
     appId: '934175505679137',
     configId: '1597003388716127',
     graphVersion: 'v21.0',
+    // From Meta's own generated snippet for this app. The SDK version and the
+    // server's Graph version are independent; only this one gates the dialog.
+    sdkVersion: 'v26.0',
+    // Copied from Meta's generated snippet for config 1597003388716127,
+    // which declares `app_only_install` and no featureType. These two must
+    // agree with the console or the dialog silently degrades to a plain login.
+    signupFeatures: ['app_only_install'],
+    signupFeatureType: 'whatsapp_business_app_onboarding',
+    signupVersion: 'v4',
   },
 };

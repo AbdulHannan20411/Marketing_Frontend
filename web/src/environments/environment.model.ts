@@ -33,4 +33,44 @@ export interface MetaSignupConfig {
   readonly configId: string;
   /** Graph API version the SDK initialises with, e.g. `v21.0`. */
   readonly graphVersion: string;
+
+  /**
+   * Features the configuration declares, by name.
+   *
+   * **Copy these from Meta's own generated snippet for the same config id** —
+   * the console shows the exact `extras` it expects. Guessing does not work:
+   * a mismatch does not error, it makes the dialog fall through to an ordinary
+   * Facebook login that returns a code and runs no WhatsApp flow at all.
+   *
+   * Empty omits the key entirely, which is what a config with no features
+   * wants — sending `features: []` is not the same as not sending it.
+   */
+  /**
+   * Graph version the **browser SDK** initialises with.
+   *
+   * Separate from `graphVersion`, which is the version the *server* calls and
+   * is pinned to the backend's `WhatsApp:ApiVersion`. These were one field,
+   * which conflated two unrelated concerns: the SDK version decides whether
+   * the login dialog can run a given Embedded Signup flow, and Meta's own
+   * generated snippet for the app states which to use.
+   */
+  readonly sdkVersion: string;
+
+  readonly signupFeatures: readonly string[];
+
+  /**
+   * Legacy single-feature form, for configurations that use it.
+   *
+   * Older configs declare one `featureType` instead of a `features` array.
+   * Empty omits the key. Both forms are supported because which one a config
+   * uses is not something this code can infer — only Meta's snippet says.
+   */
+  readonly signupFeatureType: string;
+
+  /**
+   * Embedded Signup flow version, from that same hosted link.
+   *
+   * Distinct from `graphVersion`, which is the API version the server calls.
+   */
+  readonly signupVersion: string;
 }
