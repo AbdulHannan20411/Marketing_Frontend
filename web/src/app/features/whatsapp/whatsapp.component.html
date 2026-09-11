@@ -365,12 +365,25 @@
           }
 
           <div class="mt-5 flex flex-wrap items-center gap-3">
-            <!-- Always offered: every remedy above ends in reconnecting, and
-                 the server never re-runs a step that already succeeded. -->
-            <button appButton size="md" (click)="retryConnect()">
-              <app-icon name="refresh" [size]="16" />
-              Try again
-            </button>
+            <!-- Resume first where the stored credential still works: the
+                 token is fine, one Graph call failed, and walking the whole
+                 Meta popup again to retry it is ceremony for nothing. -->
+            @if (canResumeConnect()) {
+              <button appButton size="md" [disabled]="resuming()" (click)="resumeConnect()">
+                <app-icon name="refresh" [size]="16" [class.animate-spin]="resuming()" />
+                {{ resuming() ? 'Resuming…' : 'Resume' }}
+              </button>
+              <button appButton variant="outline" size="md" (click)="retryConnect()">
+                Start signup again
+              </button>
+            } @else {
+              <!-- The credential itself was refused, so only a fresh one helps.
+                   The API returns 409 here; offering Resume would guarantee it. -->
+              <button appButton size="md" (click)="retryConnect()">
+                <app-icon name="refresh" [size]="16" />
+                Reconnect
+              </button>
+            }
             <a
               href="https://business.facebook.com/settings"
               target="_blank"

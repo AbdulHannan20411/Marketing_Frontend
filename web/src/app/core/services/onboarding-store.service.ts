@@ -26,17 +26,16 @@ export class OnboardingStoreService {
   private readonly api = inject(ApiService);
 
   /**
-   * Flip to `true` once the backend confirms the migration has been applied.
+   * Onboarding state lives on the server.
    *
-   * **Not yet.** The endpoints are written but their columns are not, so
-   * turning this on now would fail every read and write.
+   * The columns landed in migration `20260821091832_Pendingmigration`, so tour
+   * progress now follows the user between browsers and devices instead of
+   * being stranded in one profile's `localStorage`.
    *
-   * Kept as an explicit switch rather than feature-detection: a failure on
-   * every page load, swallowed into a fallback, is the kind of thing that hides
-   * a genuine outage. The local path stays afterwards as the `catchError`
-   * fallback, so a first run still works offline.
+   * The local path stays as the `catchError` fallback, so a first run still
+   * works offline and a transient outage does not replay the tour.
    */
-  private readonly useApi = false;
+  private readonly useApi = true;
 
   private key(userId: string): string {
     return `vd.onboarding.${userId}`;

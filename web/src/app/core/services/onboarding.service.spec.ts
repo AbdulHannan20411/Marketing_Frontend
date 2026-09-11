@@ -241,4 +241,91 @@ describe('OnboardingService', () => {
       expect(service.steps().map((step) => step.target)).toContain('whatsapp.preflight');
     });
   });
+
+  /* ------------------- first-login tour selection ------------------- */
+
+  /**
+   * An employee granted one module reaches one section, so the general tour
+   * filters down to a single step naming the thing they can already see. The
+   * module's own tour is the one that teaches them anything.
+   */
+  describe('which tour a first sign-in gets', () => {
+    it('gives a WhatsApp-only employee the WhatsApp tour', () => {
+      const service = configure(['/whatsapp']);
+      service.maybeStartForFirstLogin();
+
+      expect(service.activeTour()?.id).toBe('whatsapp-tour');
+      expect(service.total()).toBeGreaterThan(1);
+    });
+
+    it('gives a contacts-only employee the Contacts tour', () => {
+      const service = configure(['/contacts']);
+      service.maybeStartForFirstLogin();
+
+      expect(service.activeTour()?.id).toBe('contacts-tour');
+    });
+
+    it('keeps the general tour when several sections are reachable', () => {
+      const service = configure(['/dashboard', '/contacts', '/whatsapp', '/campaigns']);
+      service.maybeStartForFirstLogin();
+
+      // With more than one section the map is the useful thing; a deep tour of
+      // one of them would leave the rest unexplained.
+      expect(service.activeTour()?.id).toBe(GENERAL_TOUR_ID);
+    });
+
+    it('falls back to the general tour when no module tour fits', () => {
+      // Reports and Settings have no module tours of their own.
+      const service = configure(['/reports', '/settings']);
+      service.maybeStartForFirstLogin();
+
+      expect(service.activeTour()?.id).toBe(GENERAL_TOUR_ID);
+    });
+
+    it('records onboarding when a module tour served as the introduction', () => {
+      const service = configure(['/whatsapp']);
+      setStatus.calls.reset();
+
+      service.maybeStartForFirstLogin();
+      service.complete();
+
+      // Without this the WhatsApp tour reopens on every single login, because
+      // module tours otherwise deliberately record nothing.
+      expect(setStatus).toHaveBeenCalled();
+      expect(setStatus.calls.mostRecent().args[1]).toBe('completed');
+    });
+
+    it('still records nothing for a module tour opened from Settings', () => {
+      const service = configure(['/whatsapp']);
+      setStatus.calls.reset();
+
+      service.startTour('whatsapp-tour');
+      service.complete();
+
+      expect(setStatus).not.toHaveBeenCalled();
+    });
+  });
+
+  /* ------------------- the permission floor ------------------- */
+
+  /**
+   * `Permissions.Baseline` grants `dashboard.view` to every invitee, so an
+   * employee given nothing else still reaches one section. The general tour
+   * then collapses to a single card naming the screen they are looking at.
+   */
+  describe('an employee with only the permission floor', () => {
+    it('gets no tour at all rather than a one-step one', () => {
+      const service = configure(['/dashboard']);
+      service.maybeStartForFirstLogin();
+
+      expect(service.active()).toBeFalse();
+    });
+
+    it('still gets the tour once a second section is reachable', () => {
+      const service = configure(['/dashboard', '/contacts', '/whatsapp']);
+      service.maybeStartForFirstLogin();
+
+      expect(service.active()).toBeTrue();
+    });
+  });
 });

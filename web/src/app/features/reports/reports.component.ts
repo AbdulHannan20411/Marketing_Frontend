@@ -3,7 +3,7 @@ import { forkJoin } from 'rxjs';
 
 import type { DashboardSnapshot } from '@core/models/analytics.model';
 import type { DeliveryFailure } from '@core/models/campaign.model';
-import type { LoadState } from '@core/models/api.model';
+import type { ApiError, LoadState } from '@core/models/api.model';
 import { DashboardService } from '@core/services/dashboard.service';
 import { ToastService } from '@core/services/toast.service';
 import { TimeAgoPipe } from '@shared/pipes/time-ago.pipe';
@@ -165,7 +165,31 @@ export class ReportsComponent {
     });
   }
 
+  protected readonly exporting = signal(false);
+
+  /**
+   * Downloads the failure log.
+   *
+   * This used to show a toast claiming the export had been queued and would be
+   * emailed. Nothing was queued and no email was ever sent — the button had no
+   * implementation behind it at all, which is worse than a disabled control
+   * because it reports success.
+   */
   protected exportCsv(): void {
-    this.toast.info('Export queued', 'A CSV download link will be emailed when it is ready.');
+    if (this.exporting()) {
+      return;
+    }
+    this.exporting.set(true);
+
+    this.dashboardService.exportFailures().subscribe({
+      next: () => {
+        this.exporting.set(false);
+        this.toast.success('Export ready', 'The failure log has been downloaded.');
+      },
+      error: (error: ApiError) => {
+        this.exporting.set(false);
+        this.toast.error(error.title, error.detail);
+      },
+    });
   }
 }

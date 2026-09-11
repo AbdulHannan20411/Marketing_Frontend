@@ -113,14 +113,27 @@ export class ContactsService {
   }
 
   /** Streams CSV; saved client-side because the token cannot ride a plain link. */
-  exportCsv(query: Partial<ContactQuery> & { ids?: string }): Observable<Blob> {
+  /**
+   * The filtered contact list as CSV.
+   *
+   * Takes the same shape as `list`, because the API takes the same query object
+   * for both — so the file and the screen that offered it cannot disagree about
+   * which contacts are in scope.
+   *
+   * **Deliberately not selection-scoped.** It used to send `ids` for ticked
+   * rows; the API has no such parameter and ignored it, so ticking three
+   * contacts and pressing Export produced a file containing every contact
+   * matching the filters. A silent over-export of personal data is a worse
+   * outcome than not offering the feature, so the parameter is gone until the
+   * API supports it.
+   */
+  exportCsv(query: Partial<ContactQuery>): Observable<Blob> {
     return this.api
       .download('/contacts/export', {
         search: query.search ?? '',
         status: query.status ?? 'all',
         groupId: query.groupId ?? 'all',
         tagId: query.tagId ?? 'all',
-        ...(query.ids === undefined ? {} : { ids: query.ids }),
       })
       .pipe(tap((blob) => saveBlob(blob, 'contacts.csv')));
   }

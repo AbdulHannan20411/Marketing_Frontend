@@ -30,6 +30,7 @@ import {
 } from '@core/models/whatsapp.model';
 import { RealtimeService } from '@core/services/realtime.service';
 import { ToastService } from '@core/services/toast.service';
+import { AuthService } from '@core/auth/auth.service';
 import { WhatsAppService } from '@core/services/whatsapp.service';
 import { TimeAgoPipe } from '@shared/pipes/time-ago.pipe';
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
@@ -86,6 +87,19 @@ export class InboxComponent {
   private readonly thread = viewChild<ElementRef<HTMLElement>>('thread');
 
   protected readonly state = signal<LoadState>('loading');
+  /**
+   * Whether this user may actually send.
+   *
+   * Reading a conversation and replying under the workspace's verified name are
+   * separate permissions, and the API enforces both. Without this the composer
+   * rendered for anyone who could open the Inbox: they would type a reply, send
+   * it, and collect a 403 — the permission model working correctly and the UI
+   * refusing to admit it.
+   */
+  protected readonly canReply = computed(() => this.auth.hasPermission('whatsapp.inbox.reply'));
+
+  private readonly auth = inject(AuthService);
+
   protected readonly conversations = signal<readonly Conversation[]>([]);
   private readonly page = signal(1);
   protected readonly search = signal('');
@@ -165,6 +179,7 @@ export class InboxComponent {
 
   protected readonly canSend = computed(
     () =>
+      this.canReply() &&
       this.windowOpen() &&
       !this.sending() &&
       !this.uploading() &&

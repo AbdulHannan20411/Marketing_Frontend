@@ -2,13 +2,14 @@ import type { Routes } from '@angular/router';
 
 import { authGuard, guestGuard } from '@core/guards/auth.guard';
 import { featureGuard } from '@core/guards/feature.guard';
+import { landingGuard } from '@core/guards/landing.guard';
 import { permissionGuard } from '@core/guards/permission.guard';
 import { adminPortalGuard, superAdminPortalGuard } from '@core/guards/portal.guard';
 import { scopeGuard } from '@core/guards/scope.guard';
 import { subscriptionLockGuard } from '@core/guards/subscription.guard';
 
 export const routes: Routes = [
-  { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
+  { path: '', pathMatch: 'full', canActivate: [landingGuard], children: [] },
 
   {
     path: 'auth',
@@ -261,6 +262,13 @@ export const routes: Routes = [
       {
         path: 'dashboard',
         title: 'Dashboard',
+        // Guarded like every other tenant route. It was the sole exception,
+        // on the assumption that a dashboard is harmless to everyone — but it
+        // is also where the default redirect sends people, so an employee with
+        // no permissions landed here and met a wall of forbidden errors from
+        // the endpoints it calls.
+        canActivate: [permissionGuard],
+        data: { permissions: ['dashboard.view'] },
         loadComponent: () =>
           import('@features/dashboard/dashboard.component').then((m) => m.DashboardComponent),
       },
@@ -465,5 +473,5 @@ export const routes: Routes = [
     ],
   },
 
-  { path: '**', redirectTo: 'dashboard' },
+  { path: '**', canActivate: [landingGuard], children: [] },
 ];

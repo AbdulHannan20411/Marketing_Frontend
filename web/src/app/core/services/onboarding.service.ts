@@ -32,6 +32,14 @@ const TARGET_POLL_MS = 50;
 const DRAWER_BREAKPOINT_PX = 1024;
 
 /**
+ * Below this, a first-login tour is skipped entirely.
+ *
+ * Two steps is the point at which a walkthrough starts describing a *route*
+ * through the product rather than labelling one screen.
+ */
+const MIN_GENERAL_TOUR_STEPS = 2;
+
+/**
  * Drives the product tour.
  *
  * Owns *what* the tour is doing — which step, whether it is running, how to
@@ -76,6 +84,16 @@ export class OnboardingService {
 
   /** Routes that have produced a target, so their pages are known to be loaded. */
   private readonly settledRoutes = new Set<string>();
+
+  /**
+   * Whether the running tour is this user's first-sign-in one.
+   *
+   * Decides whether finishing it records that they have been onboarded. A
+   * module tour opened from Settings must not — reading up on Contacts would
+   * otherwise suppress an introduction they never had. A module tour chosen
+   * *as* the first-login tour is that introduction, so it must.
+   */
+  private firstRun = false;
 
   readonly active = signal(false);
   /** True while navigating and waiting for a target to render. */
@@ -186,9 +204,11 @@ export class OnboardingService {
       return;
     }
 
-    // Only ever the general tour: a module tour is something a user asks for,
-    // never something that ambushes them on their first sign-in.
-    this.tourId.set(GENERAL_TOUR_ID);
+    // Whichever tour actually teaches this user something. See
+    // `firstLoginTourId` — for someone granted a single module, the general
+    // tour collapses to a one-step overview of it, which is no tour at all.
+    this.firstRun = true;
+    this.tourId.set(this.firstLoginTourId());
 
     this.store.getOnboardingStatus(user.id).subscribe((state) => {
       this.status.set(state.status);
@@ -196,7 +216,14 @@ export class OnboardingService {
       if (state.status === 'completed' || state.status === 'skipped') {
         return;
       }
-      if (this.total() === 0) {
+      // A one-step tour is not a tour.
+      //
+      // The permission floor grants `dashboard.view` to every invitee, so an
+      // employee given nothing else reaches exactly one section — and the
+      // general tour collapses to a single card naming the screen they are
+      // already looking at. That is noise on someone's first sign-in, and it
+      // was reported as such.
+      if (this.total() < MIN_GENERAL_TOUR_STEPS) {
         return;
       }
 
@@ -224,12 +251,32 @@ export class OnboardingService {
   restart(): void {
     const user = this.auth.user();
     this.stop();
+    this.firstRun = false;
     this.tourId.set(GENERAL_TOUR_ID);
 
     if (user === null || this.total() === 0) {
       return;
     }
     this.store.resetOnboarding(user.id).subscribe(() => void this.begin(0));
+  }
+
+  /**
+   * The tour to run on a first sign-in.
+   *
+   * An employee granted one module — WhatsApp, say — reaches one section, so
+   * the general tour filters down to a single step describing it. That is a
+   * worse introduction than no tour: it names the thing they can already see
+   * and stops. The module's own tour teaches them how to use it.
+   *
+   * The rule is deliberately "exactly one": with two or more sections the map
+   * *is* the useful thing, and a detailed tour of one of them would leave the
+   * others unexplained. Module tours stay available in Settings either way.
+   *
+   * Falls back to the general tour when no module tour covers what they have.
+   */
+  private firstLoginTourId(): string {
+    const modules = this.availableModuleTours();
+    return modules.length === 1 ? modules[0].id : GENERAL_TOUR_ID;
   }
 
   /**
@@ -256,6 +303,7 @@ export class OnboardingService {
     }
 
     this.stop();
+    this.firstRun = false;
     this.tourId.set(id);
 
     // Every step filtered out — the user cannot reach any of the routes it
@@ -550,7 +598,10 @@ export class OnboardingService {
    * opened the Contacts tour from Settings.
    */
   private persist(status: OnboardingStatus): void {
-    if (!this.isGeneralTour) {
+    // The general tour, or whichever tour stood in for it on a first sign-in.
+    // Without the second case a module tour chosen as the introduction is
+    // never recorded, and reopens on every login.
+    if (!this.isGeneralTour && !this.firstRun) {
       return;
     }
     const user = this.auth.user();

@@ -25,6 +25,7 @@ import {
   ONBOARDING_STEP_DETAIL,
   ONBOARDING_STEP_LABEL,
   ONBOARDING_STEP_SKIPPED,
+  canResume,
   failedStep,
   onboardingRemedy,
 } from '@core/models/whatsapp.model';
@@ -458,6 +459,45 @@ export class WhatsAppComponent {
         ? 'Signup did not complete.'
         : `Stopped at ${ONBOARDING_STEP_LABEL[failure.step].toLowerCase()}.`,
     );
+  }
+
+  /** True when the stored credential is still usable, so the popup can be skipped. */
+  protected readonly canResumeConnect = computed(() => canResume(this.failure()?.code ?? null));
+
+  protected readonly resuming = signal(false);
+
+  /**
+   * Retries the failed step without reopening the Meta popup.
+   *
+   * The credential is already stored and valid — one Graph call failed. Making
+   * the admin walk the entire signup again to retry it was ceremony for
+   * nothing. Steps that already succeeded are not re-run, so the number is
+   * never re-registered.
+   */
+  protected resumeConnect(): void {
+    if (this.resuming()) {
+      return;
+    }
+    this.resuming.set(true);
+    this.detailOpen.set(false);
+
+    this.whatsapp.resumeConnect().subscribe({
+      next: (connection) => {
+        this.resuming.set(false);
+        this.connection.set(connection);
+        this.state.set('ready');
+
+        if (connection.onboarding.running) {
+          this.startPolling();
+          return;
+        }
+        this.settle(connection);
+      },
+      error: (error: ApiError) => {
+        this.resuming.set(false);
+        this.toast.error(error.title, error.detail);
+      },
+    });
   }
 
   /**

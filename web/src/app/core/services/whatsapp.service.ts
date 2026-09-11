@@ -49,66 +49,15 @@ export interface TemplatePage extends PagedResult<MessageTemplate> {
 }
 
 /**
- * Search and category only.
+ * Normalises the paged response.
  *
- * Status is applied separately because the counts are a breakdown *by* status
- * and must not have it applied — the same rule the counts endpoint is supposed
- * to follow.
+ * This used to accept a bare array too, slicing and counting client-side while
+ * the endpoint was unpaged. It pages properly now — filtered in SQL — so the
+ * array branch was dead, and with it the client-side `counts`: those were only
+ * ever exact because the whole collection happened to be in hand.
  */
-function matchesScope(template: MessageTemplate, query: TemplateQuery): boolean {
-  const term = query.search.trim().toLowerCase();
-
-  const matchesSearch =
-    term === '' ||
-    template.name.toLowerCase().includes(term) ||
-    template.bodyText.toLowerCase().includes(term);
-
-  return matchesSearch && (query.category === 'all' || template.category === query.category);
-}
-
-function countByStatus(templates: readonly MessageTemplate[]): TemplateStatusCounts {
-  const of = (status: MessageTemplate['status']): number =>
-    templates.filter((template) => template.status === status).length;
-
-  return {
-    total: templates.length,
-    approved: of('approved'),
-    pending: of('pending'),
-    rejected: of('rejected'),
-    paused: of('paused'),
-  };
-}
-
-/** Wraps a bare array into the paged shape the screen expects. */
-function normaliseTemplatePage(
-  response: PagedResult<MessageTemplate> | readonly MessageTemplate[],
-  query: TemplateQuery,
-): TemplatePage {
-  if (!Array.isArray(response)) {
-    return { ...(response as PagedResult<MessageTemplate>), pagedByServer: true };
-  }
-
-  // Scoped by search and category first: that set is what the counts describe.
-  const scoped = (response as readonly MessageTemplate[]).filter((template) =>
-    matchesScope(template, query),
-  );
-
-  const matched =
-    query.status === 'all'
-      ? scoped
-      : scoped.filter((template) => template.status === query.status);
-
-  const start = (query.page - 1) * query.pageSize;
-
-  return {
-    items: matched.slice(start, start + query.pageSize),
-    page: query.page,
-    pageSize: query.pageSize,
-    totalItems: matched.length,
-    totalPages: Math.max(1, Math.ceil(matched.length / query.pageSize)),
-    pagedByServer: false,
-    counts: countByStatus(scoped),
-  };
+function normaliseTemplatePage(response: PagedResult<MessageTemplate>): TemplatePage {
+  return { ...response, pagedByServer: true };
 }
 
 export interface ConnectWhatsAppRequest {
@@ -171,6 +120,21 @@ export class WhatsAppService {
     );
   }
 
+  /**
+   * Restarts a failed onboarding using the credential already stored.
+   *
+   * No new authorisation code, so no second trip through the Meta popup — the
+   * token is fine, one Graph call failed. Steps that already succeeded or were
+   * skipped are left alone, so a number is never re-registered.
+   *
+   * Refused with `409` for `token_rejected`: that credential is dead and
+   * retrying it can only fail again. The server enforces the rule rather than
+   * trusting the client to hide the button.
+   */
+  resumeConnect(): Observable<WhatsAppConnection> {
+    return this.api.post<WhatsAppConnection>('/whatsapp/connect/resume');
+  }
+
   /** Destroys the stored credential; reconnecting means running signup again. */
   disconnect(): Observable<WhatsAppConnection> {
     return this.api.post<WhatsAppConnection>('/whatsapp/disconnect');
@@ -187,14 +151,14 @@ export class WhatsAppService {
    */
   listTemplates(query: TemplateQuery): Observable<TemplatePage> {
     return this.api
-      .get<PagedResult<MessageTemplate> | readonly MessageTemplate[]>('/templates', {
+      .get<PagedResult<MessageTemplate>>('/templates', {
         page: query.page,
         pageSize: query.pageSize,
         search: query.search,
         status: query.status,
         category: query.category,
       })
-      .pipe(map((response) => normaliseTemplatePage(response, query)));
+      .pipe(map((response) => normaliseTemplatePage(response)));
   }
 
   /**

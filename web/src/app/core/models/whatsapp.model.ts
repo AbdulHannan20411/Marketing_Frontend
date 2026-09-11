@@ -130,6 +130,17 @@ export const ONBOARDING_REMEDIES: Readonly<Record<string, string>> = {
 export const ONBOARDING_GENERIC_REMEDY =
   'Onboarding could not be completed. Try connecting again, and contact support if it persists.';
 
+/**
+ * Whether a failure can be retried on the stored credential.
+ *
+ * Everything except `token_rejected`, where the credential itself is what was
+ * refused and only a fresh authorisation will do. The API enforces this too —
+ * it answers `409` — so this only decides which button to offer.
+ */
+export function canResume(code: string | null): boolean {
+  return code !== 'token_rejected';
+}
+
 /** Never returns empty: an unknown code is still a failure that needs a remedy. */
 export function onboardingRemedy(code: string | null): string {
   if (code === null || code === '') {

@@ -1,7 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
-import { forkJoin } from 'rxjs';
 
 import { AuthService } from '@core/auth/auth.service';
 import type { DashboardSnapshot } from '@core/models/analytics.model';
@@ -125,16 +124,25 @@ export class DashboardComponent {
   protected load(): void {
     this.state.set('loading');
 
-    forkJoin({
-      snapshot: this.dashboardService.getSnapshot(),
-      campaigns: this.dashboardService.getCampaigns(),
-    }).subscribe({
-      next: ({ snapshot, campaigns }) => {
+    // Loaded separately, not as a `forkJoin`.
+    //
+    // `forkJoin` fails whole when any one source fails, so an employee with
+    // `dashboard.view` but no campaign permission got a `403` on `/campaigns`
+    // and lost the entire page — including the summary they were entitled to
+    // see. Each panel now stands or falls on its own.
+    this.dashboardService.getSnapshot().subscribe({
+      next: (snapshot) => {
         this.snapshot.set(snapshot);
-        this.campaigns.set(campaigns);
         this.state.set('ready');
       },
       error: () => this.state.set('error'),
+    });
+
+    // Recent campaigns are one panel. Not being allowed to see them is a
+    // normal state for a restricted employee, not a broken dashboard.
+    this.dashboardService.getCampaigns().subscribe({
+      next: (campaigns) => this.campaigns.set(campaigns),
+      error: () => this.campaigns.set([]),
     });
 
     // Connection health feeds the executive strip; a failure there should not

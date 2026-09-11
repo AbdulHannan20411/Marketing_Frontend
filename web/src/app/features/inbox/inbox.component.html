@@ -251,7 +251,21 @@
               (change)="onAttachmentInput($event)"
             />
 
-            @if (windowOpen()) {
+            @if (!canReply()) {
+              <!-- Reading a conversation and replying under the workspace's verified
+                   name are separate permissions. Showing a composer that always ends
+                   in a 403 is worse than not showing one: it invites the attempt. -->
+              <div class="flex flex-wrap items-start gap-3 rounded-lg bg-surface-sunken px-3.5 py-3 ring-1 ring-line">
+                <app-icon name="lock" [size]="17" class="mt-px shrink-0 text-ink-muted" />
+                <div class="min-w-0 flex-1">
+                  <p class="text-sm font-medium text-ink">You can read this conversation, but not reply</p>
+                  <p class="mt-0.5 text-xs leading-relaxed text-ink-muted">
+                    Replying sends a message under your workspace's verified business name. Ask an
+                    administrator for the Inbox reply permission if you need it.
+                  </p>
+                </div>
+              </div>
+            } @else if (windowOpen()) {
               @if (attachment(); as asset) {
                 <div
                   class="mb-2 flex items-center gap-2 rounded-lg bg-surface-sunken px-3 py-2 ring-1 ring-line"
