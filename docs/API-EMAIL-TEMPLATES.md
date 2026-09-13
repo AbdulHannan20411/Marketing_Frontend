@@ -1,8 +1,21 @@
 # Email Templates — Backend Requirements
 
-**Status:** frontend done (Super Admin editor, mock API, shipped templates, unit tests).
-Backend work needed: table, seed, 5 endpoints, one renderer, and switching the existing senders
-over to the templates.
+**Status:** frontend done; backend reports built (table, seed, 5 endpoints, ported renderer with
+ported tests, all 8 senders switched, welcome email on first-admin invitation acceptance). **Not
+yet exercised against a running API.**
+
+Agreed differences from the spec below:
+
+- **Audit:** no named `EmailTemplateUpdated/Reset` entries. The automatic entity audit records
+  every save and reset as an `EmailTemplate / Updated` row, with bodies redacted. A reset isn't
+  labelled as a reset. That's acceptable for now.
+- **Subject:** control characters are stripped after line breaks are flattened. The frontend
+  preview now does the same.
+- **Cache:** 5 minutes per instance. With several API instances, others may send the old wording
+  for up to 5 minutes after a save.
+- **Formatting:** money and dates use the invariant culture (`d MMMM yyyy`, `CUR 1,234`).
+- **Before launch (configuration, not code):** set `Email:SupportAddress` and `Email:FromName`
+  (the brand name). Test emails show the configured name, not the "NextReach" samples.
 
 ---
 

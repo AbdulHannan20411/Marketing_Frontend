@@ -90,6 +90,13 @@ describe('email template renderer', () => {
       });
       expect(email.subject).toBe('Hi A Bcc: victim@example.com');
     });
+
+    it('strips control characters from the subject, as the server does', () => {
+      const email = renderEmail({ subject: 'Hi {{name}}', htmlBody: 'x', textBody: 'x' }, null, {
+        name: 'A\tBC',
+      });
+      expect(email.subject).toBe('Hi ABC');
+    });
   });
 
   describe('validateDraft', () => {

@@ -353,7 +353,7 @@ export class EmailTemplatesComponent {
       },
       error: (error: ApiError) => {
         this.saving.set(false);
-        this.toast.error(error.title, error.detail);
+        this.reportFailure(error);
       },
     });
   }
@@ -375,7 +375,7 @@ export class EmailTemplatesComponent {
       },
       error: (error: ApiError) => {
         this.sendingTest.set(false);
-        this.toast.error(error.title, error.detail);
+        this.reportFailure(error);
       },
     });
   }
@@ -397,9 +397,30 @@ export class EmailTemplatesComponent {
       },
       error: (error: ApiError) => {
         this.resetting.set(false);
-        this.toast.error(error.title, error.detail);
+        this.reportFailure(error);
       },
     });
+  }
+
+  /**
+   * One toast per failure, with something in it.
+   *
+   * - 429 (test sends are limited to 10 a minute): the error interceptor has
+   *   already shown "please wait", so a second toast would only repeat it.
+   * - 422: the API puts every problem under `errors.Template` with no detail.
+   *   The editor blocks these first, so reaching here means the rules drifted
+   *   apart — showing the server's own words is the useful thing.
+   */
+  private reportFailure(error: ApiError): void {
+    if (error.status === 429) {
+      return;
+    }
+    const problems = error.fieldErrors['Template'] ?? [];
+    if (error.status === 422 && problems.length > 0) {
+      this.toast.error('The server refused this template', problems.join(' '));
+      return;
+    }
+    this.toast.error(error.title, error.detail);
   }
 
   private upsertSummary(template: EmailTemplate): void {

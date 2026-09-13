@@ -186,6 +186,8 @@ export function usedVariables(source: string): ReadonlySet<string> {
  *
  * The rendered subject has line breaks flattened: a value carrying `\r\n` would
  * otherwise become a header injection the moment it reached the mail library.
+ * Remaining control characters are then stripped, matching the server's
+ * `char.IsControl` filter, so a tab in a value previews exactly as it arrives.
  */
 export function renderEmail(
   body: EmailTemplateDraft,
@@ -194,6 +196,8 @@ export function renderEmail(
 ): RenderedEmail {
   const subject = renderTemplate(body.subject, values, 'text')
     .replace(/\s*[\r\n]+\s*/g, ' ')
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\u0000-\u001F\u007F-\u009F]/g, '')
     .trim();
   const html = renderTemplate(body.htmlBody, values, 'html');
   const text = renderTemplate(body.textBody, values, 'text');
