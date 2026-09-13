@@ -12,16 +12,11 @@ import { OnboardingStoreService } from './onboarding-store.service';
 const TARGET_TIMEOUT_MS = 2500;
 
 /**
- * How long to wait for a target on a route the tour has **already** settled on.
+ * How long to keep waiting for a target once the page reports `data-tour-ready`.
  *
  * Short on purpose: the page is rendered and its data has arrived, so an
- * element that is not there belongs to a state the workspace is not in.
- *
- * The qualifier matters. An earlier version applied this to any step whose
- * route matched the current URL, which included the first step *after arriving
- * on that route* — while the page was still loading its data. Real targets were
- * missed and their steps silently skipped. The budget only applies once the
- * route has produced a target at least once.
+ * element that is not there belongs to a state the workspace is not in. It
+ * only ever shortens the wait — a target that exists is shown immediately.
  */
 const SETTLED_ROUTE_TIMEOUT_MS = 600;
 
@@ -82,8 +77,8 @@ export class OnboardingService {
    */
   private readonly hiddenTargets = signal<ReadonlySet<string>>(new Set<string>());
 
-  /** Routes that have produced a target, so their pages are known to be loaded. */
-  private readonly settledRoutes = new Set<string>();
+  /** Routes whose absent targets have already been worked out this run. */
+  private readonly checkedRoutes = new Set<string>();
 
   /**
    * Whether the running tour is this user's first-sign-in one.
@@ -323,7 +318,7 @@ export class OnboardingService {
 
   private async begin(at: number): Promise<void> {
     this.hiddenTargets.set(new Set<string>());
-    this.settledRoutes.clear();
+    this.checkedRoutes.clear();
 
     this.index.set(at);
     this.active.set(true);
@@ -336,8 +331,12 @@ export class OnboardingService {
       // Now that the opening page has rendered, work out which of its steps
       // have nothing to point at and drop them, so the count is right from the
       // first step rather than shrinking as the user walks into it.
+      //
+      // Only when the tour has on-page targets there. The general tour points
+      // at sidebar links alone, and waiting on a readiness flag its pages never
+      // needed held its first step back for no reason.
       const first = this.steps()[at];
-      if (first !== undefined) {
+      if (first !== undefined && this.hasPageTargetsOn(first.route)) {
         await this.hideAbsentTargetsOn(first.route);
       }
 
@@ -367,8 +366,9 @@ export class OnboardingService {
     if (tour === null) {
       return;
     }
+    this.checkedRoutes.add(route);
 
-    if (!(await this.waitForPageReady())) {
+    if (!(await this.waitForPageReady(route))) {
       return;
     }
 
@@ -384,7 +384,15 @@ export class OnboardingService {
         hidden.add(step.target);
       }
     }
-    this.hiddenTargets.set(hidden);
+    // Merged, not replaced: each page is checked once, on arrival, and what an
+    // earlier page established still holds.
+    this.hiddenTargets.update((previous) => new Set([...previous, ...hidden]));
+  }
+
+  private hasPageTargetsOn(route: string): boolean {
+    return (this.activeTour()?.steps ?? []).some(
+      (step) => step.route === route && step.target !== undefined,
+    );
   }
 
   /** True while the loaded tour is the one whose completion is remembered. */
@@ -428,6 +436,23 @@ export class OnboardingService {
         // to discover it had nothing to point at. A run of four looked exactly
         // like the tour advancing itself through the steps at speed.
         if (await this.settleOn(candidate)) {
+          const arrived = this.steps()[candidate];
+
+          // First time on this page: drop its steps that have nothing to point
+          // at now, so they cost nothing later instead of a timeout each — and
+          // the count is right before this step is shown, not after.
+          if (
+            arrived !== undefined &&
+            !this.checkedRoutes.has(arrived.route) &&
+            this.hasPageTargetsOn(arrived.route)
+          ) {
+            await this.hideAbsentTargetsOn(arrived.route);
+            const kept = this.steps().findIndex(
+              (step) => step.route === arrived.route && step.target === arrived.target,
+            );
+            candidate = kept === -1 ? candidate : kept;
+          }
+
           this.index.set(candidate);
           this.persist('in_progress');
           return;
@@ -466,24 +491,23 @@ export class OnboardingService {
         this.layout.openMobileNav();
       }
 
-      if (!this.router.url.split('?')[0].startsWith(step.route)) {
+      const selector = `[data-tour="${step.target}"]`;
+      const onRoute = this.router.url.split('?')[0].startsWith(step.route);
+
+      // A sidebar step points at a link in the shell, which is on screen
+      // whichever page is open. Waiting for the page to load before showing it
+      // was the tour's slowness: every Next sat on "Loading…" for the lazy chunk
+      // plus the page's data. The page follows behind the spotlight instead.
+      if (!onRoute && step.target === step.route && this.isLaidOut(selector)) {
+        this.router.navigateByUrl(step.route).catch(() => undefined);
+        return true;
+      }
+
+      if (!onRoute) {
         await this.router.navigateByUrl(step.route);
       }
 
-      // The short budget applies only once the *page* has said its data has
-      // arrived. Keying this off "some target was found" was wrong: the first
-      // step points at a sidebar link, which lives in the shell and is there
-      // immediately — proving nothing about the page, and dropping every
-      // genuine target that was still loading behind it.
-      if (!this.settledRoutes.has(step.route) && (await this.waitForPageReady())) {
-        this.settledRoutes.add(step.route);
-      }
-
-      const timeout = this.settledRoutes.has(step.route)
-        ? SETTLED_ROUTE_TIMEOUT_MS
-        : TARGET_TIMEOUT_MS;
-
-      return (await this.waitForTarget(`[data-tour="${step.target}"]`, timeout)) !== null;
+      return (await this.waitForTarget(selector, TARGET_TIMEOUT_MS)) !== null;
     } catch {
       return false;
     }
@@ -505,20 +529,25 @@ export class OnboardingService {
    */
   private waitForTarget(selector: string, timeoutMs: number): Promise<HTMLElement | null> {
     return new Promise((resolve) => {
-      const deadline = Date.now() + timeoutMs;
+      let deadline = Date.now() + timeoutMs;
+      let readySeen = false;
 
       const attempt = (): void => {
-        const element = document.querySelector<HTMLElement>(selector);
-        // Either dimension, not width alone. A full-width block measures zero
-        // width in a collapsed or very narrow viewport while still being on
-        // screen, and treating that as "absent" silently skips a real step —
-        // which is far worse than a spotlight drawn around a thin box.
-        // `display: none` still yields 0x0, so it is still excluded.
-        const rect = element?.getBoundingClientRect();
-        if (element !== null && rect !== undefined && (rect.width > 0 || rect.height > 0)) {
+        const element = this.laidOut(selector);
+        if (element !== null) {
+          // Resolves the moment the element exists — never held back waiting
+          // for a readiness flag the page may not even render.
           resolve(element);
           return;
         }
+
+        // Once the page says its data has arrived, a missing target belongs to
+        // a state this workspace is not in, so stop waiting for it soon.
+        if (!readySeen && document.querySelector('[data-tour-ready]') !== null) {
+          readySeen = true;
+          deadline = Math.min(deadline, Date.now() + SETTLED_ROUTE_TIMEOUT_MS);
+        }
+
         if (Date.now() > deadline) {
           resolve(null);
           return;
@@ -531,6 +560,27 @@ export class OnboardingService {
   }
 
   /**
+   * The element, if it is in the DOM and has been laid out.
+   *
+   * Either dimension, not width alone. A full-width block measures zero width
+   * in a collapsed or very narrow viewport while still being on screen, and
+   * treating that as "absent" silently skips a real step. `display: none`
+   * still yields 0x0, so it is still excluded.
+   */
+  private laidOut(selector: string): HTMLElement | null {
+    const element = document.querySelector<HTMLElement>(selector);
+    if (element === null) {
+      return null;
+    }
+    const rect = element.getBoundingClientRect();
+    return rect.width > 0 || rect.height > 0 ? element : null;
+  }
+
+  private isLaidOut(selector: string): boolean {
+    return this.laidOut(selector) !== null;
+  }
+
+  /**
    * Waits for the page to say its data has arrived.
    *
    * Presence only — deliberately **not** `waitForTarget`, whose rect check
@@ -539,11 +589,17 @@ export class OnboardingService {
    * rejected the marker on a host element that computes to zero width, which
    * is exactly how the filtering came to do nothing at all.
    */
-  private waitForPageReady(): Promise<boolean> {
+  private waitForPageReady(route: string): Promise<boolean> {
     return new Promise((resolve) => {
       const deadline = Date.now() + TARGET_TIMEOUT_MS;
       const attempt = (): void => {
-        if (document.querySelector('[data-tour-ready]') !== null) {
+        // The URL check matters now that sidebar steps navigate without
+        // waiting: the page being left may carry its own flag, and a snapshot
+        // of *that* page would hide every step on the one being opened.
+        if (
+          this.router.url.split('?')[0].startsWith(route) &&
+          document.querySelector('[data-tour-ready]') !== null
+        ) {
           resolve(true);
           return;
         }

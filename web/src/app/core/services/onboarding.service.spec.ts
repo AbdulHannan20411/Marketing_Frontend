@@ -40,6 +40,16 @@ describe('OnboardingService', () => {
     setStatus = jasmine.createSpy('setOnboardingStatus').and.returnValue(of(stored));
     navigation = signal([{ items: routes.map((route) => ({ route })) }]);
 
+    // Moves `url` like the real router, which the tour reads to know which
+    // page a readiness flag belongs to.
+    const router = {
+      url: '/dashboard',
+      navigateByUrl(url: string): Promise<boolean> {
+        router.url = url;
+        return Promise.resolve(true);
+      },
+    };
+
     TestBed.configureTestingModule({
       providers: [
         OnboardingService,
@@ -66,7 +76,7 @@ describe('OnboardingService', () => {
         { provide: EntitlementService, useValue: { isLocked: () => false } },
         {
           provide: Router,
-          useValue: { url: '/dashboard', navigateByUrl: () => Promise.resolve(true) },
+          useValue: router,
         },
       ],
     });
@@ -239,6 +249,61 @@ describe('OnboardingService', () => {
       // A full-width block measures zero width in a collapsed viewport. Reading
       // that as "absent" silently skipped real steps.
       expect(service.steps().map((step) => step.target)).toContain('whatsapp.preflight');
+    });
+  });
+
+  /* ------------------------- responsiveness ------------------------- */
+
+  /**
+   * The bug this pins: every Next sat on "Loading…" for seconds, because each
+   * step waited for a `data-tour-ready` flag most pages never render before
+   * giving up. A sidebar link is on screen already, so its step is immediate.
+   */
+  describe('tour speed', () => {
+    afterEach(() => document.getElementById('tour-fixture')?.remove());
+
+    it('moves between sidebar steps without waiting for the page to load', async () => {
+      const service = configure();
+      // Sidebar links only, and deliberately no data-tour-ready on the page.
+      document.body.insertAdjacentHTML(
+        'beforeend',
+        `<div id="tour-fixture">${service
+          .steps()
+          .map((step) => `<a data-tour="${step.route}" style="display:block;width:40px;height:10px"></a>`)
+          .join('')}</div>`,
+      );
+
+      const started = Date.now();
+      service.restart();
+      await new Promise((r) => setTimeout(r, 0));
+      await service.next();
+      await service.next();
+
+      expect(service.stepIndex()).toBe(2);
+      expect(service.settling()).toBeFalse();
+      expect(Date.now() - started).toBeLessThan(500);
+    });
+
+    it('works out a module tour page at once when the page is ready immediately', async () => {
+      const service = configure();
+      // Templates renders its flag with the page. No search box here, so that
+      // step must be dropped up front rather than timed out when reached.
+      document.body.insertAdjacentHTML(
+        'beforeend',
+        `<div id="tour-fixture" data-tour-ready>
+           <a data-tour="/templates" style="display:block;width:40px;height:10px"></a>
+           <button data-tour="templates.new" style="width:40px;height:10px"></button>
+         </div>`,
+      );
+
+      const started = Date.now();
+      service.startTour('templates-tour');
+      await new Promise((r) => setTimeout(r, 150));
+
+      expect(service.settling()).toBeFalse();
+      expect(service.steps().map((step) => step.target)).not.toContain('templates.search');
+      expect(service.total()).toBe(2);
+      expect(Date.now() - started).toBeLessThan(500);
     });
   });
 

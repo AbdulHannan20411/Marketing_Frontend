@@ -95,9 +95,30 @@ export class ProductTourComponent {
     return `translate3d(${left}px, ${top}px, 0)`;
   });
 
+  /**
+   * "Loading…" only once settling has lasted long enough to notice.
+   *
+   * Most steps now resolve in a frame or two; swapping the label for that long
+   * reads as flicker rather than progress. Next stays disabled throughout.
+   */
+  protected readonly showLoading = signal(false);
+
   private frame = 0;
+  private loadingTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor() {
+    effect(() => {
+      const settling = this.settling();
+      untracked(() => {
+        clearTimeout(this.loadingTimer);
+        if (!settling) {
+          this.showLoading.set(false);
+          return;
+        }
+        this.loadingTimer = setTimeout(() => this.showLoading.set(true), 250);
+      });
+    });
+
     // Reposition whenever the step changes or the tour starts.
     effect(() => {
       const selector = this.tour.currentSelector();

@@ -1,4 +1,8 @@
+<!-- `data-tour-ready` is static: every tour target on this page is in the header
+     and renders with the page, not with its data. Without it the tour waited its
+     full timeout for a flag that never came. -->
 <app-page-header
+  data-tour-ready
   title="Contacts"
   description="Everyone you can reach on WhatsApp, with opt-in status and engagement history."
   [breadcrumbs]="[

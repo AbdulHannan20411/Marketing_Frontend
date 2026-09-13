@@ -4,6 +4,7 @@ import { AuthService } from '@core/auth/auth.service';
 import { NAVIGATION } from '@core/config/navigation.config';
 import { UNLOCKED_ROUTES } from '@core/guards/subscription.guard';
 import { SUPERADMIN_NAVIGATION } from '@core/config/superadmin-navigation.config';
+import { AdminScopeService } from '@core/scope/admin-scope.service';
 import type { NavSection } from '@core/models/navigation.model';
 import { EntitlementService } from './entitlement.service';
 
@@ -13,6 +14,7 @@ const COLLAPSE_KEY = 'vd.sidebar.collapsed';
 export class LayoutService {
   private readonly auth = inject(AuthService);
   private readonly entitlements = inject(EntitlementService);
+  private readonly scope = inject(AdminScopeService);
 
   readonly sidebarCollapsed = signal(localStorage.getItem(COLLAPSE_KEY) === 'true');
   readonly mobileNavOpen = signal(false);
@@ -27,7 +29,13 @@ export class LayoutService {
    */
   readonly visibleNavigation = computed<readonly NavSection[]>(() => {
     if (this.auth.isSuperAdmin()) {
-      return SUPERADMIN_NAVIGATION;
+      // Workspace tabs (Contacts, Tags, WhatsApp…) mean nothing platform-wide;
+      // they appear only while viewing as a selected Admin.
+      const scoped = this.scope.isScoped();
+      return SUPERADMIN_NAVIGATION.map((section) => ({
+        ...section,
+        items: section.items.filter((item) => scoped || item.requiresScope !== true),
+      })).filter((section) => section.items.length > 0);
     }
 
     return NAVIGATION.map((section) => ({

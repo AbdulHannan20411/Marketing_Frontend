@@ -1,4 +1,7 @@
+<!-- `data-tour-ready` is static: the tour's targets (New campaign, search) render
+     with the page, not with its data. -->
 <app-page-header
+  data-tour-ready
   title="Campaigns"
   description="Plan, schedule and track every send across your audience."
   [breadcrumbs]="[{ label: 'Home', route: '/dashboard' }, { label: 'Campaigns', route: null }]"

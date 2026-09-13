@@ -78,7 +78,7 @@
         <span class="flex-1"></span>
 
         <button appButton size="sm" [disabled]="settling()" (click)="next()">
-          @if (settling()) {
+          @if (showLoading()) {
             Loading…
           } @else if (isLast()) {
             Finish

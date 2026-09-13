@@ -1,4 +1,7 @@
+<!-- `data-tour-ready` is static: the tour's targets (New template, search) render
+     with the page, not with its data. -->
 <app-page-header
+  data-tour-ready
   title="Templates"
   description="Message templates synced from Meta, with live preview and variable mapping."
   [breadcrumbs]="[{ label: 'Home', route: '/dashboard' }, { label: 'Templates', route: null }]"

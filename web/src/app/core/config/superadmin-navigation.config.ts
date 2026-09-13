@@ -3,9 +3,13 @@ import type { NavSection } from '@core/models/navigation.model';
 /**
  * Navigation for the Super Admin portal.
  *
- * Items marked `requiresScope` operate inside a selected Admin's context; the
- * `scopeGuard` diverts them to the Admin picker until one is chosen. No
- * `module` gating appears here — plan limits never apply to a Super Admin.
+ * Items marked `requiresScope` belong to a single Admin's workspace — contacts,
+ * tags, WhatsApp and so on have no platform-wide meaning. `LayoutService` hides
+ * them until the Super Admin chooses "View as" on an Admin, then shows them in
+ * the same sections and order that Admin's own sidebar uses. `scopeGuard` still
+ * diverts a direct URL to the Admin picker when no Admin is selected.
+ *
+ * No `module` gating appears here — plan limits never apply to a Super Admin.
  */
 export const SUPERADMIN_NAVIGATION: readonly NavSection[] = [
   {
@@ -16,26 +20,28 @@ export const SUPERADMIN_NAVIGATION: readonly NavSection[] = [
     ],
   },
   {
-    title: 'Admin workspace',
+    title: 'Audience',
     items: [
+      { label: 'Contacts', route: '/superadmin/contacts', icon: 'users', permissions: [], requiresScope: true },
       {
-        label: 'Contacts',
-        route: '/superadmin/contacts',
-        icon: 'users',
+        label: 'Import',
+        route: '/superadmin/contacts/import',
+        icon: 'upload',
         permissions: [],
         requiresScope: true,
       },
+      { label: 'Groups', route: '/superadmin/groups', icon: 'userGroup', permissions: [], requiresScope: true },
+      { label: 'Tags', route: '/superadmin/tags', icon: 'tag', permissions: [], requiresScope: true },
+    ],
+  },
+  {
+    title: 'Messaging',
+    items: [
+      { label: 'WhatsApp', route: '/superadmin/whatsapp', icon: 'chat', permissions: [], requiresScope: true },
       {
-        label: 'Groups',
-        route: '/superadmin/groups',
-        icon: 'userGroup',
-        permissions: [],
-        requiresScope: true,
-      },
-      {
-        label: 'Tags',
-        route: '/superadmin/tags',
-        icon: 'tag',
+        label: 'Templates',
+        route: '/superadmin/templates',
+        icon: 'document',
         permissions: [],
         requiresScope: true,
       },
@@ -46,20 +52,18 @@ export const SUPERADMIN_NAVIGATION: readonly NavSection[] = [
         permissions: [],
         requiresScope: true,
       },
-      {
-        label: 'Templates',
-        route: '/superadmin/templates',
-        icon: 'document',
-        permissions: [],
-        requiresScope: true,
-      },
-      {
-        label: 'WhatsApp',
-        route: '/superadmin/whatsapp',
-        icon: 'chat',
-        permissions: [],
-        requiresScope: true,
-      },
+    ],
+  },
+  {
+    title: 'Insights',
+    items: [
+      // Not scoped: global reports without an Admin, that Admin's reports with one.
+      { label: 'Reports', route: '/superadmin/reports', icon: 'chartBar', permissions: [] },
+    ],
+  },
+  {
+    title: 'Workspace',
+    items: [
       {
         label: 'Employees',
         route: '/superadmin/employees',
@@ -67,12 +71,6 @@ export const SUPERADMIN_NAVIGATION: readonly NavSection[] = [
         permissions: [],
         requiresScope: true,
       },
-    ],
-  },
-  {
-    title: 'Insights',
-    items: [
-      { label: 'Reports', route: '/superadmin/reports', icon: 'chartBar', permissions: [] },
     ],
   },
   {
@@ -89,8 +87,6 @@ export const SUPERADMIN_NAVIGATION: readonly NavSection[] = [
   },
   {
     title: null,
-    items: [
-      { label: 'Settings', route: '/superadmin/settings', icon: 'cog', permissions: [] },
-    ],
+    items: [{ label: 'Settings', route: '/superadmin/settings', icon: 'cog', permissions: [] }],
   },
 ];
