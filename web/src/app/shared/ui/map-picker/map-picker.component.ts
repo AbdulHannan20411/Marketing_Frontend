@@ -49,7 +49,11 @@ export interface MapMarker {
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block' },
   template: `
-    <div class="relative h-full w-full overflow-hidden rounded-xl ring-1 ring-line">
+    <!-- \`isolate\` gives the map its own stacking context. Leaflet positions its
+         panes at z-index 400 to 1000, and without a boundary those values compete
+         with the whole page: every overlay in this app (z-10 to z-50) opened
+         near a map was drawn behind it, starting with the category dropdown. -->
+    <div class="relative isolate h-full w-full overflow-hidden rounded-xl ring-1 ring-line">
       <div #canvas class="h-full w-full" [class.opacity-0]="!ready()"></div>
 
       @if (!ready()) {

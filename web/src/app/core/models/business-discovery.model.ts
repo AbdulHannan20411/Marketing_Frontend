@@ -1,3 +1,5 @@
+import { findCountry, hasEnoughDigits, toInternational } from '@core/models/phone.model';
+
 /**
  * Business discovery: finding real businesses near a point and turning them
  * into contacts.
@@ -159,37 +161,86 @@ function csvCell(value: string | null): string {
 export interface BusinessCsvOptions {
   /** Written to the Groups column so a discovered batch lands together. */
   readonly groupName: string | null;
-  /** Written to Country when the search location implies one. */
+  /**
+   * The search location's country, as a display name or an ISO code.
+   *
+   * Used twice: to expand a national-format number, and to fill the Country
+   * column. It is written out as an ISO code either way — see `buildBusinessCsv`.
+   */
   readonly country: string | null;
+}
+
+export interface BusinessCsvResult {
+  readonly csv: string;
+  /** Rows actually written. */
+  readonly exported: number;
+  /** Selected businesses left out because no dialable number could be produced. */
+  readonly omitted: number;
+}
+
+/**
+ * The number as the direct import would store it, or `null`.
+ *
+ * **The file path and the direct path must agree.** Search returns the
+ * provider's raw number whenever it cannot normalise one, and the file importer
+ * does not convert national-format numbers. Written verbatim, such a number
+ * imports cleanly and then fails at send time — while the direct import rejects
+ * the very same business. Applying the same rule here means the spreadsheet and
+ * the button produce the same contacts.
+ */
+export function exportablePhone(phone: string | null, country: string | null): string | null {
+  if (phone === null || phone.trim() === '' || !hasEnoughDigits(phone)) {
+    return null;
+  }
+  const international = toInternational(phone, country ?? '');
+  return international === null ? null : `+${international}`;
 }
 
 /**
  * Builds a CSV the existing Upload File tab accepts as-is.
  *
- * Businesses with no phone number are **omitted**: the importer requires one,
- * so including them would produce guaranteed row failures and an import summary
- * full of noise the user cannot act on.
+ * Headers are the importer's own field labels, so its suggested mapping picks
+ * up every column without the user touching the mapping step.
+ *
+ * Country is written as an **ISO code**, not the display name the location
+ * search returns. The importer accepts both today, but a name only resolves if
+ * it matches the runtime's English country list exactly — `Türkiye`, `Czechia`
+ * or a localised spelling would silently fall back to guessing from the phone
+ * number. A code always round-trips. Unknown stays blank, which is what the
+ * importer already handles by deriving the country from the number.
  */
 export function buildBusinessCsv(
   businesses: readonly BusinessResult[],
   options: BusinessCsvOptions,
-): string {
-  const rows = businesses.filter(isContactable).map((business) =>
-    [
-      csvCell(business.phone),
-      csvCell(business.name),
-      csvCell(null), // Providers do not return email; the column stays for shape.
-      csvCell(options.country),
-      'Subscribed',
-      csvCell(business.category),
-      csvCell(options.groupName),
-    ].join(','),
-  );
+): BusinessCsvResult {
+  const countryCode = findCountry(options.country ?? '')?.iso ?? null;
+  const rows: string[] = [];
+  let omitted = 0;
+
+  for (const business of businesses) {
+    const phone = exportablePhone(business.phone, options.country);
+    if (phone === null) {
+      omitted++;
+      continue;
+    }
+    rows.push(
+      [
+        csvCell(phone),
+        csvCell(business.name),
+        csvCell(null), // Providers do not return email; the column stays for shape.
+        csvCell(countryCode),
+        'Subscribed',
+        csvCell(business.category),
+        csvCell(options.groupName),
+      ].join(','),
+    );
+  }
 
   // A BOM so Excel opens UTF-8 correctly — without it, accented business names
   // arrive mangled, which is exactly the sort of thing nobody notices until a
-  // campaign goes out addressed to "Café" as "CafÃ©".
-  return `﻿${[BUSINESS_CSV_HEADERS.join(','), ...rows].join('\r\n')}\r\n`;
+  // campaign goes out addressed to "Cafe" as "CafÃ©".
+  const csv = `\uFEFF${[BUSINESS_CSV_HEADERS.join(','), ...rows].join('\r\n')}\r\n`;
+  return { csv, exported: rows.length, omitted };
 }
 
 /** `barber-gulberg-lahore-2026-08-21.csv` */

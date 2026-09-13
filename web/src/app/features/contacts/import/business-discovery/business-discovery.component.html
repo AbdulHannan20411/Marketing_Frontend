@@ -324,9 +324,29 @@
 
     @if (hasNextPage()) {
       <div class="border-t border-line px-5 py-4 text-center">
-        <button appButton variant="outline" size="sm" [disabled]="loadingMore()" (click)="loadMore()">
-          {{ loadingMore() ? 'Loading…' : 'Load more' }}
-        </button>
+        <!-- "Load all" so select-all can genuinely mean every business in the
+             radius. Bounded by the API's own result ceiling; one page at a time
+             because each page is a billable search. -->
+        <div class="flex flex-wrap items-center justify-center gap-2">
+          <button
+            appButton
+            variant="outline"
+            size="sm"
+            [disabled]="loadingMore() || loadingAll()"
+            (click)="loadMore()"
+          >
+            {{ loadingMore() && !loadingAll() ? 'Loading…' : 'Load more' }}
+          </button>
+          <button
+            appButton
+            variant="ghost"
+            size="sm"
+            [disabled]="loadingMore() || loadingAll()"
+            (click)="loadAll()"
+          >
+            {{ loadingAll() ? 'Loading all…' : 'Load all results' }}
+          </button>
+        </div>
         <p class="mt-1.5 text-xs text-ink-muted">
           Showing {{ results().length | number }} of {{ total() | number }}
         </p>

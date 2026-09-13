@@ -292,6 +292,8 @@ export class BusinessDiscoveryComponent {
     this.searching.set(true);
     this.searchError.set(null);
     this.page.set(1);
+    this.searchGeneration++;
+    this.loadingAll.set(false);
 
     this.runSearch(1, (page) => {
       this.results.set(page.items);
@@ -301,20 +303,68 @@ export class BusinessDiscoveryComponent {
   }
 
   protected loadMore(): void {
-    if (this.loadingMore() || !this.hasNextPage()) {
+    if (this.loadingMore() || this.loadingAll() || !this.hasNextPage()) {
       return;
     }
     this.loadingMore.set(true);
     const next = this.page() + 1;
 
-    this.runSearch(next, (page) => {
-      // Merged by id: a provider can repeat a business across page boundaries,
-      // and a duplicated row would be exported and imported twice.
-      const seen = new Set(this.results().map((entry) => entry.id));
-      const fresh = page.items.filter((entry) => !seen.has(entry.id));
-      this.results.update((current) => [...current, ...fresh]);
-      this.page.set(next);
-    });
+    this.runSearch(next, (page) => this.mergePage(next, page.items));
+  }
+
+  /** True while `loadAll` is walking the remaining pages. */
+  protected readonly loadingAll = signal(false);
+
+  /**
+   * Bumped by every new search, so a load-all still walking the previous
+   * search's pages stops instead of appending them to the new results.
+   */
+  private searchGeneration = 0;
+
+  /**
+   * Loads every remaining page, so "select all" really means all.
+   *
+   * The API stops offering pages at its own ceiling (200 results), so this is
+   * bounded without a limit of its own. Sequential, one page at a time: each
+   * page is a billable provider call, and firing them in parallel would spend
+   * the whole allowance before the first error could stop it.
+   */
+  protected loadAll(): void {
+    if (this.loadingAll() || this.loadingMore() || !this.hasNextPage()) {
+      return;
+    }
+    this.loadingAll.set(true);
+    const generation = this.searchGeneration;
+
+    const step = (): void => {
+      if (generation !== this.searchGeneration || !this.hasNextPage()) {
+        this.loadingAll.set(false);
+        return;
+      }
+      const next = this.page() + 1;
+      this.loadingMore.set(true);
+      this.runSearch(next, (page) => {
+        if (generation !== this.searchGeneration) {
+          return;
+        }
+        this.mergePage(next, page.items);
+        // After `runSearch` has recorded whether another page exists.
+        queueMicrotask(step);
+      });
+    };
+
+    step();
+  }
+
+  /**
+   * Merged by id: a provider can repeat a business across page boundaries,
+   * and a duplicated row would be exported and imported twice.
+   */
+  private mergePage(pageNumber: number, items: readonly BusinessResult[]): void {
+    const seen = new Set(this.results().map((entry) => entry.id));
+    const fresh = items.filter((entry) => !seen.has(entry.id));
+    this.results.update((current) => [...current, ...fresh]);
+    this.page.set(pageNumber);
   }
 
   private runSearch(page: number, onPage: (page: { items: readonly BusinessResult[] }) => void): void {
@@ -346,6 +396,7 @@ export class BusinessDiscoveryComponent {
         error: (error: ApiError) => {
           this.searching.set(false);
           this.loadingMore.set(false);
+          this.loadingAll.set(false);
           this.hasSearched.set(true);
           this.searchError.set(this.describeSearchError(error));
         },
@@ -368,6 +419,11 @@ export class BusinessDiscoveryComponent {
     }
     if (error.status === 404 || error.status === 405 || error.status === 501) {
       return 'Business search is not available yet on this deployment.';
+    }
+    // The API's own state for a deployment with no places key. Named here so it
+    // is never mistaken for a transient failure worth retrying.
+    if (error.errorCode === 'provider_not_configured') {
+      return 'Business search has not been set up on this deployment yet.';
     }
     return error.detail;
   }
@@ -483,21 +539,18 @@ export class BusinessDiscoveryComponent {
    * recognises them without the user touching it.
    */
   protected downloadCsv(): void {
-    const chosen = this.selected();
-    const contactable = chosen.filter(isContactable);
-
-    if (contactable.length === 0) {
-      this.toast.error(
-        'Nothing to download',
-        'None of the selected businesses has a phone number, so none can be imported.',
-      );
-      return;
-    }
-
-    const csv = buildBusinessCsv(chosen, {
+    const { csv, exported, omitted } = buildBusinessCsv(this.selected(), {
       groupName: this.groupName(),
       country: this.placeCountry(),
     });
+
+    if (exported === 0) {
+      this.toast.error(
+        'Nothing to download',
+        'None of the selected businesses has a number that can be dialled internationally, so none can be imported.',
+      );
+      return;
+    }
 
     const category = this.selectedCategory()?.label ?? 'businesses';
     const name = businessCsvFileName(category, this.placeLabel());
@@ -510,9 +563,14 @@ export class BusinessDiscoveryComponent {
     anchor.click();
     URL.revokeObjectURL(url);
 
+    // Said out loud: a file with fewer rows than the selection, and no reason
+    // given, reads as a bug in the export rather than a property of the data.
+    const ready = `${exported} ${exported === 1 ? 'business' : 'businesses'} ready for the Upload file tab.`;
     this.toast.success(
       'Spreadsheet downloaded',
-      `${contactable.length} ${contactable.length === 1 ? 'business' : 'businesses'} ready for the Upload file tab.`,
+      omitted === 0
+        ? ready
+        : `${ready} ${omitted} left out — no number that can be dialled internationally.`,
     );
   }
 

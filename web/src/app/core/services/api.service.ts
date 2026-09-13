@@ -5,11 +5,29 @@ import { map, type Observable } from 'rxjs';
 import { environment } from '@env/environment';
 import type { ApiResponse } from '@core/models/api.model';
 
-export type QueryParams = Readonly<Record<string, string | number | boolean>>;
+/**
+ * Query string values.
+ *
+ * Arrays are sent as **repeated keys** — `ids=a&ids=b` — because that is what
+ * ASP.NET binds to a list by default. Joining them first (`ids=a,b`) binds as a
+ * single element that parses as no id at all, which is how the contacts
+ * selection export silently produced a header-only file.
+ */
+export type QueryParams = Readonly<
+  Record<string, string | number | boolean | readonly string[]>
+>;
 
-function toHttpParams(params: QueryParams | undefined): HttpParams {
+export function toHttpParams(params: QueryParams | undefined): HttpParams {
   let httpParams = new HttpParams();
   for (const [key, value] of Object.entries(params ?? {})) {
+    if (Array.isArray(value)) {
+      // An empty list is omitted rather than sent as nothing: `ids=` would bind
+      // as one empty element, which is a selection of no rows, not "no filter".
+      for (const item of value as readonly string[]) {
+        httpParams = httpParams.append(key, item);
+      }
+      continue;
+    }
     httpParams = httpParams.set(key, String(value));
   }
   return httpParams;

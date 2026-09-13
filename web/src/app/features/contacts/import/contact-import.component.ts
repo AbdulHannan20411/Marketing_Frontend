@@ -64,16 +64,17 @@ export class ContactImportComponent {
   private readonly router = inject(Router);
 
   /**
-   * Business discovery rides on `contacts.import`.
+   * Business discovery has its own permission, `contacts.business_import`.
    *
-   * A dedicated `contacts.business_import` would be better — discovery spends
-   * provider credits, which uploading a file does not — but that permission does
-   * not exist in the catalogue yet, and inventing one client-side would grant it
-   * to nobody and hide the tab from everyone. Switching is a one-line change
-   * here once the backend adds it; see the backend requirements document.
+   * It used to ride on `contacts.import` while the dedicated key did not exist.
+   * The API has since gated every discovery endpoint on the dedicated key, which
+   * left the two out of step: someone holding `contacts.import` alone saw the
+   * tab and then met a 403 on every call inside it. Discovery spends provider
+   * credits, which uploading a file does not, so the separate key is the right
+   * boundary — and the client now draws it in the same place the server does.
    */
   protected readonly canDiscover = computed(() =>
-    this.auth.hasAnyPermission(['contacts.import']),
+    this.auth.hasAnyPermission(['contacts.business_import']),
   );
 
   /** Which tab is showing. Upload stays the default and the landing tab. */

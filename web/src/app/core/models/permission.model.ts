@@ -17,6 +17,7 @@ export const PERMISSIONS = [
   'contacts.edit',
   'contacts.delete',
   'contacts.import',
+  'contacts.business_import',
   'contacts.export',
 
   // Audience organisation
@@ -155,6 +156,11 @@ export const PERMISSION_CATALOGUE: readonly PermissionCategory[] = [
       { key: 'contacts.edit', label: 'Edit', description: 'Change contact details and tags.' },
       { key: 'contacts.delete', label: 'Delete', description: 'Remove contacts permanently.' },
       { key: 'contacts.import', label: 'Import', description: 'Bulk import from CSV.' },
+      {
+        key: 'contacts.business_import',
+        label: 'Business discovery',
+        description: 'Find businesses on the map and import them. Spends search credits.',
+      },
       { key: 'contacts.export', label: 'Export', description: 'Download the contact list.' },
       { key: 'groups.manage', label: 'Manage groups', description: 'Create and edit segments.' },
       { key: 'tags.manage', label: 'Manage tags', description: 'Create and edit labels.' },

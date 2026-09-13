@@ -114,26 +114,25 @@ export class ContactsService {
 
   /** Streams CSV; saved client-side because the token cannot ride a plain link. */
   /**
-   * The filtered contact list as CSV.
+   * Contacts as CSV — the ticked rows, or everything matching the filters.
    *
-   * Takes the same shape as `list`, because the API takes the same query object
-   * for both — so the file and the screen that offered it cannot disagree about
-   * which contacts are in scope.
+   * `/contacts/export` takes `ContactExportQuery`, which is the list's own query
+   * plus `Ids`. When ids are present the API ignores the filters entirely: a
+   * selection already answers "which rows", and intersecting it with a filter
+   * would silently drop rows the operator ticked.
    *
-   * **Deliberately not selection-scoped.** It used to send `ids` for ticked
-   * rows; the API has no such parameter and ignored it, so ticking three
-   * contacts and pressing Export produced a file containing every contact
-   * matching the filters. A silent over-export of personal data is a worse
-   * outcome than not offering the feature, so the parameter is gone until the
-   * API supports it.
+   * Ids go as repeated keys — see `QueryParams`. This once sent them joined,
+   * which the API read as one unparseable id and answered with an empty file.
    */
-  exportCsv(query: Partial<ContactQuery>): Observable<Blob> {
+  exportCsv(query: Partial<ContactQuery> & { ids?: readonly string[] }): Observable<Blob> {
+    const ids = query.ids ?? [];
     return this.api
       .download('/contacts/export', {
         search: query.search ?? '',
         status: query.status ?? 'all',
         groupId: query.groupId ?? 'all',
         tagId: query.tagId ?? 'all',
+        ...(ids.length > 0 ? { ids } : {}),
       })
       .pipe(tap((blob) => saveBlob(blob, 'contacts.csv')));
   }

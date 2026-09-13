@@ -501,9 +501,9 @@ export class ContactsComponent {
       return;
     }
     this.busy.set(true);
-    // A selection does not narrow the export — the API has no `ids` parameter.
-    // Said out loud below rather than left for the user to discover in the file.
-    const selectedCount = this.selected().size;
+    // A selection wins over the filters on the API side, so the toast can say
+    // exactly which rows the file holds.
+    const selected = [...this.selected().keys()];
 
     this.contactsService
       .exportCsv({
@@ -511,15 +511,16 @@ export class ContactsComponent {
         status: this.status(),
         groupId: this.groupId(),
         tagId: this.tagId(),
+        ids: selected,
       })
       .subscribe({
         next: () => {
           this.busy.set(false);
           this.toast.success(
             'Export ready',
-            selectedCount > 0
-              ? `Downloaded every contact matching your filters — not just the ${selectedCount} selected.`
-              : 'Your CSV has been downloaded.',
+            selected.length > 0
+              ? `Downloaded the ${selected.length} selected ${selected.length === 1 ? 'contact' : 'contacts'}.`
+              : 'Downloaded every contact matching your filters.',
           );
         },
         error: () => this.failBulk('Export'),
