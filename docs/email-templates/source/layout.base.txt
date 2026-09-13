@@ -1,0 +1,7 @@
+{{appName}}
+
+{{{content}}}
+
+---
+Need help? Write to {{supportEmail}}.
+(c) {{year}} {{appName}}

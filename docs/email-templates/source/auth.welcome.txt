@@ -1,0 +1,10 @@
+Welcome aboard, {{name}}
+
+Your workspace "{{workspaceName}}" is ready. Three steps take you to your first campaign:
+
+1. Connect WhatsApp: link your WhatsApp Business number so messages go out under your name.
+2. Import your contacts: upload a spreadsheet. Numbers are checked before anything is saved.
+3. Send your first campaign: pick an approved template, choose an audience, then send now or schedule it.
+
+Open your dashboard:
+{{actionUrl}}

@@ -1,0 +1,10 @@
+Hi {{name}},
+
+{{#if inviterName}}{{inviterName}} has invited you{{else}}You've been invited{{/if}} to work in "{{workspaceName}}" on {{appName}}. Set your password to get started:
+
+{{actionUrl}}
+
+This link works once and expires in {{expiresInHours}} hours.
+
+{{#if inviterEmail}}This invitation was sent by {{inviterName}} ({{inviterEmail}}) through {{appName}}. Replies go to them.
+{{/if}}Weren't expecting this? You can safely ignore this email. The link expires on its own.

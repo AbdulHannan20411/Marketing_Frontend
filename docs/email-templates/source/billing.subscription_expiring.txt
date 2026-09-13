@@ -1,0 +1,8 @@
+Hi {{name}},
+
+Your {{planName}} plan ends on {{expiresOn}}. Renew before then to keep everything running.
+
+When the plan ends, scheduled campaigns stop sending until it's renewed.
+
+Renew your plan:
+{{actionUrl}}

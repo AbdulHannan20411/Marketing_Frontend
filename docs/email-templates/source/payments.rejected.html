@@ -1,0 +1,36 @@
+<h1 style="margin:0 0 16px 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:22px;line-height:30px;font-weight:700;letter-spacing:-0.3px;color:#1e293b;">
+  We couldn't confirm your payment
+</h1>
+
+<p style="margin:0 0 16px 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:24px;color:#475569;">
+  Hi {{name}},
+</p>
+
+<p style="margin:0 0 16px 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:24px;color:#475569;">
+  Your payment for the <strong style="font-weight:600;color:#1e293b;">{{planName}}</strong> plan wasn't approved, so your plan hasn't changed.
+</p>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:4px 0 24px 0;">
+  <tr>
+    <td style="padding:14px 16px;background-color:#fef2f2;border:1px solid #fecaca;border-radius:10px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;line-height:22px;color:#991b1b;">
+      <strong>Reason given</strong><br>{{reason}}
+    </td>
+  </tr>
+</table>
+
+<p style="margin:0 0 16px 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:24px;color:#475569;">
+  You can submit the payment again with the details corrected.
+</p>
+
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 24px 0;">
+  <tr>
+    <td align="center" bgcolor="#16a34a" style="border-radius:8px;background-color:#16a34a;">
+      <a href="{{actionUrl}}" target="_blank" style="display:inline-block;padding:13px 26px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:20px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:8px;">Submit again</a>
+    </td>
+  </tr>
+</table>
+
+<p style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;line-height:20px;color:#6b7280;">
+  Button not working? Copy this link into your browser:<br>
+  <a href="{{actionUrl}}" target="_blank" style="color:#15803d;text-decoration:underline;word-break:break-all;">{{actionUrl}}</a>
+</p>

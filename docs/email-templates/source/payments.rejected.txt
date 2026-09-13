@@ -1,0 +1,9 @@
+Hi {{name}},
+
+Your payment for the {{planName}} plan wasn't approved, so your plan hasn't changed.
+
+Reason given:
+{{reason}}
+
+You can submit the payment again with the details corrected:
+{{actionUrl}}

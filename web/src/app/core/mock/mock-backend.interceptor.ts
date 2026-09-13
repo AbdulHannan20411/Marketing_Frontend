@@ -100,6 +100,7 @@ import {
   replaceConversation,
 } from './mock-inbox-data';
 import { campaignStore, handleCampaigns } from './mock-campaign-handler';
+import { handleEmailTemplates } from './mock-email-templates';
 import { searchEverything } from './mock-search';
 import {
   MOCK_ACCOUNTS,
@@ -1742,6 +1743,19 @@ export const mockBackendInterceptor: HttpInterceptorFn = (request, next) => {
   }
   if (method === 'POST' && path === '/templates/sync') {
     return ok(TEMPLATES, `Synced ${TEMPLATES.length} templates from Meta.`);
+  }
+  const emailAccount = accountFromRequest(request);
+  const emailTemplateResponse = handleEmailTemplates(
+    path,
+    method,
+    request.body,
+    emailAccount === null
+      ? null
+      : { name: emailAccount.name, email: emailAccount.email, isSuperAdmin: emailAccount.role === 'SuperAdmin' },
+    { ok, fail, failValidation },
+  );
+  if (emailTemplateResponse !== null) {
+    return emailTemplateResponse;
   }
   const planResponse = handlePlans(path, method, request.body);
   if (planResponse !== null) {

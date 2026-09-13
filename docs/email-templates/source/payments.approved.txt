@@ -1,0 +1,10 @@
+Hi {{name}},
+
+Your payment is confirmed. {{planName}} is now active on your workspace.
+
+Amount: {{amount}}
+Plan: {{planName}}
+Active until: {{activeUntil}}
+
+View your subscription:
+{{actionUrl}}

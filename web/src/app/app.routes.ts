@@ -211,6 +211,14 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'email-templates',
+        title: 'Email templates',
+        loadComponent: () =>
+          import('@features/superadmin/email-templates/email-templates.component').then(
+            (m) => m.EmailTemplatesComponent,
+          ),
+      },
+      {
         path: 'tenants',
         title: 'Tenants',
         loadComponent: () =>

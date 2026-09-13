@@ -1,0 +1,7 @@
+Hi {{name}},
+
+The email address on your {{appName}} account is now {{newEmail}}. We're letting you know in case this wasn't you.
+
+Wasn't you? Write to {{supportEmail}} straight away. Whoever controls the new address can reset your password.
+
+If you made this change, there's nothing else to do.

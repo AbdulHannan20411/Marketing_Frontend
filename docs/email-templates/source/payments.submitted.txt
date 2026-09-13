@@ -1,0 +1,10 @@
+Hi {{name}},
+
+{{organisation}} submitted proof of payment. Their plan changes only once it's approved.
+
+Workspace: {{organisation}}
+Plan: {{planName}}
+Amount: {{amount}}
+
+Review it:
+{{actionUrl}}

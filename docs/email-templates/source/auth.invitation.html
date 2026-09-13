@@ -1,0 +1,34 @@
+<h1 style="margin:0 0 16px 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:22px;line-height:30px;font-weight:700;letter-spacing:-0.3px;color:#1e293b;">
+  Join {{workspaceName}}
+</h1>
+
+<p style="margin:0 0 16px 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:24px;color:#475569;">
+  Hi {{name}},
+</p>
+
+<p style="margin:0 0 16px 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:24px;color:#475569;">
+  {{#if inviterName}}<strong style="font-weight:600;color:#1e293b;">{{inviterName}}</strong> has invited you{{else}}You've been invited{{/if}} to work in <strong style="font-weight:600;color:#1e293b;">{{workspaceName}}</strong> on {{appName}}. Set your password to get started.
+</p>
+
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 24px 0;">
+  <tr>
+    <td align="center" bgcolor="#16a34a" style="border-radius:8px;background-color:#16a34a;">
+      <a href="{{actionUrl}}" target="_blank" style="display:inline-block;padding:13px 26px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:20px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:8px;">Accept invitation</a>
+    </td>
+  </tr>
+</table>
+
+<p style="margin:0 0 16px 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;line-height:20px;color:#6b7280;">
+  This link works once and expires in {{expiresInHours}} hours.
+</p>
+
+<p style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;line-height:20px;color:#6b7280;">
+  Button not working? Copy this link into your browser:<br>
+  <a href="{{actionUrl}}" target="_blank" style="color:#15803d;text-decoration:underline;word-break:break-all;">{{actionUrl}}</a>
+</p>
+
+<hr style="border:0;border-top:1px solid #e5e7eb;margin:24px 0;">
+
+<p style="margin:0 0 16px 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;line-height:20px;color:#6b7280;">
+  {{#if inviterEmail}}This invitation was sent by {{inviterName}} ({{inviterEmail}}) through {{appName}}. Replies go to them. {{/if}}Weren't expecting this? You can safely ignore this email. The link expires on its own.
+</p>

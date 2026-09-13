@@ -81,6 +81,7 @@ export const SUPERADMIN_NAVIGATION: readonly NavSection[] = [
       { label: 'Plans', route: '/superadmin/plans', icon: 'rocket', permissions: [] },
       // Sits directly under Plans: it is where a plan is actually granted.
       { label: 'Payments', route: '/superadmin/payments', icon: 'creditCard', permissions: [] },
+      { label: 'Email templates', route: '/superadmin/email-templates', icon: 'envelope', permissions: [] },
       { label: 'Tenants', route: '/superadmin/tenants', icon: 'building', permissions: [] },
       { label: 'Audit Logs', route: '/superadmin/audit', icon: 'clipboard', permissions: [] },
       { label: 'Monitoring', route: '/superadmin/monitoring', icon: 'shield', permissions: [] },

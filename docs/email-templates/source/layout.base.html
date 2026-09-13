@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="x-apple-disable-message-reformatting">
+  <meta name="color-scheme" content="light">
+  <meta name="supported-color-schemes" content="light">
+  <title>{{subject}}</title>
+  <style>
+    @media only screen and (max-width: 620px) {
+      .email-container { width: 100% !important; }
+      .email-card { padding: 28px 22px !important; }
+    }
+  </style>
+</head>
+<body style="margin:0;padding:0;background-color:#f6fff8;">
+  {{#if preheader}}<div style="display:none;max-height:0;max-width:0;overflow:hidden;opacity:0;mso-hide:all;font-size:1px;line-height:1px;color:#f6fff8;">{{preheader}}</div>{{/if}}
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f6fff8;">
+    <tr>
+      <td align="center" style="padding:32px 16px;">
+        <table role="presentation" class="email-container" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:600px;">
+
+          <!-- Brand mark, matching the sidebar: initial on brand green, then the name -->
+          <tr>
+            <td style="padding:0 4px 20px 4px;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td width="36" height="36" align="center" valign="middle" bgcolor="#16a34a" style="width:36px;height:36px;border-radius:10px;background-color:#16a34a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:17px;line-height:36px;font-weight:700;color:#ffffff;">{{appInitial}}</td>
+                  <td style="padding-left:10px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:17px;font-weight:600;letter-spacing:-0.2px;color:#1e293b;">{{appName}}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Card -->
+          <tr>
+            <td class="email-card" style="padding:36px 40px;background-color:#ffffff;border:1px solid #e5e7eb;border-radius:12px;">
+{{{content}}}
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td align="center" style="padding:24px 16px 0 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:12px;line-height:18px;color:#6b7280;">
+              Need help? Write to <a href="mailto:{{supportEmail}}" style="color:#15803d;text-decoration:underline;">{{supportEmail}}</a>.<br>
+              &copy; {{year}} {{appName}}
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

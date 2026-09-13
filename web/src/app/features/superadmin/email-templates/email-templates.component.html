@@ -1,0 +1,381 @@
+<div class="animate-fade-in space-y-6">
+  <app-page-header
+    title="Email templates"
+    description="The emails the platform sends on its own: welcome, invitations, password resets, billing and payments. Changes apply to every workspace from the next email sent."
+    [breadcrumbs]="breadcrumbs"
+  />
+
+  @switch (listState()) {
+    @case ('loading') {
+      <div class="grid gap-6 lg:grid-cols-[18rem_minmax(0,1fr)]" aria-busy="true">
+        <app-card>
+          <div class="space-y-3">
+            @for (row of skeletons; track row) {
+              <app-skeleton height="3.25rem" />
+            }
+          </div>
+        </app-card>
+        <app-card>
+          <div class="space-y-4">
+            <app-skeleton width="40%" height="1.5rem" />
+            <app-skeleton height="2.5rem" />
+            <app-skeleton height="22rem" />
+          </div>
+        </app-card>
+      </div>
+    }
+
+    @case ('error') {
+      <app-card>
+        <app-error-state
+          title="Could not load email templates"
+          description="The template list is temporarily unavailable. Emails keep sending with the last saved versions."
+          (retry)="loadList()"
+        />
+      </app-card>
+    }
+
+    @case ('empty') {
+      <app-card>
+        <app-empty-state
+          icon="envelope"
+          title="No email templates yet"
+          description="Templates are seeded when the API starts. Restart it, or check the seeder ran, then refresh this page."
+        />
+      </app-card>
+    }
+
+    @default {
+      <div class="grid items-start gap-6 lg:grid-cols-[18rem_minmax(0,1fr)]">
+        <!-- Template list -->
+        <app-card [padded]="false" class="lg:sticky lg:top-20">
+          <nav aria-label="Email templates" class="app-scrollbar max-h-[70vh] overflow-y-auto p-2">
+            @for (group of groups(); track group.category) {
+              <p class="px-3 pt-3 pb-1.5 text-[11px] font-semibold tracking-wider text-ink-muted uppercase">
+                {{ group.label }}
+              </p>
+              <ul class="space-y-0.5">
+                @for (item of group.items; track item.key) {
+                  <li>
+                    <button
+                      type="button"
+                      class="group w-full rounded-lg px-3 py-2.5 text-left transition-colors focus-visible:outline-2 focus-visible:outline-brand-600"
+                      [class]="
+                        selectedKey() === item.key
+                          ? 'bg-brand-50 ring-1 ring-brand-200 ring-inset'
+                          : 'hover:bg-surface-sunken'
+                      "
+                      [attr.aria-current]="selectedKey() === item.key ? 'page' : null"
+                      (click)="select(item.key)"
+                    >
+                      <span class="flex items-center justify-between gap-2">
+                        <span
+                          class="truncate text-sm font-medium"
+                          [class]="selectedKey() === item.key ? 'text-brand-700' : 'text-ink'"
+                        >
+                          {{ item.name }}
+                        </span>
+                        @if (selectedKey() === item.key && dirty()) {
+                          <span class="h-2 w-2 shrink-0 rounded-full bg-amber-500" title="Unsaved changes"></span>
+                        } @else if (item.isCustomised) {
+                          <app-badge tone="neutral">Edited</app-badge>
+                        }
+                      </span>
+                      <span class="mt-0.5 block truncate text-xs text-ink-muted">{{ item.description }}</span>
+                    </button>
+                  </li>
+                }
+              </ul>
+            }
+          </nav>
+        </app-card>
+
+        <!-- Editor -->
+        <app-card [padded]="false">
+          @switch (editorState()) {
+            @case ('loading') {
+              <div class="space-y-4 p-5" aria-busy="true">
+                <app-skeleton width="40%" height="1.5rem" />
+                <app-skeleton height="2.5rem" />
+                <div class="grid gap-4 xl:grid-cols-2">
+                  <app-skeleton height="24rem" />
+                  <app-skeleton height="24rem" />
+                </div>
+              </div>
+            }
+
+            @case ('error') {
+              <app-error-state
+                title="Could not open this template"
+                description="Nothing has changed. Try opening it again."
+                (retry)="reloadSelected()"
+              />
+            }
+
+            @default {
+              @if (template(); as current) {
+                <!-- Header -->
+                <div class="flex flex-wrap items-start justify-between gap-4 border-b border-line px-5 py-4">
+                  <div class="min-w-0">
+                    <div class="flex flex-wrap items-center gap-2">
+                      <h2 class="text-base font-semibold tracking-tight text-ink">{{ current.name }}</h2>
+                      @if (dirty()) {
+                        <app-badge tone="warning" [dot]="true">Unsaved changes</app-badge>
+                      } @else if (current.isCustomised) {
+                        <app-badge tone="brand">Edited</app-badge>
+                      } @else {
+                        <app-badge tone="neutral">Default</app-badge>
+                      }
+                    </div>
+                    <p class="mt-0.5 text-sm text-ink-muted">{{ current.description }}</p>
+                    <p class="mt-1 font-mono text-xs text-ink-muted">
+                      {{ current.key }}
+                      @if (current.updatedAt !== null) {
+                        <span class="font-sans">
+                          · Saved {{ current.updatedAt | timeAgo }}{{ current.updatedBy !== null ? ' by ' + current.updatedBy : '' }}
+                        </span>
+                      }
+                    </p>
+                  </div>
+
+                  <div class="flex flex-wrap items-center gap-2">
+                    @if (current.isCustomised) {
+                      <button appButton variant="ghost" size="sm" (click)="confirmingReset.set(true)">
+                        <app-icon name="refresh" [size]="14" />
+                        Reset to default
+                      </button>
+                    }
+                    <button
+                      appButton
+                      variant="outline"
+                      size="sm"
+                      [disabled]="sendingTest() || problems().length > 0"
+                      (click)="sendTest()"
+                    >
+                      <app-icon name="send" [size]="14" />
+                      {{ sendingTest() ? 'Sending…' : 'Send test' }}
+                    </button>
+                    @if (dirty()) {
+                      <button appButton variant="ghost" size="sm" (click)="discardChanges()">Discard</button>
+                    }
+                    <button appButton size="sm" [disabled]="!canSave()" (click)="save()">
+                      <app-icon name="checkCircle" [size]="14" />
+                      {{ saving() ? 'Saving…' : 'Save' }}
+                    </button>
+                  </div>
+                </div>
+
+                <div class="grid xl:grid-cols-2">
+                  <!-- Source -->
+                  <div class="min-w-0 space-y-5 border-line p-5 xl:border-r">
+                    @if (!isLayout()) {
+                      <div>
+                        <div class="flex items-baseline justify-between gap-3">
+                          <label for="email-subject" class="text-sm font-medium text-ink">Subject</label>
+                          <span
+                            class="text-xs tabular-nums"
+                            [class]="subject().length > subjectMax ? 'text-danger' : 'text-ink-muted'"
+                          >
+                            {{ subject().length }} / {{ subjectMax }}
+                          </span>
+                        </div>
+                        <input
+                          #subjectInput
+                          id="email-subject"
+                          type="text"
+                          autocomplete="off"
+                          spellcheck="true"
+                          class="mt-1.5 h-10 w-full rounded-lg border-0 bg-surface px-3 font-mono text-sm text-ink ring-1 ring-line ring-inset transition-shadow placeholder:text-ink-muted focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                          [value]="subject()"
+                          (input)="subject.set($any($event.target).value)"
+                          (focus)="lastField = 'subject'"
+                        />
+                      </div>
+                    }
+
+                    <!-- Variables -->
+                    <div>
+                      <p class="text-sm font-medium text-ink">Variables</p>
+                      <p class="mt-0.5 text-xs text-ink-muted">{{ variableHint }}</p>
+                      <div class="mt-2 flex flex-wrap gap-1.5">
+                        @if (isLayout()) {
+                          <button
+                            type="button"
+                            class="rounded-md bg-brand-600 px-2 py-1 font-mono text-xs text-white shadow-xs transition-colors hover:bg-brand-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+                            [title]="contentHint"
+                            (click)="insertContent()"
+                          >
+                            {{ contentToken }}
+                          </button>
+                        }
+                        @for (variable of variables(); track variable.name) {
+                          <button
+                            type="button"
+                            class="rounded-md bg-brand-50 px-2 py-1 font-mono text-xs text-brand-700 ring-1 ring-brand-200 ring-inset transition-colors hover:bg-brand-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+                            [title]="variable.description + ' Sample: ' + variable.sample"
+                            (click)="insertVariable(variable.name)"
+                          >
+                            {{ tokenFor(variable.name) }}
+                          </button>
+                        }
+                      </div>
+                    </div>
+
+                    <!-- Body -->
+                    <div>
+                      <div class="flex flex-wrap items-center justify-between gap-2">
+                        <div class="flex gap-1 rounded-lg bg-surface-sunken p-0.5 ring-1 ring-line" role="tablist">
+                          <button
+                            type="button"
+                            role="tab"
+                            class="rounded-md px-3 py-1.5 text-xs font-medium transition-colors"
+                            [class]="bodyTab() === 'html' ? 'bg-surface text-ink shadow-xs' : 'text-ink-muted hover:text-ink'"
+                            [attr.aria-selected]="bodyTab() === 'html'"
+                            (click)="bodyTab.set('html')"
+                          >
+                            HTML
+                          </button>
+                          <button
+                            type="button"
+                            role="tab"
+                            class="rounded-md px-3 py-1.5 text-xs font-medium transition-colors"
+                            [class]="bodyTab() === 'text' ? 'bg-surface text-ink shadow-xs' : 'text-ink-muted hover:text-ink'"
+                            [attr.aria-selected]="bodyTab() === 'text'"
+                            (click)="bodyTab.set('text')"
+                          >
+                            Plain text
+                          </button>
+                        </div>
+                        <span class="text-xs text-ink-muted">
+                          {{ bodyTab() === 'html' ? 'Inline styles and tables — email clients ignore stylesheets.' : 'Shown by inboxes that block HTML.' }}
+                        </span>
+                      </div>
+
+                      @if (bodyTab() === 'html') {
+                        <textarea
+                          #htmlArea
+                          aria-label="HTML body"
+                          spellcheck="false"
+                          wrap="off"
+                          class="app-scrollbar mt-2 h-[28rem] w-full resize-y rounded-lg border-0 bg-surface-sunken p-3 font-mono text-xs leading-5 text-ink ring-1 ring-line ring-inset focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                          [value]="htmlBody()"
+                          (input)="htmlBody.set($any($event.target).value)"
+                          (focus)="lastField = 'html'"
+                        ></textarea>
+                      } @else {
+                        <textarea
+                          #textArea
+                          aria-label="Plain-text body"
+                          spellcheck="true"
+                          class="app-scrollbar mt-2 h-[28rem] w-full resize-y rounded-lg border-0 bg-surface-sunken p-3 font-mono text-xs leading-5 text-ink ring-1 ring-line ring-inset focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                          [value]="textBody()"
+                          (input)="textBody.set($any($event.target).value)"
+                          (focus)="lastField = 'text'"
+                        ></textarea>
+                      }
+                    </div>
+
+                    @if (problems().length > 0) {
+                      <div class="rounded-lg bg-red-50 p-4 ring-1 ring-red-200 ring-inset" role="alert">
+                        <p class="flex items-center gap-2 text-sm font-semibold text-red-800">
+                          <app-icon name="warning" [size]="16" />
+                          Fix {{ problems().length === 1 ? 'this' : 'these' }} before saving
+                        </p>
+                        <ul class="mt-2 list-disc space-y-1 pl-6 text-sm text-red-700">
+                          @for (problem of problems(); track $index) {
+                            <li>{{ problem }}</li>
+                          }
+                        </ul>
+                      </div>
+                    }
+                  </div>
+
+                  <!-- Preview -->
+                  <div class="min-w-0 space-y-3 border-t border-line bg-surface-muted/60 p-5 xl:border-t-0">
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                      <p class="text-sm font-medium text-ink">Preview</p>
+                      <div class="flex gap-1 rounded-lg bg-surface-sunken p-0.5 ring-1 ring-line">
+                        <button
+                          type="button"
+                          class="rounded-md px-3 py-1.5 text-xs font-medium transition-colors"
+                          [class]="previewWidth() === 'desktop' ? 'bg-surface text-ink shadow-xs' : 'text-ink-muted hover:text-ink'"
+                          [attr.aria-pressed]="previewWidth() === 'desktop'"
+                          (click)="previewWidth.set('desktop')"
+                        >
+                          Desktop
+                        </button>
+                        <button
+                          type="button"
+                          class="rounded-md px-3 py-1.5 text-xs font-medium transition-colors"
+                          [class]="previewWidth() === 'mobile' ? 'bg-surface text-ink shadow-xs' : 'text-ink-muted hover:text-ink'"
+                          [attr.aria-pressed]="previewWidth() === 'mobile'"
+                          (click)="previewWidth.set('mobile')"
+                        >
+                          Mobile
+                        </button>
+                      </div>
+                    </div>
+
+                    @if (rendered(); as email) {
+                      @if (!isLayout()) {
+                        <div class="rounded-lg bg-surface px-3 py-2.5 ring-1 ring-line">
+                          <p class="text-[11px] font-semibold tracking-wider text-ink-muted uppercase">Subject</p>
+                          <p class="mt-0.5 truncate text-sm font-medium text-ink">{{ email.subject || '(empty)' }}</p>
+                        </div>
+                      }
+
+                      @if (bodyTab() === 'html') {
+                        <div class="app-scrollbar overflow-x-auto rounded-lg bg-[#f6fff8] ring-1 ring-line">
+                          <iframe
+                            title="Email preview"
+                            sandbox=""
+                            class="mx-auto block h-[36rem] border-0 bg-[#f6fff8] transition-[width] duration-300"
+                            [style.width.px]="previewWidth() === 'desktop' ? 660 : 375"
+                            [srcdoc]="previewDocument()"
+                          ></iframe>
+                        </div>
+                      } @else {
+                        <pre
+                          class="app-scrollbar h-[36rem] overflow-auto rounded-lg bg-surface p-4 font-mono text-xs leading-5 whitespace-pre-wrap text-ink ring-1 ring-line"
+                        >{{ email.text }}</pre>
+                      }
+
+                      <p class="flex items-start gap-1.5 text-xs text-ink-muted">
+                        <app-icon name="info" [size]="14" class="mt-px shrink-0" />
+                        {{ previewNote }}
+                      </p>
+                    }
+                  </div>
+                </div>
+              }
+            }
+          }
+        </app-card>
+      </div>
+    }
+  }
+</div>
+
+@if (pendingKey() !== null) {
+  <app-modal title="Discard unsaved changes?" size="sm" (closed)="pendingKey.set(null)">
+    <p class="text-sm text-ink-soft">
+      Your edits to <span class="font-medium text-ink">{{ template()?.name }}</span> haven't been saved. Opening another
+      template throws them away.
+    </p>
+    <button modalFooter appButton variant="ghost" (click)="pendingKey.set(null)">Keep editing</button>
+    <button modalFooter appButton variant="danger" (click)="confirmDiscard()">Discard changes</button>
+  </app-modal>
+}
+
+@if (confirmingReset()) {
+  <app-modal title="Reset to the default?" size="sm" (closed)="confirmingReset.set(false)">
+    <p class="text-sm text-ink-soft">
+      <span class="font-medium text-ink">{{ template()?.name }}</span> goes back to the version shipped with the
+      platform. Your edits are replaced, and the next email sent uses the default.
+    </p>
+    <button modalFooter appButton variant="ghost" (click)="confirmingReset.set(false)">Cancel</button>
+    <button modalFooter appButton variant="danger" [disabled]="resetting()" (click)="confirmReset()">
+      {{ resetting() ? 'Resetting…' : 'Reset template' }}
+    </button>
+  </app-modal>
+}
