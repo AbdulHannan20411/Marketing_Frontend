@@ -44,6 +44,8 @@ const BUSINESS_RULE_CODES = new Set([
   'not_cancelled',
   'subscription_lapsed',
   'duplicate_record',
+  'ai_not_configured',
+  'ai_response_blocked',
 ]);
 
 export function isBusinessRule(error: ApiError): boolean {
@@ -160,8 +162,14 @@ export const errorInterceptor: HttpInterceptorFn = (request, next) => {
         return throwError(() => apiError);
       }
 
+      // The AI assistant shows every failure inline, in words that say whether
+      // retrying helps. A toast here would repeat it — and the default 502/503
+      // wording blames WhatsApp.
       const handledByCaller =
-        apiError.status === 422 || apiError.status === 404 || isBusinessRule(apiError);
+        apiError.status === 422 ||
+        apiError.status === 404 ||
+        isBusinessRule(apiError) ||
+        request.url.endsWith('/ai/generate');
 
       if (!handledByCaller) {
         toast.error(apiError.title, apiError.detail);

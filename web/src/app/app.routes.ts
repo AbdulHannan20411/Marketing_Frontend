@@ -194,6 +194,13 @@ export const routes: Routes = [
         loadComponent: () =>
           import('@features/employees/employees.component').then((m) => m.EmployeesComponent),
       },
+      {
+        path: 'ai-assistant',
+        title: 'AI Marketing Assistant',
+        canActivate: [scopeGuard],
+        loadComponent: () =>
+          import('@features/ai-assistant/ai-assistant.component').then((m) => m.AiAssistantComponent),
+      },
 
       /* Platform-level administration */
       {
@@ -392,6 +399,16 @@ export const routes: Routes = [
         canActivate: [permissionGuard, featureGuard],
         data: { permissions: ['whatsapp.inbox.view'], module: 'whatsapp' },
         loadComponent: () => import('@features/inbox/inbox.component').then((m) => m.InboxComponent),
+      },
+
+      /* ---------------- AI ---------------- */
+      {
+        path: 'ai-assistant',
+        title: 'AI Marketing Assistant',
+        canActivate: [permissionGuard, featureGuard],
+        data: { permissions: ['ai.assistant.use'], module: 'ai' },
+        loadComponent: () =>
+          import('@features/ai-assistant/ai-assistant.component').then((m) => m.AiAssistantComponent),
       },
 
       /* ---------------- Insights ---------------- */

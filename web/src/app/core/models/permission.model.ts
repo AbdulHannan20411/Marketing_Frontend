@@ -62,6 +62,9 @@ export const PERMISSIONS = [
   'reports.download.excel',
   'reports.download.pdf',
 
+  // AI
+  'ai.assistant.use',
+
   // Settings
   'settings.company',
   'settings.employees',
@@ -86,6 +89,7 @@ export type PermissionCategoryKey =
   | 'email'
   | 'social'
   | 'reports'
+  | 'ai'
   | 'settings'
   | 'platform';
 
@@ -290,6 +294,19 @@ export const PERMISSION_CATALOGUE: readonly PermissionCategory[] = [
       { key: 'reports.download.csv', label: 'Download CSV', description: 'Export as CSV.' },
       { key: 'reports.download.excel', label: 'Download Excel', description: 'Export as XLSX.' },
       { key: 'reports.download.pdf', label: 'Download PDF', description: 'Export as PDF.' },
+    ],
+  },
+  {
+    key: 'ai',
+    label: 'AI Assistant',
+    description: 'Marketing copy generated with AI.',
+    module: 'ai',
+    permissions: [
+      {
+        key: 'ai.assistant.use',
+        label: 'Use AI assistant',
+        description: 'Generate marketing copy. Each request uses AI credits.',
+      },
     ],
   },
   {

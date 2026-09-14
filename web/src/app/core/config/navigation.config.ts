@@ -83,6 +83,18 @@ export const NAVIGATION: readonly NavSection[] = [
     ],
   },
   {
+    title: 'AI',
+    items: [
+      {
+        label: 'AI Assistant',
+        route: '/ai-assistant',
+        icon: 'sparkles',
+        permissions: ['ai.assistant.use'],
+        module: 'ai',
+      },
+    ],
+  },
+  {
     title: 'Insights',
     items: [
       {

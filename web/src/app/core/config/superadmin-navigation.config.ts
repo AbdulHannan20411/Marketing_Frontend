@@ -55,6 +55,18 @@ export const SUPERADMIN_NAVIGATION: readonly NavSection[] = [
     ],
   },
   {
+    title: 'AI',
+    items: [
+      {
+        label: 'AI Assistant',
+        route: '/superadmin/ai-assistant',
+        icon: 'sparkles',
+        permissions: [],
+        requiresScope: true,
+      },
+    ],
+  },
+  {
     title: 'Insights',
     items: [
       // Not scoped: global reports without an Admin, that Admin's reports with one.

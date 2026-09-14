@@ -1,0 +1,130 @@
+<div class="animate-fade-in space-y-6">
+  <app-page-header
+    title="AI Marketing Assistant"
+    description="Describe what you need and get ready-to-use marketing copy in seconds."
+    [breadcrumbs]="breadcrumbs"
+  />
+
+  <div class="grid items-start gap-6 xl:grid-cols-2">
+    <!-- Prompt -->
+    <app-card>
+      <form class="space-y-4" (submit)="$event.preventDefault(); generate()">
+        <div>
+          <div class="flex items-baseline justify-between gap-3">
+            <label for="ai-prompt" class="text-sm font-medium text-ink">What would you like AI to create?</label>
+            <span
+              class="text-xs tabular-nums"
+              [class]="tooLong() ? 'text-danger' : 'text-ink-muted'"
+              aria-live="polite"
+            >
+              {{ length() }} / {{ maxLength }}
+            </span>
+          </div>
+          <textarea
+            id="ai-prompt"
+            rows="8"
+            aria-describedby="ai-prompt-help"
+            [attr.aria-invalid]="tooLong()"
+            class="app-scrollbar mt-1.5 min-h-44 w-full resize-y rounded-lg border-0 bg-surface p-3 text-sm leading-6 text-ink ring-1 ring-line ring-inset transition-shadow placeholder:text-ink-muted focus:ring-2 focus:ring-brand-500 focus:outline-none"
+            placeholder="Create a promotional message for a dental clinic offering 20% off."
+            [value]="prompt()"
+            (input)="prompt.set($any($event.target).value)"
+            (keydown)="onKeydown($event)"
+          ></textarea>
+          <p id="ai-prompt-help" class="mt-1.5 text-xs text-ink-muted">
+            Example: Create a promotional message for a dental clinic offering 20% off.
+            <span class="hidden sm:inline">Press Ctrl + Enter to generate.</span>
+          </p>
+          @if (tooLong()) {
+            <p class="mt-1 text-xs text-danger" role="alert">
+              Keep the prompt under {{ maxLength }} characters.
+            </p>
+          }
+        </div>
+
+        <div>
+          <p class="text-xs font-medium text-ink-muted">Try an example</p>
+          <div class="mt-1.5 flex flex-wrap gap-1.5">
+            @for (example of examples; track example) {
+              <button
+                type="button"
+                class="rounded-full bg-brand-50 px-3 py-1 text-left text-xs text-brand-700 ring-1 ring-brand-200 ring-inset transition-colors hover:bg-brand-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+                (click)="useExample(example)"
+              >
+                {{ example }}
+              </button>
+            }
+          </div>
+        </div>
+
+        <div class="flex flex-wrap items-center justify-end gap-2 border-t border-line pt-4">
+          @if (canClear()) {
+            <button appButton type="button" variant="ghost" (click)="clear()">Clear</button>
+          }
+          <button appButton type="submit" [disabled]="!canGenerate()">
+            <app-icon name="sparkles" [size]="16" [class.animate-pulse]="state() === 'loading'" />
+            {{ state() === 'loading' ? 'Generating…' : 'Generate' }}
+          </button>
+        </div>
+      </form>
+    </app-card>
+
+    <!-- Response -->
+    <app-card [padded]="false">
+      <div class="flex items-center justify-between gap-3 border-b border-line px-5 py-4">
+        <h2 class="text-sm font-semibold text-ink">AI Response</h2>
+        @if (state() === 'success') {
+          <button appButton variant="outline" size="sm" (click)="copy()">
+            <app-icon [name]="copied() ? 'checkCircle' : 'duplicate'" [size]="14" />
+            {{ copied() ? 'Copied' : 'Copy' }}
+          </button>
+        }
+      </div>
+
+      <div class="p-5" aria-live="polite" [attr.aria-busy]="state() === 'loading'">
+        @switch (state()) {
+          @case ('loading') {
+            <div class="space-y-3">
+              <p class="flex items-center gap-2 text-sm text-ink-muted">
+                <app-icon name="sparkles" [size]="16" class="animate-pulse text-brand-600" />
+                Writing your copy…
+              </p>
+              @for (width of skeletonLines; track $index) {
+                <app-skeleton [width]="width" height="0.9rem" />
+              }
+            </div>
+          }
+
+          @case ('error') {
+            <div class="rounded-lg bg-red-50 p-4 ring-1 ring-red-200 ring-inset" role="alert">
+              <p class="flex items-start gap-2 text-sm font-medium text-red-800">
+                <app-icon name="warning" [size]="16" class="mt-0.5 shrink-0" />
+                {{ errorMessage() }}
+              </p>
+              <button appButton variant="outline" size="sm" class="mt-3" [disabled]="!canGenerate()" (click)="generate()">
+                <app-icon name="refresh" [size]="14" />
+                Try again
+              </button>
+            </div>
+          }
+
+          @case ('success') {
+            <p class="animate-fade-in text-sm leading-7 break-words whitespace-pre-wrap text-ink">{{ answer() }}</p>
+            <p class="mt-4 flex items-start gap-1.5 border-t border-line pt-3 text-xs text-ink-muted">
+              <app-icon name="info" [size]="14" class="mt-px shrink-0" />
+              AI can make mistakes. Check prices, dates and offers before sending.
+            </p>
+          }
+
+          @default {
+            <app-empty-state
+              icon="sparkles"
+              title="Your response will appear here"
+              description="Write a prompt, or pick an example, then press Generate."
+            />
+          }
+        }
+      </div>
+    </app-card>
+  </div>
+</div>
