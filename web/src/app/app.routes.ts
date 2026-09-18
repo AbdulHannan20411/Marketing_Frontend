@@ -394,6 +394,16 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'whatsapp/auto-reply',
+        title: 'AI auto-reply',
+        canActivate: [permissionGuard, featureGuard],
+        data: { permissions: ['settings.integrations'], module: 'ai' },
+        loadComponent: () =>
+          import('@features/whatsapp/auto-reply/auto-reply.component').then(
+            (m) => m.AutoReplyComponent,
+          ),
+      },
+      {
         path: 'inbox',
         title: 'Inbox',
         canActivate: [permissionGuard, featureGuard],

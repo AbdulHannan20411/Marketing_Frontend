@@ -282,6 +282,14 @@ export interface MessageTemplate {
   readonly timesUsed: number;
   readonly updatedAt: string;
   readonly rejectionReason: string | null;
+  /**
+   * What the template's header carries, so a campaign knows whether a file is
+   * needed rather than inferring it from `headerText` being null.
+   *
+   * **Templates synced from Meta report `none`**, because Meta's list call does
+   * not return components — so this says "no header known", not "no header".
+   */
+  readonly headerKind: TemplateHeaderKind;
 }
 
 /* ------------------------------------------------------------------ *
@@ -428,6 +436,13 @@ export interface ConversationMessage {
   readonly failureReason: string | null;
   /** Set on outbound template sends, so the thread can name what was used. */
   readonly templateName: string | null;
+  /**
+   * Written by the assistant rather than by a person.
+   *
+   * Labelled in the thread: an agent reading back needs to know what the
+   * customer was already told, and by whom.
+   */
+  readonly isAutoReply?: boolean;
   readonly occurredAt: string;
 }
 
@@ -469,6 +484,24 @@ export function formatWindowRemaining(ms: number): string {
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
   return hours > 0 ? `${hours}h ${minutes}m left` : `${minutes}m left`;
+}
+
+/**
+ * A customer message arriving live (`inboundMessage` on the realtime hub).
+ *
+ * Deliberately a summary, not the message: enough to move the conversation to
+ * the top of the list, bump the unread badge and restart the 24-hour countdown.
+ * The thread itself is refetched, because this payload carries no message id,
+ * kind or attachment.
+ */
+export interface InboundMessageEvent {
+  readonly conversationId: string;
+  readonly contactName: string;
+  readonly phoneNumber: string;
+  readonly preview: string;
+  readonly unreadCount: number;
+  readonly windowExpiresAt: string | null;
+  readonly occurredAt: string;
 }
 
 export interface SendMessageRequest {

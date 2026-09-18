@@ -208,7 +208,15 @@ export class MapPickerComponent {
     }
     this.pin.setLatLng([point.lat, point.lng]);
     this.circle?.setLatLng([point.lat, point.lng]);
-    this.map.panTo([point.lat, point.lng]);
+
+    // Pan for a nudge, jump for a different city. `panTo` animates across
+    // everything in between, so picking a place on the far side of the country
+    // looked like the map had ignored the choice until the flight finished.
+    if (this.map.getBounds().contains([point.lat, point.lng])) {
+      this.map.panTo([point.lat, point.lng]);
+    } else {
+      this.map.setView([point.lat, point.lng], this.zoom(), { animate: false });
+    }
   }
 
   private applyRadius(km: number): void {

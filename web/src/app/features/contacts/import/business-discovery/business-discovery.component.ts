@@ -2,7 +2,7 @@ import { DecimalPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
-import { Subject, debounceTime, distinctUntilChanged, switchMap } from 'rxjs';
+import { Subject, catchError, debounceTime, distinctUntilChanged, of, switchMap } from 'rxjs';
 
 import type { ApiError } from '@core/models/api.model';
 import type {
@@ -102,6 +102,15 @@ export class BusinessDiscoveryComponent {
   protected readonly placeQuery = signal('');
   protected readonly suggestions = signal<readonly PlaceSuggestion[]>([]);
   protected readonly searchingPlaces = signal(false);
+  /**
+   * Why the dropdown is empty.
+   *
+   * Swallowing this was the whole bug behind "search does nothing": an empty
+   * dropdown looks identical to a place that does not exist. The two causes are
+   * kept apart because only one of them is worth a user retrying —
+   * `unconfigured` needs an administrator, and the pin works either way.
+   */
+  protected readonly placeSearchIssue = signal<'none' | 'unavailable' | 'unconfigured'>('none');
   protected readonly locatingMe = signal(false);
 
   private readonly placeInput = new Subject<string>();
@@ -151,20 +160,29 @@ export class BusinessDiscoveryComponent {
         distinctUntilChanged(),
         switchMap((term) => {
           this.searchingPlaces.set(true);
-          return this.discovery.searchPlaces(term);
+
+          // Caught inside `switchMap`, never by the subscriber. An error that
+          // reaches the outer stream completes it, and the search box then
+          // ignores every later keystroke for the life of the screen - the
+          // first failure silently broke the feature until a reload.
+          return this.discovery.searchPlaces(term).pipe(
+            catchError((error: ApiError) => {
+              this.placeSearchIssue.set(
+                error.errorCode === 'provider_not_configured' ? 'unconfigured' : 'unavailable',
+              );
+              return of(null as readonly PlaceSuggestion[] | null);
+            }),
+          );
         }),
         takeUntilDestroyed(),
       )
-      .subscribe({
-        next: (found) => {
-          this.suggestions.set(found);
-          this.searchingPlaces.set(false);
-        },
+      .subscribe((found) => {
         // Geocoding is a convenience; the map and pin still work without it.
-        error: () => {
-          this.suggestions.set([]);
-          this.searchingPlaces.set(false);
-        },
+        this.suggestions.set(found ?? []);
+        if (found !== null) {
+          this.placeSearchIssue.set('none');
+        }
+        this.searchingPlaces.set(false);
       });
 
     this.discovery.listCategories().subscribe({
@@ -189,10 +207,13 @@ export class BusinessDiscoveryComponent {
       this.placeInput.next(value.trim());
     } else {
       this.suggestions.set([]);
+      this.placeSearchIssue.set('none');
+      this.searchingPlaces.set(false);
     }
   }
 
   protected choosePlace(place: PlaceSuggestion): void {
+    this.placeSearchIssue.set('none');
     this.center.set({ lat: place.latitude, lng: place.longitude });
     this.placeLabel.set(place.label);
     this.placeCountry.set(place.country);

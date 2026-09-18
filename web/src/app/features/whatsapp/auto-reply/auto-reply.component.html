@@ -1,0 +1,296 @@
+<div class="animate-fade-in space-y-6">
+  <app-page-header
+    title="AI auto-reply"
+    description="Let the assistant answer customers on the occasions you choose, inside WhatsApp's 24-hour window."
+    [breadcrumbs]="breadcrumbs"
+  />
+
+  @switch (state()) {
+    @case ('loading') {
+      <div class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_20rem]" aria-busy="true">
+        <app-card>
+          <div class="space-y-4">
+            <app-skeleton width="45%" height="1.5rem" />
+            @for (row of skeletons; track row) {
+              <app-skeleton height="3.5rem" />
+            }
+          </div>
+        </app-card>
+        <app-card><app-skeleton height="10rem" /></app-card>
+      </div>
+    }
+
+    @case ('error') {
+      <app-card>
+        <app-error-state
+          title="Could not load auto-reply settings"
+          description="Nothing has changed. Try again in a moment."
+          (retry)="load()"
+        />
+      </app-card>
+    }
+
+    @default {
+      @if (settings(); as saved) {
+        <!-- No AI key on this deployment: every control below would accept a
+             setting that could never run, so say so once, at the top. -->
+        @if (!configured()) {
+          <div class="rounded-xl bg-amber-50 p-4 ring-1 ring-amber-200 ring-inset" role="status">
+            <p class="flex items-start gap-2 text-sm font-medium text-amber-900">
+              <app-icon name="warning" [size]="17" class="mt-px shrink-0" />
+              The AI assistant is not set up on this platform
+            </p>
+            <p class="mt-1 pl-6 text-sm text-amber-800">
+              Auto-reply cannot run until an administrator configures it. These settings are read-only
+              until then.
+            </p>
+          </div>
+        }
+
+        <div class="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_20rem]">
+          <div class="space-y-6">
+            <!-- Master switch -->
+            <app-card>
+              <div class="flex flex-wrap items-start justify-between gap-4">
+                <div class="min-w-0">
+                  <h2 class="text-sm font-semibold text-ink">Answer customers automatically</h2>
+                  <p class="mt-1 text-sm text-ink-muted">
+                    Replies are only ever sent inside the 24-hour window, and only until someone from
+                    your team answers. A customer writing again restarts the wait.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  [attr.aria-checked]="enabled()"
+                  aria-label="Enable auto-reply"
+                  [disabled]="!configured()"
+                  class="relative h-6 w-11 shrink-0 rounded-full transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 disabled:opacity-50"
+                  [class]="enabled() ? 'bg-brand-600' : 'bg-gray-300'"
+                  (click)="enabled.set(!enabled())"
+                >
+                  <span
+                    class="absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-xs transition-transform"
+                    [class]="enabled() ? 'translate-x-5.5' : 'translate-x-0.5'"
+                  ></span>
+                </button>
+              </div>
+            </app-card>
+
+            <!-- Occasions -->
+            <app-card title="When should it reply?">
+              <ul class="space-y-2.5">
+                @for (trigger of triggerKeys; track trigger) {
+                  <li
+                    class="flex items-start gap-3 rounded-lg p-3 ring-1 ring-inset transition-colors"
+                    [class]="
+                      allowed(trigger)
+                        ? 'bg-surface ring-line'
+                        : 'bg-surface-sunken ring-line/70'
+                    "
+                  >
+                    <input
+                      type="checkbox"
+                      class="mt-0.5 h-4 w-4 shrink-0 rounded border-line text-brand-600 focus:ring-brand-500 disabled:opacity-50"
+                      [id]="'trigger-' + trigger"
+                      [checked]="triggers()[trigger]"
+                      [disabled]="!allowed(trigger) || !configured()"
+                      (change)="toggleTrigger(trigger)"
+                    />
+                    <div class="min-w-0 flex-1">
+                      <label
+                        [for]="'trigger-' + trigger"
+                        class="flex flex-wrap items-center gap-2 text-sm font-medium"
+                        [class]="allowed(trigger) ? 'text-ink' : 'text-ink-muted'"
+                      >
+                        {{ triggerCopy[trigger].label }}
+                        <!-- Shown, not hidden: an admin should see what an upgrade buys. -->
+                        @if (!allowed(trigger)) {
+                          <a
+                            routerLink="/subscription"
+                            class="rounded-full bg-brand-50 px-2 py-0.5 text-[11px] font-medium text-brand-700 ring-1 ring-brand-200 ring-inset hover:bg-brand-100"
+                          >
+                            Not in your plan — upgrade
+                          </a>
+                        }
+                      </label>
+                      <p class="mt-0.5 text-xs leading-relaxed text-ink-muted">
+                        {{ triggerCopy[trigger].description }}
+                      </p>
+                    </div>
+                  </li>
+                }
+              </ul>
+            </app-card>
+
+            <!-- Timing and ceilings -->
+            <app-card title="Timing">
+              <div class="grid gap-5 sm:grid-cols-2">
+                <div>
+                  <label for="delay" class="block text-sm font-medium text-ink">Wait before replying</label>
+                  <div class="mt-1.5 flex items-center gap-2">
+                    <input
+                      id="delay"
+                      type="number"
+                      [min]="ranges.delaySeconds.min"
+                      [max]="ranges.delaySeconds.max"
+                      step="10"
+                      [value]="delaySeconds()"
+                      [disabled]="!configured()"
+                      (input)="setNumber('delaySeconds', $any($event.target).value)"
+                      class="h-10 w-28 rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink ring-1 ring-line ring-inset focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none disabled:opacity-50"
+                    />
+                    <span class="text-sm text-ink-muted">seconds — {{ describeDelay() }}</span>
+                  </div>
+                  <p class="mt-1 text-xs text-ink-muted">
+                    A short pause gives your team the chance to answer first. 10 seconds to 30 minutes.
+                  </p>
+                </div>
+
+                <div>
+                  <label for="unanswered" class="block text-sm font-medium text-ink">
+                    "Nobody replied" wait
+                  </label>
+                  <div class="mt-1.5 flex items-center gap-2">
+                    <input
+                      id="unanswered"
+                      type="number"
+                      [min]="ranges.unansweredAfterMinutes.min"
+                      [max]="ranges.unansweredAfterMinutes.max"
+                      step="5"
+                      [value]="unansweredAfterMinutes()"
+                      [disabled]="!configured()"
+                      (input)="setNumber('unansweredAfterMinutes', $any($event.target).value)"
+                      class="h-10 w-28 rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink ring-1 ring-line ring-inset focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none disabled:opacity-50"
+                    />
+                    <span class="text-sm text-ink-muted">minutes — {{ describeWait() }}</span>
+                  </div>
+                  <p class="mt-1 text-xs text-ink-muted">
+                    @if (unansweredChosen()) {
+                      5 minutes to 24 hours.
+                    } @else {
+                      Only used by the "Nobody replied" occasion, which is off.
+                    }
+                  </p>
+                </div>
+
+                <div>
+                  <label for="per-day" class="block text-sm font-medium text-ink">
+                    Most replies to one customer per day
+                  </label>
+                  <input
+                    id="per-day"
+                    type="number"
+                    [min]="ranges.maxPerConversationPerDay.min"
+                    [max]="ranges.maxPerConversationPerDay.max"
+                    [value]="maxPerConversationPerDay()"
+                    [disabled]="!configured()"
+                    (input)="setNumber('maxPerConversationPerDay', $any($event.target).value)"
+                    class="mt-1.5 h-10 w-28 rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink ring-1 ring-line ring-inset focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none disabled:opacity-50"
+                  />
+                  <p class="mt-1 text-xs text-ink-muted">1 to 20.</p>
+                </div>
+              </div>
+            </app-card>
+
+            <!-- Instructions -->
+            <app-card title="What should it know?">
+              <div>
+                <div class="flex items-baseline justify-between gap-3">
+                  <label for="instructions" class="text-sm text-ink-muted">
+                    Facts and limits for the assistant. It follows these on every reply.
+                  </label>
+                  <span
+                    class="shrink-0 text-xs tabular-nums"
+                    [class]="
+                      instructions().length > ranges.instructionsMaxLength
+                        ? 'text-danger'
+                        : 'text-ink-muted'
+                    "
+                  >
+                    {{ instructions().length }} / {{ ranges.instructionsMaxLength }}
+                  </span>
+                </div>
+                <textarea
+                  id="instructions"
+                  rows="5"
+                  [value]="instructions()"
+                  [disabled]="!configured()"
+                  (input)="instructions.set($any($event.target).value)"
+                  placeholder="We are a salon in Lahore. Opening hours 11am–8pm. Never quote prices — offer to book a call instead."
+                  class="app-scrollbar mt-2 w-full resize-y rounded-lg border-0 bg-surface-sunken p-3 text-sm leading-6 text-ink ring-1 ring-line ring-inset placeholder:text-ink-muted focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none disabled:opacity-50"
+                ></textarea>
+              </div>
+            </app-card>
+
+            @if (problems().length > 0 || serverProblem() !== null) {
+              <div class="rounded-lg bg-red-50 p-4 ring-1 ring-red-200 ring-inset" role="alert">
+                <p class="flex items-center gap-2 text-sm font-semibold text-red-800">
+                  <app-icon name="warning" [size]="16" />
+                  Fix this before saving
+                </p>
+                <ul class="mt-2 list-disc space-y-1 pl-6 text-sm text-red-700">
+                  @if (serverProblem(); as problem) {
+                    <li>{{ problem }}</li>
+                  }
+                  @for (problem of problems(); track $index) {
+                    <li>{{ problem }}</li>
+                  }
+                </ul>
+              </div>
+            }
+
+            <div class="flex flex-wrap items-center justify-end gap-2">
+              @if (dirty()) {
+                <button appButton variant="ghost" (click)="discard()">Discard</button>
+              }
+              <button appButton [disabled]="!canSave()" (click)="save()">
+                <app-icon name="checkCircle" [size]="16" />
+                {{ saving() ? 'Saving…' : 'Save changes' }}
+              </button>
+            </div>
+          </div>
+
+          <!-- Allowance -->
+          <app-card title="This month's allowance">
+            @if (saved.monthlyLimit === null) {
+              <p class="text-sm text-ink">No monthly ceiling on your plan.</p>
+              <p class="mt-1 text-xs text-ink-muted">
+                {{ saved.usedThisPeriod }} replies sent so far this period.
+              </p>
+            } @else {
+              <p class="text-2xl font-semibold tracking-tight text-ink tabular-nums">
+                {{ saved.remainingThisPeriod }}
+                <span class="text-sm font-normal text-ink-muted">left</span>
+              </p>
+              <div class="mt-3 h-2 overflow-hidden rounded-full bg-surface-sunken">
+                <div
+                  class="h-full rounded-full transition-[width] duration-500"
+                  [class]="usedPercent() >= 90 ? 'bg-amber-500' : 'bg-brand-500'"
+                  [style.width.%]="usedPercent()"
+                ></div>
+              </div>
+              <p class="mt-2 text-xs text-ink-muted">
+                {{ saved.usedThisPeriod }} of {{ saved.monthlyLimit }} used. Resets
+                {{ saved.periodEndsAt | date: 'd MMM' }}.
+              </p>
+              @if (saved.remainingThisPeriod === 0) {
+                <p class="mt-3 rounded-lg bg-amber-50 p-3 text-xs text-amber-800 ring-1 ring-amber-200 ring-inset">
+                  The allowance is used up, so auto-replies are paused until it resets.
+                  <a routerLink="/subscription" class="font-medium underline">See plans</a>
+                </p>
+              }
+            }
+
+            <div class="mt-5 space-y-2 border-t border-line pt-4 text-xs leading-relaxed text-ink-muted">
+              <p class="font-medium text-ink">Worth knowing</p>
+              <p>Auto-replies are labelled "Sent automatically" in the inbox.</p>
+              <p>An agent replying first cancels the automatic one.</p>
+              <p>Nothing is sent outside the 24-hour window.</p>
+            </div>
+          </app-card>
+        </div>
+      }
+    }
+  }
+</div>

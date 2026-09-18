@@ -447,6 +447,9 @@ export const TEMPLATES: readonly MessageTemplate[] = TEMPLATE_SEED.map((seed, in
   status: seed.status,
   language: 'en_GB',
   headerText: seed.header,
+  // Text or none: the seed carries no media headers, and a template synced from
+  // Meta reports `none` because Meta's list call omits components.
+  headerKind: seed.header === null ? 'none' : 'text',
   bodyText: seed.body,
   footerText: seed.footer,
   variables: seed.variables,

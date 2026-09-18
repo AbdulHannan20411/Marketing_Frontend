@@ -23,6 +23,9 @@
           class="h-10 w-full rounded-lg border-0 bg-surface-sunken py-2 pr-3 pl-9 text-sm text-ink ring-1 ring-line ring-inset transition-all placeholder:text-ink-muted focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
         />
 
+        <!-- Every outcome says something. An empty dropdown cannot distinguish
+             "no such place" from "geocoding is not working", and both were
+             silent before. -->
         @if (suggestions().length > 0) {
           <ul
             class="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-lg bg-surface py-1 shadow-lg ring-1 ring-line"
@@ -43,6 +46,33 @@
               </li>
             }
           </ul>
+        } @else if (searchingPlaces()) {
+          <div
+            class="absolute z-20 mt-1 w-full rounded-lg bg-surface px-3 py-2.5 text-sm text-ink-muted shadow-lg ring-1 ring-line"
+            role="status"
+          >
+            Searching…
+          </div>
+        } @else if (placeSearchIssue() !== 'none') {
+          <div
+            class="absolute z-20 mt-1 w-full rounded-lg bg-amber-50 px-3 py-2.5 text-xs text-amber-800 shadow-lg ring-1 ring-amber-200"
+            role="status"
+          >
+            @if (placeSearchIssue() === 'unconfigured') {
+              <span class="font-medium">Location search is not available on this workspace.</span>
+              Ask an administrator to finish the map setup. Click the map to drop a pin meanwhile.
+            } @else {
+              <span class="font-medium">Location search is unavailable right now.</span>
+              Click the map to drop a pin instead — searching for businesses still works.
+            }
+          </div>
+        } @else if (placeQuery().trim().length >= 3) {
+          <div
+            class="absolute z-20 mt-1 w-full rounded-lg bg-surface px-3 py-2.5 text-sm text-ink-muted shadow-lg ring-1 ring-line"
+            role="status"
+          >
+            No places match “{{ placeQuery().trim() }}”. Try a city or area name, or drop a pin.
+          </div>
         }
       </div>
 

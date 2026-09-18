@@ -17,6 +17,7 @@ import type { ApiError, LoadState } from '@core/models/api.model';
 import type {
   Conversation,
   ConversationMessage,
+  InboundMessageEvent,
   MediaAsset,
   MediaKind,
 } from '@core/models/whatsapp.model';
@@ -87,6 +88,13 @@ export class InboxComponent {
   private readonly thread = viewChild<ElementRef<HTMLElement>>('thread');
 
   protected readonly state = signal<LoadState>('loading');
+  /**
+   * The API does not serve conversations at all, rather than having failed once.
+   *
+   * A 404 here is not a transient fault: offering "try again" for an endpoint
+   * that does not exist sends the user round a loop that cannot end.
+   */
+  protected readonly unavailable = signal(false);
   /**
    * Whether this user may actually send.
    *
@@ -202,6 +210,10 @@ export class InboxComponent {
     // need to react rather than waiting for a manual refresh.
     this.realtime.resynced$.pipe(takeUntilDestroyed()).subscribe(() => this.load(true));
 
+    this.realtime.inboundMessages$
+      .pipe(takeUntilDestroyed())
+      .subscribe((event) => this.onInboundMessage(event));
+
     effect(() => {
       const id = this.selectedId();
       untracked(() => {
@@ -213,6 +225,56 @@ export class InboxComponent {
         this.loadThread(id);
       });
     });
+  }
+
+  /**
+   * A customer message arrived while the screen was open.
+   *
+   * The list is updated in place and the conversation moves to the top, because
+   * that is what the event carries. The **thread** is refetched instead: the
+   * payload has a preview, not a message — no id, kind or attachment — and
+   * inventing a bubble from a truncated string would show the customer's words
+   * wrongly, then disagree with the server on the next load.
+   */
+  private onInboundMessage(event: InboundMessageEvent): void {
+    const known = this.conversations().some((entry) => entry.id === event.conversationId);
+
+    if (!known) {
+      // A conversation this page has never seen — a brand-new customer, or one
+      // beyond the loaded pages. Only a reload can place it correctly.
+      this.load(true);
+      return;
+    }
+
+    this.conversations.update((current) => {
+      const updated = current.map((entry) =>
+        entry.id === event.conversationId
+          ? {
+              ...entry,
+              contactName: event.contactName,
+              lastMessagePreview: event.preview,
+              lastMessageAt: event.occurredAt,
+              windowExpiresAt: event.windowExpiresAt,
+              // The open thread is read as it arrives, so the badge would be a
+              // lie on the conversation the user is looking at.
+              unreadCount: entry.id === this.selectedId() ? 0 : event.unreadCount,
+            }
+          : entry,
+      );
+
+      // Newest activity first, matching the order the API returns.
+      return [...updated].sort(
+        (left, right) => new Date(right.lastMessageAt).getTime() - new Date(left.lastMessageAt).getTime(),
+      );
+    });
+
+    // Restart the countdown against the new expiry without waiting for the tick.
+    this.now.set(Date.now());
+
+    if (event.conversationId === this.selectedId()) {
+      this.loadThread(event.conversationId, true);
+      this.whatsapp.markRead(event.conversationId).subscribe({ error: () => undefined });
+    }
   }
 
   protected load(silent = false): void {
@@ -232,7 +294,8 @@ export class InboxComponent {
           this.selectedId.set(result.items[0].id);
         }
       },
-      error: () => {
+      error: (error: ApiError) => {
+        this.unavailable.set(error.status === 404 || error.status === 501);
         if (!silent) {
           this.state.set('error');
         }
@@ -288,8 +351,14 @@ export class InboxComponent {
     }
   }
 
-  protected loadThread(conversationId: string): void {
-    this.threadState.set('loading');
+  /**
+   * @param silent Refresh without clearing the thread. A live message must not
+   *   replace what the user is reading with skeletons.
+   */
+  protected loadThread(conversationId: string, silent = false): void {
+    if (!silent) {
+      this.threadState.set('loading');
+    }
 
     this.whatsapp.listMessages(conversationId, 1, PAGE_SIZE).subscribe({
       next: (result) => {
@@ -297,7 +366,11 @@ export class InboxComponent {
         this.threadState.set(result.totalItems === 0 ? 'empty' : 'ready');
         this.scrollToLatest();
       },
-      error: () => this.threadState.set('error'),
+      error: () => {
+        if (!silent) {
+          this.threadState.set('error');
+        }
+      },
     });
   }
 
@@ -393,6 +466,23 @@ export class InboxComponent {
             this.toast.error(
               'The window has closed',
               'This customer has not messaged in 24 hours. Send an approved template instead.',
+            );
+            return;
+          }
+          if (error.errorCode === 'not_connected') {
+            this.toast.error(
+              'WhatsApp is not connected',
+              'Reconnect your WhatsApp Business number before replying.',
+            );
+            return;
+          }
+          if (error.errorCode === 'media_not_uploaded') {
+            // The handle is dead, so keeping it in the composer only invites a
+            // second identical failure.
+            this.attachment.set(null);
+            this.toast.error(
+              'The attachment did not upload',
+              'Attach the file again and resend.',
             );
             return;
           }

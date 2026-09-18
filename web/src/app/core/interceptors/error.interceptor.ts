@@ -46,6 +46,7 @@ const BUSINESS_RULE_CODES = new Set([
   'duplicate_record',
   'ai_not_configured',
   'ai_response_blocked',
+  'auto_reply_trigger_not_in_plan',
 ]);
 
 export function isBusinessRule(error: ApiError): boolean {

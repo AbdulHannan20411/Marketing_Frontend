@@ -56,7 +56,8 @@ interface PlanSeed {
   readonly recommended: boolean;
   readonly support: SupportLevel;
   readonly enabled: readonly FeatureModule[];
-  readonly limits: PlanLimits;
+  /** The AI reply ceiling is derived below, so seeds need not carry it. */
+  readonly limits: Omit<PlanLimits, 'monthlyAiReplyLimit'>;
   readonly highlights: readonly string[];
 }
 
@@ -228,6 +229,13 @@ const PLAN_SEEDS: readonly PlanSeed[] = [
 
 export const PLANS: readonly SubscriptionPlan[] = PLAN_SEEDS.map((seed, index) => ({
   id: seed.id,
+  // Auto-reply is sold with the AI module in these seeds, and `unanswered` is
+  // deliberately left off every plan so the upgrade hint has something to show.
+  autoReplyTriggers: {
+    greeting: seed.enabled.includes('ai'),
+    first_message: seed.enabled.includes('ai'),
+    unanswered: false,
+  },
   name: seed.name,
   tagline: seed.tagline,
   monthlyPrice: seed.monthly,
@@ -242,7 +250,7 @@ export const PLANS: readonly SubscriptionPlan[] = PLAN_SEEDS.map((seed, index) =
   status: seed.promotional ? 'inactive' : 'active',
   supportLevel: seed.support,
   modules: modules(seed.enabled),
-  limits: seed.limits,
+  limits: { ...seed.limits, monthlyAiReplyLimit: seed.enabled.includes('ai') ? 500 : 0 },
   highlights: seed.highlights,
   sortOrder: index,
   updatedAt: offsetDays(-(index * 9 + 4)),

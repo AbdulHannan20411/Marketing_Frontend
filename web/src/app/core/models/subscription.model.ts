@@ -1,3 +1,4 @@
+import type { AutoReplyTriggerMap } from './auto-reply.model';
 import type { FeatureModule } from './permission.model';
 
 export type BillingCycle = 'monthly' | 'yearly';
@@ -19,6 +20,8 @@ export interface PlanLimits {
   readonly maxStorageMb: number | null;
   readonly dailyMessageLimit: number | null;
   readonly monthlyMessageLimit: number | null;
+  /** AI auto-replies included per billing cycle. `null` means no ceiling. */
+  readonly monthlyAiReplyLimit: number | null;
 }
 
 export type PlanModules = Readonly<Record<FeatureModule, boolean>>;
@@ -43,6 +46,13 @@ export interface SubscriptionPlan {
   readonly supportLevel: SupportLevel;
   readonly modules: PlanModules;
   readonly limits: PlanLimits;
+  /**
+   * Auto-reply occasions this plan sells.
+   *
+   * Sold separately from the `ai` module: a plan can include the assistant for
+   * staff to use by hand without letting it answer customers unattended.
+   */
+  readonly autoReplyTriggers: AutoReplyTriggerMap;
   readonly highlights: readonly string[];
   readonly sortOrder: number;
   readonly updatedAt: string;

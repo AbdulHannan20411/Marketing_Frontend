@@ -13,6 +13,12 @@ import type {
   SubscriptionPlan,
   SupportLevel,
 } from '@core/models/subscription.model';
+import {
+  AUTO_REPLY_TRIGGERS,
+  AUTO_REPLY_TRIGGER_COPY,
+  type AutoReplyTrigger,
+  type AutoReplyTriggerMap,
+} from '@core/models/auto-reply.model';
 import type { PlanDraft } from '@core/services/plan-admin.service';
 import { PositiveNumberDirective } from '@shared/directives/positive-number.directive';
 import { ButtonDirective } from '@shared/ui/button/button.directive';
@@ -37,6 +43,7 @@ const LIMIT_FIELDS: readonly LimitField[] = [
   { key: 'maxStorageMb', label: 'Max storage (MB)', hint: 'Media and exports' },
   { key: 'dailyMessageLimit', label: 'Daily message limit', hint: 'Rolling 24 hours' },
   { key: 'monthlyMessageLimit', label: 'Monthly message limit', hint: 'Per billing cycle' },
+  { key: 'monthlyAiReplyLimit', label: 'Monthly AI replies', hint: 'Automatic replies per cycle' },
 ];
 
 const EMPTY_LIMITS: PlanLimits = {
@@ -50,6 +57,13 @@ const EMPTY_LIMITS: PlanLimits = {
   maxStorageMb: 5_120,
   dailyMessageLimit: 2_000,
   monthlyMessageLimit: 50_000,
+  monthlyAiReplyLimit: 500,
+};
+
+const EMPTY_AUTO_REPLY_TRIGGERS: AutoReplyTriggerMap = {
+  greeting: true,
+  first_message: false,
+  unanswered: false,
 };
 
 const EMPTY_MODULES: PlanModules = {
@@ -107,6 +121,11 @@ export class PlanEditorComponent {
   protected readonly supportLevel = signal<SupportLevel>('email');
   protected readonly modules = signal<PlanModules>({ ...EMPTY_MODULES });
   protected readonly limits = signal<PlanLimits>({ ...EMPTY_LIMITS });
+  protected readonly autoReplyTriggerKeys = AUTO_REPLY_TRIGGERS;
+  protected readonly autoReplyTriggerCopy = AUTO_REPLY_TRIGGER_COPY;
+  protected readonly autoReplyTriggers = signal<AutoReplyTriggerMap>({
+    ...EMPTY_AUTO_REPLY_TRIGGERS,
+  });
   protected readonly highlightsText = signal('');
 
   protected readonly isEdit = computed(() => this.plan() !== null);
@@ -156,8 +175,17 @@ export class PlanEditorComponent {
       this.supportLevel.set(source.supportLevel);
       this.modules.set({ ...source.modules });
       this.limits.set({ ...source.limits });
+      this.autoReplyTriggers.set({ ...source.autoReplyTriggers });
       this.highlightsText.set(source.highlights.join('\n'));
     });
+  }
+
+  protected autoReplyTriggerEnabled(trigger: AutoReplyTrigger): boolean {
+    return this.autoReplyTriggers()[trigger];
+  }
+
+  protected setAutoReplyTrigger(trigger: AutoReplyTrigger, enabled: boolean): void {
+    this.autoReplyTriggers.update((current) => ({ ...current, [trigger]: enabled }));
   }
 
   protected moduleEnabled(key: FeatureModule): boolean {
@@ -209,6 +237,7 @@ export class PlanEditorComponent {
       supportLevel: this.supportLevel(),
       modules: this.modules(),
       limits: this.limits(),
+      autoReplyTriggers: this.autoReplyTriggers(),
       highlights: this.highlightsText()
         .split('\n')
         .map((line) => line.trim())
@@ -232,6 +261,7 @@ export class PlanEditorComponent {
     this.supportLevel.set('email');
     this.modules.set({ ...EMPTY_MODULES });
     this.limits.set({ ...EMPTY_LIMITS });
+    this.autoReplyTriggers.set({ ...EMPTY_AUTO_REPLY_TRIGGERS });
     this.highlightsText.set('');
   }
 }

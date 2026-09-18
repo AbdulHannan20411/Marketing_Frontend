@@ -96,6 +96,8 @@ export const messageStore: Record<string, ConversationMessage[]> = {
       kind: 'text',
       body: 'It is, yes. 14 Prince Street, arriving before 6pm.',
       media: null,
+      // Written by the assistant, so the thread carries its label.
+      isAutoReply: true,
       status: 'read',
       failureReason: null,
       templateName: null,

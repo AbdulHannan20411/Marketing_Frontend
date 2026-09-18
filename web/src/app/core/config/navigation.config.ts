@@ -60,6 +60,13 @@ export const NAVIGATION: readonly NavSection[] = [
         module: 'whatsapp',
       },
       {
+        label: 'Auto-reply',
+        route: '/whatsapp/auto-reply',
+        icon: 'sparkles',
+        permissions: ['settings.integrations'],
+        module: 'ai',
+      },
+      {
         label: 'Templates',
         route: '/templates',
         icon: 'document',

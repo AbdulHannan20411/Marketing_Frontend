@@ -23,11 +23,21 @@
 
   @case ('error') {
     <div class="mt-6">
-      <app-error-state
-        title="Could not load your inbox"
-        description="Conversations are temporarily unavailable. Nothing has been lost."
-        (retry)="load()"
-      />
+      @if (unavailable()) {
+        <!-- The API has no conversations endpoint, so "try again" would never
+             succeed. Say what is actually missing instead. -->
+        <app-empty-state
+          icon="inbox"
+          title="The inbox is not available yet"
+          description="Your WhatsApp number is connected, but this API does not serve conversations yet. Once inbox support is deployed, customer messages appear here automatically."
+        />
+      } @else {
+        <app-error-state
+          title="Could not load your inbox"
+          description="Conversations are temporarily unavailable. Nothing has been lost."
+          (retry)="load()"
+        />
+      }
     </div>
   }
 
@@ -157,6 +167,11 @@
               }
               @default {
                 @for (message of messages(); track message.id) {
+                  @if (message.kind === 'system') {
+                    <!-- A location, sticker or contact card: nothing to draw as a
+                         bubble, and an empty bubble reads as a broken message. -->
+                    <p class="py-1 text-center text-xs text-ink-muted">{{ message.body }}</p>
+                  } @else {
                   <div
                     class="flex"
                     [class]="message.direction === 'outbound' ? 'justify-end' : 'justify-start'"
@@ -175,6 +190,18 @@
                           [class]="message.direction === 'outbound' ? 'text-brand-100' : 'text-ink-muted'"
                         >
                           Template · {{ message.templateName }}
+                        </p>
+                      }
+
+                      @if (message.isAutoReply) {
+                        <!-- An agent reading back has to know the customer was
+                             answered by the assistant, not by a colleague. -->
+                        <p
+                          class="mb-1 flex items-center gap-1 text-[11px] font-medium"
+                          [class]="message.direction === 'outbound' ? 'text-brand-100' : 'text-ink-muted'"
+                        >
+                          <app-icon name="sparkles" [size]="11" />
+                          Sent automatically
                         </p>
                       }
 
@@ -236,6 +263,7 @@
                       }
                     </div>
                   </div>
+                  }
                 }
               }
             }

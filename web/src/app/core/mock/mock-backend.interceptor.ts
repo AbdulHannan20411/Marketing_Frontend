@@ -22,11 +22,14 @@ import type {
   LoginRequest,
 } from '@core/models/auth.model';
 import type { Contact } from '@core/models/contact.model';
+import type { AutoReplyDraft, AutoReplySettings } from '@core/models/auto-reply.model';
+import { AUTO_REPLY_TRIGGERS, autoReplyProblems } from '@core/models/auto-reply.model';
 import type { Employee } from '@core/models/employee.model';
 import type {
   ConnectionOnboarding,
   ConversationMessage,
   MessageTemplate,
+  TemplateHeaderKind,
   OnboardingStep,
   OnboardingStepState,
   WhatsAppConnection,
@@ -120,6 +123,27 @@ const planStore: SubscriptionPlan[] = PLANS.map((plan) => ({ ...plan }));
 const notificationStore: AppNotificationDto[] = NOTIFICATIONS.map((entry) => ({ ...entry }));
 const employeeStore: Employee[] = EMPLOYEES.map((entry) => ({ ...entry }));
 const templateStore: MessageTemplate[] = TEMPLATES.map((entry) => ({ ...entry }));
+
+/**
+ * Auto-reply settings, mutable so saving survives navigation.
+ *
+ * `unanswered` is deliberately outside `allowedTriggers`: the disabled-with-an-
+ * upgrade-hint row is the part of that screen worth exercising.
+ */
+let autoReplySettings: AutoReplySettings = {
+  enabled: true,
+  triggers: { greeting: true, first_message: false, unanswered: false },
+  allowedTriggers: { greeting: true, first_message: true, unanswered: false },
+  delaySeconds: 60,
+  unansweredAfterMinutes: 300,
+  instructions: 'We are a salon in Lahore. Opening hours 11am-8pm. Never quote prices.',
+  maxPerConversationPerDay: 3,
+  monthlyLimit: 500,
+  usedThisPeriod: 137,
+  remainingThisPeriod: 363,
+  periodEndsAt: new Date(Date.now() + 12 * 86_400_000).toISOString(),
+  assistantConfigured: true,
+};
 function nextPlanId(): string {
   return `plan_${crypto.randomUUID().slice(0, 8)}`;
 }
@@ -1203,6 +1227,7 @@ function handleWhatsApp(
       bodyText: string;
       footerText: string;
       buttons: { label: string }[];
+      headerKind?: TemplateHeaderKind;
     };
     if (templateStore.some((entry) => entry.name === draft.name)) {
       return fail(
@@ -1219,6 +1244,7 @@ function handleWhatsApp(
       status: 'pending',
       language: draft.language,
       headerText: draft.headerText === '' ? null : draft.headerText,
+      headerKind: draft.headerKind ?? (draft.headerText === '' ? 'none' : 'text'),
       bodyText: draft.bodyText,
       footerText: draft.footerText === '' ? null : draft.footerText,
       variables: [...(draft.bodyText.match(/\{\{\s*\d+\s*\}\}/g) ?? [])],
@@ -1744,6 +1770,57 @@ export const mockBackendInterceptor: HttpInterceptorFn = (request, next) => {
   if (method === 'POST' && path === '/templates/sync') {
     return ok(TEMPLATES, `Synced ${TEMPLATES.length} templates from Meta.`);
   }
+  if (path === '/whatsapp/auto-reply') {
+    if (method === 'GET') {
+      return ok(autoReplySettings);
+    }
+    if (method === 'PUT') {
+      const draft = (request.body ?? {}) as Partial<AutoReplyDraft>;
+      const triggers = draft.triggers ?? autoReplySettings.triggers;
+
+      // The plan is the authority, exactly as the API is: a trigger it does not
+      // sell is refused rather than quietly dropped.
+      const refused = AUTO_REPLY_TRIGGERS.find(
+        (trigger) => triggers[trigger] && !autoReplySettings.allowedTriggers[trigger],
+      );
+      if (refused !== undefined) {
+        return fail(
+          409,
+          'Not in your plan',
+          `The "${refused}" occasion is not included in your current plan.`,
+          'auto_reply_trigger_not_in_plan',
+        );
+      }
+
+      const problems = autoReplyProblems({
+        enabled: draft.enabled ?? autoReplySettings.enabled,
+        triggers,
+        delaySeconds: draft.delaySeconds ?? autoReplySettings.delaySeconds,
+        unansweredAfterMinutes:
+          draft.unansweredAfterMinutes ?? autoReplySettings.unansweredAfterMinutes,
+        instructions: draft.instructions ?? autoReplySettings.instructions,
+        maxPerConversationPerDay:
+          draft.maxPerConversationPerDay ?? autoReplySettings.maxPerConversationPerDay,
+      });
+      if (problems.length > 0) {
+        return failValidation({ AutoReply: problems });
+      }
+
+      autoReplySettings = {
+        ...autoReplySettings,
+        enabled: draft.enabled ?? autoReplySettings.enabled,
+        triggers,
+        delaySeconds: draft.delaySeconds ?? autoReplySettings.delaySeconds,
+        unansweredAfterMinutes:
+          draft.unansweredAfterMinutes ?? autoReplySettings.unansweredAfterMinutes,
+        instructions: draft.instructions ?? autoReplySettings.instructions,
+        maxPerConversationPerDay:
+          draft.maxPerConversationPerDay ?? autoReplySettings.maxPerConversationPerDay,
+      };
+      return ok(autoReplySettings, 'Auto-reply saved.');
+    }
+  }
+
   if (method === 'POST' && path === '/ai/generate') {
     const prompt = ((request.body as { prompt?: string } | null)?.prompt ?? '').trim();
     if (prompt === '') {

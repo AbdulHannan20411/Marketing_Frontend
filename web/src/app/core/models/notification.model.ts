@@ -26,7 +26,10 @@ export type NotificationKind =
   | 'plan.upgraded'
   | 'storage.limit'
   | 'contacts.limit'
-  | 'messages.limit';
+  | 'messages.limit'
+  // Auto-reply paused: the monthly AI allowance is spent. Presentation still
+  // comes from the payload, so listing it here is documentation, not wiring.
+  | 'aiRepliesExhausted';
 
 export interface AppNotification {
   readonly id: string;

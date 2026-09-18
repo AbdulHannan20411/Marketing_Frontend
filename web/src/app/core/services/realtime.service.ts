@@ -19,6 +19,7 @@ import type { ImportProgressEvent } from '@core/models/contact-import.model';
 import type { AppNotification, AppNotificationDto } from '@core/models/notification.model';
 import { toNotification } from '@core/models/notification.model';
 import type { PaymentRequestEvent } from '@core/models/payment-request.model';
+import type { InboundMessageEvent } from '@core/models/whatsapp.model';
 
 export type RealtimeState = 'disconnected' | 'connecting' | 'connected';
 
@@ -41,6 +42,7 @@ export class RealtimeService {
   private readonly importProgress = new Subject<ImportProgressEvent>();
   private readonly paymentRequests = new Subject<PaymentRequestEvent>();
   private readonly notifications = new Subject<AppNotification>();
+  private readonly inboundMessages = new Subject<InboundMessageEvent>();
   /** Fires after a reconnect: events missed while offline are never replayed. */
   private readonly resynced = new Subject<void>();
 
@@ -55,6 +57,8 @@ export class RealtimeService {
    */
   readonly paymentRequests$: Observable<PaymentRequestEvent> = this.paymentRequests.asObservable();
   readonly notifications$: Observable<AppNotification> = this.notifications.asObservable();
+  /** A customer messaged in. The inbox updates in place; nothing else listens. */
+  readonly inboundMessages$: Observable<InboundMessageEvent> = this.inboundMessages.asObservable();
   readonly resynced$: Observable<void> = this.resynced.asObservable();
 
   connect(): void {
@@ -96,6 +100,10 @@ export class RealtimeService {
     // difference is which door it arrived through.
     connection.on('notificationReceived', (notification: AppNotificationDto) =>
       this.notifications.next(toNotification(notification)),
+    );
+
+    connection.on('inboundMessage', (event: InboundMessageEvent) =>
+      this.inboundMessages.next(event),
     );
 
     connection.onreconnecting(() => this.state.set('connecting'));
