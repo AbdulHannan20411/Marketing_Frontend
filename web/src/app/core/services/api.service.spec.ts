@@ -1,4 +1,9 @@
-import { toHttpParams } from './api.service';
+import { provideHttpClient } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { TestBed } from '@angular/core/testing';
+
+import { environment } from '@env/environment';
+import { ApiService, toHttpParams } from './api.service';
 
 /**
  * Pins how lists reach the API.
@@ -35,5 +40,36 @@ describe('toHttpParams', () => {
   it('keeps list values containing commas intact', () => {
     const params = toHttpParams({ groups: ['Barber · Gulberg, Lahore'] });
     expect(params.getAll('groups')).toEqual(['Barber · Gulberg, Lahore']);
+  });
+});
+
+describe('ApiService envelopes', () => {
+  let api: ApiService;
+  let backend: HttpTestingController;
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting()] });
+    api = TestBed.inject(ApiService);
+    backend = TestBed.inject(HttpTestingController);
+  });
+
+  afterEach(() => backend.verify());
+
+  it('unwraps the data of an envelope', () => {
+    let result: unknown;
+    api.get<{ id: string }>('/thing').subscribe((value) => (result = value));
+    backend.expectOne(`${environment.apiBaseUrl}/thing`).flush({ data: { id: 'x' }, message: null, traceId: 't' });
+    expect(result).toEqual({ id: 'x' });
+  });
+
+  it('treats a 204 with no body as success, not an error', () => {
+    // The heartbeat and revoke endpoints answer this way; reading `.data` off
+    // the empty body used to throw and report a successful call as failed.
+    let succeeded = false;
+    let failed = false;
+    api.post<null>('/auth/heartbeat').subscribe({ next: () => (succeeded = true), error: () => (failed = true) });
+    backend.expectOne(`${environment.apiBaseUrl}/auth/heartbeat`).flush(null, { status: 204, statusText: 'No Content' });
+    expect(succeeded).toBeTrue();
+    expect(failed).toBeFalse();
   });
 });

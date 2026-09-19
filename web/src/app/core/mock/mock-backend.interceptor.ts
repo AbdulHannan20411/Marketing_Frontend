@@ -25,6 +25,7 @@ import type { Contact } from '@core/models/contact.model';
 import type { AutoReplyDraft, AutoReplySettings } from '@core/models/auto-reply.model';
 import { AUTO_REPLY_TRIGGERS, autoReplyProblems } from '@core/models/auto-reply.model';
 import type { Employee } from '@core/models/employee.model';
+import type { WhatsAppAccess } from '@core/models/whatsapp-account.model';
 import type {
   ConnectionOnboarding,
   ConversationMessage,
@@ -104,6 +105,16 @@ import {
 } from './mock-inbox-data';
 import { campaignStore, handleCampaigns } from './mock-campaign-handler';
 import { handleEmailTemplates } from './mock-email-templates';
+import { handleSessionSecurity } from './mock-session-security';
+import {
+  accountLabel,
+  canOnMockAccount,
+  handleWhatsAppAccounts,
+  type MockWhatsAppActor,
+  mockAccountLimitReached,
+  storeInvitedAccess,
+  withWhatsAppAccess,
+} from './mock-whatsapp-accounts';
 import { searchEverything } from './mock-search';
 import {
   MOCK_ACCOUNTS,
@@ -533,6 +544,14 @@ function handleWorkspace(
 }
 
 /** The signed-in account, resolved from the bearer token's `sub`. */
+/** Per-number access is decided by who is asking; admins see every number. */
+function whatsAppActor(request: HttpRequest<unknown>): MockWhatsAppActor | null {
+  const account = accountFromRequest(request);
+  return account === null
+    ? null
+    : { userId: account.id, isAdmin: account.role === 'Admin' || account.role === 'SuperAdmin' };
+}
+
 function accountFromRequest(request: HttpRequest<unknown>): MockAccount | null {
   const bearer = request.headers.get('Authorization') ?? '';
   const claims = decodeJwt(bearer.replace(/^Bearer\s+/i, ''));
@@ -950,7 +969,14 @@ function handleEmployees(
       invitedAt: new Date().toISOString(),
     };
     employeeStore.unshift(invited);
-    return ok(invited, `Invitation sent to ${invited.email}.`);
+    const withAccess = body as { whatsAppAccess?: WhatsAppAccess[]; defaultWhatsAppAccountId?: string | null };
+    if (invited.role === 'Employee' && withAccess.whatsAppAccess !== undefined) {
+      storeInvitedAccess(invited.id, {
+        access: withAccess.whatsAppAccess,
+        defaultAccountId: withAccess.defaultWhatsAppAccountId ?? null,
+      });
+    }
+    return ok(withWhatsAppAccess(invited), `Invitation sent to ${invited.email}.`);
   }
   const withId = /^\/employees\/([^/]+)(\/[a-z-]+)?$/.exec(path);
   if (withId === null) {
@@ -1216,6 +1242,7 @@ function handleWhatsApp(
   method: string,
   body: unknown,
   params: HttpParams,
+  actor: MockWhatsAppActor | null,
 ): Observable<HttpEvent<unknown>> | null {
   /* ---------------------------- templates ---------------------------- */
   if (method === 'POST' && path === '/templates') {
@@ -1302,15 +1329,78 @@ function handleWhatsApp(
   /* ---------------------------- conversations ---------------------------- */
   if (method === 'GET' && path === '/whatsapp/conversations') {
     const search = (params.get('search') ?? '').trim().toLowerCase();
-    const filtered =
-      search === ''
-        ? conversationStore
-        : conversationStore.filter(
-            (entry) =>
-              entry.contactName.toLowerCase().includes(search) ||
-              entry.phoneNumber.includes(search),
-          );
+    const accountId = params.get('accountId');
+    const status = params.get('status');
+    const assignedTo = params.get('assignedTo');
+    const messageType = params.get('messageType');
+
+    const filtered = conversationStore.filter((entry) => {
+      const account = entry.accountId ?? 'wa_sales';
+      // Never another number's customers — the rule that matters most here.
+      if (actor !== null && !canOnMockAccount(actor, account, 'view')) {
+        return false;
+      }
+      if (accountId !== null && account !== accountId) {
+        return false;
+      }
+      if (search !== '' && !entry.contactName.toLowerCase().includes(search) && !entry.phoneNumber.includes(search)) {
+        return false;
+      }
+      if (status === 'unread' && entry.unreadCount === 0) {
+        return false;
+      }
+      if (status === 'awaiting_reply' && entry.awaitingReply !== true) {
+        return false;
+      }
+      if (status === 'replied' && entry.awaitingReply === true) {
+        return false;
+      }
+      if (assignedTo === 'me' && entry.assignedTo?.id.replace(/^emp_/, 'usr_') !== actor?.userId) {
+        return false;
+      }
+      if (assignedTo === 'unassigned' && (entry.assignedTo ?? null) !== null) {
+        return false;
+      }
+      if (messageType !== null) {
+        const last = messageStore[entry.id]?.at(-1)?.kind ?? 'text';
+        const kind = ['image', 'video', 'document', 'audio'].includes(last) ? 'media' : last;
+        if (kind !== messageType) {
+          return false;
+        }
+      }
+      return true;
+    });
     return ok(paginate(filtered, params));
+  }
+
+  const assignMatch = /^\/whatsapp\/conversations\/([^/]+)\/assign$/.exec(path);
+  if (method === 'POST' && assignMatch !== null) {
+    const conversation = findConversation(assignMatch[1]);
+    if (conversation === undefined) {
+      return fail(404, 'Not found', 'That conversation no longer exists.');
+    }
+    const account = conversation.accountId ?? 'wa_sales';
+    if (actor !== null && !canOnMockAccount(actor, account, 'reply')) {
+      return fail(
+        403,
+        'Not permitted',
+        `You don't have reply access to ${accountLabel(account)}.`,
+        'whatsapp_account_forbidden',
+      );
+    }
+    const userId = (body as { userId?: string | null } | null)?.userId ?? null;
+    // The API speaks `emp_` ids and also accepts `usr_`; the mock accounts are `usr_`.
+    const assignee =
+      userId === null ? null : MOCK_ACCOUNTS.find((entry) => entry.id === userId.replace(/^emp_/, 'usr_'));
+    const updated = {
+      ...conversation,
+      assignedTo:
+        assignee === null || assignee === undefined
+          ? null
+          : { id: assignee.id.replace(/^usr_/, 'emp_'), name: assignee.name },
+    };
+    replaceConversation(updated);
+    return ok(updated, assignee ? `Assigned to ${assignee.name}.` : 'Unassigned.');
   }
   const messagesMatch = /^\/whatsapp\/conversations\/([^/]+)\/messages$/.exec(path);
   if (messagesMatch !== null) {
@@ -1556,9 +1646,22 @@ export const mockBackendInterceptor: HttpInterceptorFn = (request, next) => {
   if (!environment.useMockApi || !request.url.startsWith(environment.apiBaseUrl)) {
     return next(request);
   }
-  const path = request.url.slice(environment.apiBaseUrl.length);
+  // Without the query string: some calls carry `?accountId=` in the URL itself
+  // (multipart uploads have no params object), and the routes below match paths.
+  const path = request.url.slice(environment.apiBaseUrl.length).split('?')[0];
   const method = request.method.toUpperCase();
   const params = request.params;
+  // Before handleAuth, which answers every other /auth path itself.
+  const securityAccount = accountFromRequest(request);
+  const securityResponse = handleSessionSecurity(
+    path,
+    method,
+    securityAccount === null ? null : { userId: securityAccount.id, role: securityAccount.role },
+    { ok, fail },
+  );
+  if (securityResponse !== null) {
+    return securityResponse;
+  }
   const authResponse = handleAuth(path, method, request.body, request);
   if (authResponse !== null) {
     return authResponse;
@@ -1571,11 +1674,22 @@ export const mockBackendInterceptor: HttpInterceptorFn = (request, next) => {
   if (paymentResponse !== null) {
     return paymentResponse;
   }
+  const accountsResponse = handleWhatsAppAccounts(
+    path,
+    method,
+    request.body,
+    whatsAppActor(request),
+    (id) => employeeStore.find((employee) => employee.id === id),
+    { ok, fail, failValidation },
+  );
+  if (accountsResponse !== null) {
+    return accountsResponse;
+  }
   const employeeResponse = handleEmployees(path, method, request.body);
   if (employeeResponse !== null) {
     return employeeResponse;
   }
-  const whatsappResponse = handleWhatsApp(path, method, request.body, params);
+  const whatsappResponse = handleWhatsApp(path, method, request.body, params, whatsAppActor(request));
   if (whatsappResponse !== null) {
     return whatsappResponse;
   }
@@ -1671,7 +1785,7 @@ export const mockBackendInterceptor: HttpInterceptorFn = (request, next) => {
         return ok(BILLING_HISTORY);
       case '/employees': {
         const adminId = scopeOf(params);
-        return ok(adminId === null ? EMPLOYEES : employeesForAdmin(adminId));
+        return ok((adminId === null ? EMPLOYEES : employeesForAdmin(adminId)).map(withWhatsAppAccess));
       }
       case '/permission-sets':
         return ok(PERMISSION_SETS);
@@ -1686,6 +1800,16 @@ export const mockBackendInterceptor: HttpInterceptorFn = (request, next) => {
   // Embedded Signup. The code is single-use and is not stored here for the
   // same reason it is not stored in the browser: it is worthless after the
   // exchange, and keeping it around only creates somewhere for it to leak.
+  if (method === 'POST' && path === '/whatsapp/connect' && mockAccountLimitReached()) {
+    // Checked before the code exchange, as the API must: refusing afterwards
+    // would leave the number registered at Meta but unknown here.
+    return fail(
+      409,
+      'Number limit reached',
+      'Your plan includes 5 WhatsApp numbers. Remove one or upgrade to add another.',
+      'whatsapp_account_limit_reached',
+    );
+  }
   if (method === 'POST' && path === '/whatsapp/connect') {
     const body = request.body as {
       code?: string;

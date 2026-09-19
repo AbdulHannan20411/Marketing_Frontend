@@ -10,6 +10,7 @@ import type { WhatsAppConnection } from '@core/models/whatsapp.model';
 import { DashboardService } from '@core/services/dashboard.service';
 import { EntitlementService } from '@core/services/entitlement.service';
 import { WhatsAppService } from '@core/services/whatsapp.service';
+import { WhatsAppStatusCardComponent } from './whatsapp-status-card.component';
 import { ExecutiveWidgetsComponent } from './executive-widgets.component';
 import { UpgradePromptComponent } from '@shared/ui/upgrade-prompt/upgrade-prompt.component';
 import { TimeAgoPipe } from '@shared/pipes/time-ago.pipe';
@@ -44,6 +45,7 @@ import { ConnectionExpiryNoticeComponent } from '@shared/ui/connection-expiry/co
     SkeletonComponent,
     ExecutiveWidgetsComponent,
     UpgradePromptComponent,
+    WhatsAppStatusCardComponent,
   ],
   templateUrl: './dashboard.component.html',
 })

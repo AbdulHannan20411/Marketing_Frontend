@@ -126,6 +126,23 @@
     </div>
   }
 
+  <!-- Which numbers they work on. Co-admins have every number, so it is only
+       offered for an employee. -->
+  @if (!isCoAdmin() && whatsApp.accounts().length > 0) {
+    <div class="mt-5">
+      <p class="text-sm font-medium text-ink-soft">WhatsApp numbers</p>
+      <p class="mt-0.5 mb-2 text-xs text-ink-muted">
+        Leave all unticked and they see no WhatsApp conversations until you give access.
+      </p>
+      <app-whatsapp-access-editor
+        [accounts]="whatsApp.accounts()"
+        [value]="whatsAppAccess()"
+        [disabled]="saving()"
+        (valueChange)="whatsAppAccess.set($event)"
+      />
+    </div>
+  }
+
   <!-- How the email is attributed. The recipient sees the platform's address in
        the From line, so saying so here prevents "why did I get this?" replies. -->
   <div class="mt-5 rounded-lg bg-surface-sunken p-3.5 ring-1 ring-line">

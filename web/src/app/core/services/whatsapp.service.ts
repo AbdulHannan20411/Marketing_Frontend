@@ -1,9 +1,10 @@
 import { Injectable, inject } from '@angular/core';
-import { map, type Observable } from 'rxjs';
+import { map, switchMap, type Observable } from 'rxjs';
 
 import type { PagedResult } from '@core/models/api.model';
 import type {
   Conversation,
+  ConversationFilters,
   ConversationMessage,
   MediaAsset,
   MediaKind,
@@ -15,7 +16,9 @@ import type {
   TemplateStatusCounts,
   WhatsAppConnection,
 } from '@core/models/whatsapp.model';
+import { DEFAULT_CONVERSATION_FILTERS } from '@core/models/whatsapp.model';
 import { ApiService } from './api.service';
+import { WhatsAppContextService } from './whatsapp-context.service';
 
 /**
  * One large page stands in for "everything" where a picker needs the full set.
@@ -87,14 +90,38 @@ export interface ManualConnectWhatsAppRequest {
 @Injectable({ providedIn: 'root' })
 export class WhatsAppService {
   private readonly api = inject(ApiService);
+  private readonly context = inject(WhatsAppContextService);
 
-  /** Never 404s — an unconnected tenant returns `status: 'disconnected'`. */
-  getConnection(): Observable<WhatsAppConnection> {
-    return this.api.get<WhatsAppConnection>('/whatsapp/connection');
+  /**
+   * The number a call is about, unless the caller names one.
+   *
+   * Sent as `?accountId=`. When the workspace has a single number — or the API
+   * predates multiple numbers — it is simply absent, which the API reads as
+   * "the default account", so nothing changes for anyone with one number.
+   */
+  private scoped<T>(explicit: string | null | undefined, call: (accountId: string) => Observable<T>): Observable<T> {
+    if (explicit !== null && explicit !== undefined && explicit !== '') {
+      return call(explicit);
+    }
+    // Empty rather than undefined: `toHttpParams` drops empty values, so the
+    // parameter is simply absent — exactly what a single-number server expects.
+    return this.context.resolvedAccountId().pipe(switchMap((id) => call(id ?? '')));
   }
 
-  syncConnection(): Observable<WhatsAppConnection> {
-    return this.api.post<WhatsAppConnection>('/whatsapp/connection/sync');
+  /** Query string for the calls whose helper takes no params object. */
+  private pathWith(path: string, accountId: string): string {
+    return accountId === '' ? path : `${path}?accountId=${encodeURIComponent(accountId)}`;
+  }
+
+  /** Never 404s — an unconnected tenant returns `status: 'disconnected'`. */
+  getConnection(accountId?: string | null): Observable<WhatsAppConnection> {
+    return this.scoped(accountId, (id) => this.api.get<WhatsAppConnection>('/whatsapp/connection', { accountId: id }));
+  }
+
+  syncConnection(accountId?: string | null): Observable<WhatsAppConnection> {
+    return this.scoped(accountId, (id) =>
+      this.api.post<WhatsAppConnection>(this.pathWith('/whatsapp/connection/sync', id)),
+    );
   }
 
   /**
@@ -131,13 +158,17 @@ export class WhatsAppService {
    * retrying it can only fail again. The server enforces the rule rather than
    * trusting the client to hide the button.
    */
-  resumeConnect(): Observable<WhatsAppConnection> {
-    return this.api.post<WhatsAppConnection>('/whatsapp/connect/resume');
+  resumeConnect(accountId?: string | null): Observable<WhatsAppConnection> {
+    return this.scoped(accountId, (id) =>
+      this.api.post<WhatsAppConnection>(this.pathWith('/whatsapp/connect/resume', id)),
+    );
   }
 
   /** Destroys the stored credential; reconnecting means running signup again. */
-  disconnect(): Observable<WhatsAppConnection> {
-    return this.api.post<WhatsAppConnection>('/whatsapp/disconnect');
+  disconnect(accountId?: string | null): Observable<WhatsAppConnection> {
+    return this.scoped(accountId, (id) =>
+      this.api.post<WhatsAppConnection>(this.pathWith('/whatsapp/disconnect', id)),
+    );
   }
 
   /**
@@ -149,16 +180,20 @@ export class WhatsAppService {
    * identically either way. `pagedByServer` on the result says which happened,
    * because the difference matters for the counts — see `countTemplates`.
    */
-  listTemplates(query: TemplateQuery): Observable<TemplatePage> {
-    return this.api
-      .get<PagedResult<MessageTemplate>>('/templates', {
-        page: query.page,
-        pageSize: query.pageSize,
-        search: query.search,
-        status: query.status,
-        category: query.category,
-      })
-      .pipe(map((response) => normaliseTemplatePage(response)));
+  listTemplates(query: TemplateQuery, accountId?: string | null): Observable<TemplatePage> {
+    return this.scoped(accountId, (id) =>
+      this.api
+        .get<PagedResult<MessageTemplate>>('/templates', {
+          page: query.page,
+          pageSize: query.pageSize,
+          search: query.search,
+          status: query.status,
+          category: query.category,
+          // Templates belong to a WABA, so a number with its own WABA has its own set.
+          accountId: id,
+        })
+        .pipe(map((response) => normaliseTemplatePage(response))),
+    );
   }
 
   /**
@@ -167,14 +202,17 @@ export class WhatsAppService {
    * The campaign wizard lists approved templates to choose from; a page of ten
    * would silently hide the eleventh. Asks for one large page and unwraps.
    */
-  listAllTemplates(): Observable<readonly MessageTemplate[]> {
-    return this.listTemplates({
-      page: 1,
-      pageSize: ALL_TEMPLATES_PAGE_SIZE,
-      search: '',
-      status: 'all',
-      category: 'all',
-    }).pipe(map((page) => page.items));
+  listAllTemplates(accountId?: string | null): Observable<readonly MessageTemplate[]> {
+    return this.listTemplates(
+      {
+        page: 1,
+        pageSize: ALL_TEMPLATES_PAGE_SIZE,
+        search: '',
+        status: 'all',
+        category: 'all',
+      },
+      accountId,
+    ).pipe(map((page) => page.items));
   }
 
   /**
@@ -187,14 +225,19 @@ export class WhatsAppService {
    * filter is broken when it is working perfectly.
    */
   countTemplates(query: TemplateCountQuery): Observable<TemplateStatusCounts> {
-    return this.api.get<TemplateStatusCounts>('/templates/counts', {
-      search: query.search,
-      category: query.category,
-    });
+    return this.scoped(undefined, (id) =>
+      this.api.get<TemplateStatusCounts>('/templates/counts', {
+        search: query.search,
+        category: query.category,
+        accountId: id,
+      }),
+    );
   }
 
   syncTemplates(): Observable<readonly MessageTemplate[]> {
-    return this.api.post<readonly MessageTemplate[]>('/templates/sync');
+    return this.scoped(undefined, (id) =>
+      this.api.post<readonly MessageTemplate[]>(this.pathWith('/templates/sync', id)),
+    );
   }
 
   deleteTemplate(id: string): Observable<null> {
@@ -207,8 +250,12 @@ export class WhatsAppService {
    * There is no draft state: Meta owns approval, and a local draft that has
    * never been submitted would show a status the customer cannot act on.
    */
-  createTemplate(draft: TemplateDraft): Observable<MessageTemplate> {
-    return this.api.post<MessageTemplate, TemplateDraft>('/templates', draft);
+  createTemplate(draft: TemplateDraft, accountId?: string | null): Observable<MessageTemplate> {
+    // Submitted to the chosen number's WABA. Edits and deletes need no number:
+    // the API uses the template's own WABA.
+    return this.scoped(accountId, (id) =>
+      this.api.post<MessageTemplate, TemplateDraft>('/templates', draft, { accountId: id }),
+    );
   }
 
   /** Only a rejected template may be edited; approved ones are immutable at Meta. */
@@ -224,21 +271,49 @@ export class WhatsAppService {
    * The client never sends raw bytes to Meta: the API holds the credential and
    * proxies the upload, so a media id is all that crosses back.
    */
-  uploadMedia(file: File, kind: MediaKind | 'audio'): Observable<MediaAsset> {
+  /**
+   * Meta's media handle belongs to the number that uploaded it, so a reply's
+   * attachment must be uploaded through the conversation's own number — one
+   * uploaded through another number cannot be sent from this one.
+   */
+  uploadMedia(file: File, kind: MediaKind | 'audio', accountId?: string | null): Observable<MediaAsset> {
     const form = new FormData();
     form.append('file', file, file.name);
     form.append('kind', kind);
-    return this.api.upload<MediaAsset>('/whatsapp/media', form);
+    return this.scoped(accountId, (id) => this.api.upload<MediaAsset>(this.pathWith('/whatsapp/media', id), form));
   }
 
   /* ------------------------------ conversations ------------------------------ */
 
-  listConversations(page: number, pageSize: number, search = ''): Observable<PagedResult<Conversation>> {
+  /**
+   * The inbox deliberately does **not** default to the selected number: "every
+   * number I can see" is the useful starting point for someone who answers on
+   * several. The filter bar picks one explicitly.
+   */
+  listConversations(
+    page: number,
+    pageSize: number,
+    search = '',
+    filters: ConversationFilters = DEFAULT_CONVERSATION_FILTERS,
+  ): Observable<PagedResult<Conversation>> {
+    const only = (value: string): string => (value === 'all' ? '' : value);
     return this.api.get<PagedResult<Conversation>>('/whatsapp/conversations', {
       page,
       pageSize,
       search,
+      accountId: only(filters.accountId),
+      status: only(filters.status),
+      assignedTo: only(filters.assignedTo),
+      messageType: only(filters.messageType),
     });
+  }
+
+  /** `null` unassigns. The assignee must be able to see the conversation's number. */
+  assignConversation(conversationId: string, userId: string | null): Observable<Conversation> {
+    return this.api.post<Conversation, { userId: string | null }>(
+      `/whatsapp/conversations/${conversationId}/assign`,
+      { userId },
+    );
   }
 
   getConversation(id: string): Observable<Conversation> {

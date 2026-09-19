@@ -26,6 +26,7 @@ import { ToggleComponent } from '@shared/ui/toggle/toggle.component';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
 import { UpgradePromptComponent } from '@shared/ui/upgrade-prompt/upgrade-prompt.component';
 import { UsageBarComponent } from '@shared/ui/usage-bar/usage-bar.component';
+import { EmployeeWhatsAppAccessComponent } from './employee-whatsapp-access.component';
 import { EmployeeInviteComponent, type InviteDraft } from './employee-invite.component';
 
 type EmployeeTab = 'team' | 'matrix' | 'sets';
@@ -54,6 +55,7 @@ const PERMISSION_FLOOR: readonly Permission[] = ['dashboard.view'];
   selector: 'app-employees',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    EmployeeWhatsAppAccessComponent,
     TimeAgoPipe,
     PageHeaderComponent,
     CardComponent,
@@ -333,6 +335,11 @@ export class EmployeesComponent {
     });
   }
 
+  /** Folds a saved employee back into the list, so every view agrees. */
+  protected onEmployeeUpdated(updated: Employee): void {
+    this.employees.update((current) => current.map((entry) => (entry.id === updated.id ? updated : entry)));
+  }
+
   /* ------------------------------ invitation ------------------------------ */
 
   protected invite(): void {
@@ -360,6 +367,13 @@ export class EmployeesComponent {
         role: draft.role,
         // Omitted rather than sent empty, so the API applies its own default.
         ...(draft.permissionSetId === '' ? {} : { permissionSetId: draft.permissionSetId }),
+        // Only an employee carries per-number access; a co-admin has every number.
+        ...(draft.role === 'Employee'
+          ? {
+              whatsAppAccess: draft.whatsAppAccess.access,
+              defaultWhatsAppAccountId: draft.whatsAppAccess.defaultAccountId,
+            }
+          : {}),
       })
       .subscribe({
         next: (employee) => {

@@ -90,6 +90,7 @@ export const ADMIN_ACCOUNTS: readonly AdminAccount[] = ADMIN_SEEDS.map((seed, in
     messagesThisMonth: Math.round(factor(id, 'messages', 12_000, 320_000) * scale),
     lastActiveAt: offsetDays(-Math.floor(factor(id, 'active', 0, 9))),
     createdAt: offsetDays(-Math.floor(factor(id, 'created', 40, 900))),
+    tenantId: `tnt_${(index + 1).toString().padStart(3, '0')}`,
   };
 });
 

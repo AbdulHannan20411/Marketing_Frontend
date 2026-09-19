@@ -55,6 +55,30 @@ export const routes: Routes = [
   },
 
   /* ------------------------------------------------------------------ *
+   * Account — shared by every portal
+   *
+   * `/account/security` is the fixed link in the new-sign-in email and
+   * notification, whoever receives it, so it cannot live under either portal's
+   * prefix. The shell works out its own navigation from the signed-in role.
+   * ------------------------------------------------------------------ */
+  {
+    path: 'account',
+    canActivate: [authGuard],
+    loadComponent: () => import('@layout/shell/shell.component').then((m) => m.ShellComponent),
+    children: [
+      {
+        path: 'security',
+        title: 'Security and devices',
+        loadComponent: () =>
+          import('@features/security/account-security.component').then(
+            (m) => m.AccountSecurityComponent,
+          ),
+      },
+      { path: '', pathMatch: 'full', redirectTo: 'security' },
+    ],
+  },
+
+  /* ------------------------------------------------------------------ *
    * Super Admin portal
    *
    * Its own prefix and navigation. Scoped modules reuse the Admin feature
@@ -230,6 +254,21 @@ export const routes: Routes = [
         title: 'Tenants',
         loadComponent: () =>
           import('@features/admin/tenants/tenants.component').then((m) => m.TenantsComponent),
+      },
+      {
+        path: 'security',
+        title: 'Security',
+        loadComponent: () =>
+          import('@features/security/security-index.component').then((m) => m.SecurityIndexComponent),
+      },
+      {
+        path: 'tenants/:tenantId/security',
+        title: 'Workspace security',
+        data: { view: 'platform' },
+        loadComponent: () =>
+          import('@features/security/security-overview.component').then(
+            (m) => m.SecurityOverviewComponent,
+          ),
       },
       {
         path: 'audit',
@@ -495,6 +534,16 @@ export const routes: Routes = [
         title: 'Settings',
         loadComponent: () =>
           import('@features/settings/settings.component').then((m) => m.SettingsComponent),
+      },
+      {
+        path: 'settings/security',
+        title: 'Security',
+        canActivate: [permissionGuard],
+        data: { permissions: ['settings.employees'], view: 'workspace' },
+        loadComponent: () =>
+          import('@features/security/security-overview.component').then(
+            (m) => m.SecurityOverviewComponent,
+          ),
       },
 
       // Platform administration lives exclusively under /superadmin.

@@ -62,6 +62,9 @@ export const RUN_STATUS_LABELS: Readonly<Record<CampaignRunStatus, string>> = {
 export interface Campaign {
   readonly id: string;
   readonly name: string;
+  /** The number it sends from. Optional while the API serves a single number. */
+  readonly whatsAppAccountId?: string | null;
+  readonly whatsAppAccountLabel?: string | null;
   readonly templateName: string;
   readonly status: CampaignStatus;
   readonly metrics: CampaignMetrics;

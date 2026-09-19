@@ -287,6 +287,14 @@
         </div>
       }
 
+      <!-- Per-number WhatsApp access. Saved on its own, separately from the
+           permission matrix below: different endpoint, different decision. -->
+      <app-employee-whatsapp-access
+        class="mt-4 block"
+        [employee]="employee"
+        (updated)="onEmployeeUpdated($event)"
+      />
+
       <!-- Matrix -->
       <div class="mt-4 space-y-4">
         @for (category of catalogue; track category.key) {

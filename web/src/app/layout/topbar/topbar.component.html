@@ -25,6 +25,9 @@
 </button>
 
 <div class="ml-auto flex items-center gap-1">
+  <!-- Which WhatsApp number this user is working on. Hidden with only one. -->
+  <app-whatsapp-switcher class="mr-1" />
+
   <!-- Renewal nudge -->
   @if (showRenewalWarning()) {
     <a
@@ -231,6 +234,15 @@
           >
             <app-icon name="cog" [size]="17" />
             Settings
+          </a>
+          <a
+            routerLink="/account/security"
+            role="menuitem"
+            class="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-ink-soft transition-colors hover:bg-surface-muted hover:text-ink"
+            (click)="closeMenus()"
+          >
+            <app-icon name="lock" [size]="17" />
+            Security and devices
           </a>
           <button
             type="button"

@@ -3,8 +3,10 @@ import {
   Component,
   DestroyRef,
   computed,
+  effect,
   inject,
   signal,
+  untracked,
 } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { DecimalPipe } from '@angular/common';
@@ -38,6 +40,7 @@ import {
 } from '@core/services/meta-signup.service';
 import { ToastService } from '@core/services/toast.service';
 import { WhatsAppService } from '@core/services/whatsapp.service';
+import { WhatsAppContextService } from '@core/services/whatsapp-context.service';
 import { TimeAgoPipe } from '@shared/pipes/time-ago.pipe';
 import { BadgeComponent, type BadgeTone } from '@shared/ui/badge/badge.component';
 import { ButtonDirective } from '@shared/ui/button/button.directive';
@@ -48,6 +51,7 @@ import { ModalComponent } from '@shared/ui/modal/modal.component';
 import { PageHeaderComponent } from '@shared/ui/page-header/page-header.component';
 import { SkeletonComponent } from '@shared/ui/skeleton/skeleton.component';
 import { ErrorStateComponent } from '@shared/ui/state/error-state.component';
+import { WhatsAppAccountsPanelComponent } from './whatsapp-accounts-panel.component';
 
 const QUALITY_TONE: Readonly<Record<QualityRating, BadgeTone>> = {
   green: 'success',
@@ -93,6 +97,7 @@ const QUALITY_LABEL: Readonly<Record<QualityRating, string>> = {
     SkeletonComponent,
     ErrorStateComponent,
     ModalComponent,
+    WhatsAppAccountsPanelComponent,
   ],
   templateUrl: './whatsapp.component.html',
 })
@@ -102,6 +107,7 @@ export class WhatsAppComponent {
   private readonly toast = inject(ToastService);
   private readonly auth = inject(AuthService);
   private readonly scope = inject(AdminScopeService);
+  private readonly context = inject(WhatsAppContextService);
   private readonly formBuilder = inject(FormBuilder);
 
   protected readonly state = signal<LoadState>('loading');
@@ -220,8 +226,31 @@ export class WhatsAppComponent {
   });
 
   constructor() {
-    this.load();
+    // Loads now, and again whenever the number in focus changes — from the top
+    // bar or from the numbers panel above. Comparing ids keeps an unrelated
+    // change to the account list from reloading the page.
+    let loadedFor: string | null | undefined;
+    effect(() => {
+      const id = this.context.selectedAccountId();
+      untracked(() => {
+        if (id === loadedFor) {
+          return;
+        }
+        loadedFor = id;
+        this.stopPolling();
+        this.load();
+      });
+    });
   }
+
+  /**
+   * The account onboarding progress is polled for.
+   *
+   * Not the selected one: connecting **another** number creates a new account
+   * while the page is still showing the previous one, and polling that would
+   * report the old number's state as the new number's progress.
+   */
+  private pollAccountId: string | null = null;
 
   /* ------------------------- manual connect (staff) ------------------------- */
 
@@ -298,7 +327,8 @@ export class WhatsAppComponent {
 
   protected load(): void {
     this.state.set('loading');
-    this.whatsapp.getConnection().subscribe({
+    this.pollAccountId = this.context.selectedAccountId();
+    this.whatsapp.getConnection(this.pollAccountId).subscribe({
       next: (connection) => {
         this.connection.set(connection);
         this.state.set('ready');
@@ -361,6 +391,13 @@ export class WhatsAppComponent {
           this.connection.set(connection);
           this.state.set('ready');
 
+          // A new number is a new account: follow it, and bring it into the
+          // selector and the numbers panel. Absent on a single-number server.
+          if (connection.accountId !== undefined) {
+            this.pollAccountId = connection.accountId;
+            this.context.load();
+          }
+
           // `pending` is the normal answer: the server accepted the code and is
           // now working through Meta. Anything terminal is handled in one place
           // so the poll and the immediate reply cannot disagree.
@@ -399,7 +436,7 @@ export class WhatsAppComponent {
 
   private schedulePoll(): void {
     this.pollHandle = setTimeout(() => {
-      this.whatsapp.getConnection().subscribe({
+      this.whatsapp.getConnection(this.pollAccountId).subscribe({
         next: (connection) => {
           this.connection.set(connection);
 

@@ -19,7 +19,7 @@ import type { ImportProgressEvent } from '@core/models/contact-import.model';
 import type { AppNotification, AppNotificationDto } from '@core/models/notification.model';
 import { toNotification } from '@core/models/notification.model';
 import type { PaymentRequestEvent } from '@core/models/payment-request.model';
-import type { InboundMessageEvent } from '@core/models/whatsapp.model';
+import type { Conversation, InboundMessageEvent } from '@core/models/whatsapp.model';
 
 export type RealtimeState = 'disconnected' | 'connecting' | 'connected';
 
@@ -43,6 +43,7 @@ export class RealtimeService {
   private readonly paymentRequests = new Subject<PaymentRequestEvent>();
   private readonly notifications = new Subject<AppNotification>();
   private readonly inboundMessages = new Subject<InboundMessageEvent>();
+  private readonly conversationAssignments = new Subject<Conversation>();
   /** Fires after a reconnect: events missed while offline are never replayed. */
   private readonly resynced = new Subject<void>();
 
@@ -59,6 +60,8 @@ export class RealtimeService {
   readonly notifications$: Observable<AppNotification> = this.notifications.asObservable();
   /** A customer messaged in. The inbox updates in place; nothing else listens. */
   readonly inboundMessages$: Observable<InboundMessageEvent> = this.inboundMessages.asObservable();
+  /** Someone assigned or unassigned a conversation; carries the updated thread. */
+  readonly conversationAssignments$: Observable<Conversation> = this.conversationAssignments.asObservable();
   readonly resynced$: Observable<void> = this.resynced.asObservable();
 
   connect(): void {
@@ -102,8 +105,12 @@ export class RealtimeService {
       this.notifications.next(toNotification(notification)),
     );
 
+    // Both are delivered per user, only to people who may view that number.
     connection.on('inboundMessage', (event: InboundMessageEvent) =>
       this.inboundMessages.next(event),
+    );
+    connection.on('conversationAssigned', (conversation: Conversation) =>
+      this.conversationAssignments.next(conversation),
     );
 
     connection.onreconnecting(() => this.state.set('connecting'));

@@ -9,6 +9,86 @@
   </button>
 </app-page-header>
 
+<!-- Outside the list states on purpose: filters that match nothing must still
+     be on screen to be cleared. The search box used to live inside the list,
+     and a search with no results hid it - leaving no way back. -->
+@if (!unavailable()) {
+  <div
+    class="mt-6 grid gap-3 rounded-xl bg-surface p-3.5 ring-1 ring-line shadow-card sm:grid-cols-2 lg:grid-cols-[minmax(0,1.6fr)_repeat(4,minmax(0,1fr))_auto] lg:items-end"
+    role="search"
+    aria-label="Filter conversations"
+  >
+    <div class="sm:col-span-2 lg:col-span-1">
+      <label for="inbox-search" class="block text-xs font-medium text-ink-muted">Search</label>
+      <div class="relative mt-1">
+        <app-icon
+          name="search"
+          [size]="15"
+          class="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-ink-muted"
+        />
+        <input
+          id="inbox-search"
+          type="search"
+          [value]="search()"
+          (input)="search.set($any($event.target).value)"
+          placeholder="Customer name or phone"
+          class="h-9 w-full rounded-lg border-0 bg-surface-sunken py-2 pr-3 pl-9 text-sm text-ink ring-1 ring-line ring-inset placeholder:text-ink-muted focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
+        />
+      </div>
+    </div>
+
+    <div>
+      <label for="inbox-number" class="block text-xs font-medium text-ink-muted">WhatsApp</label>
+      <select
+        id="inbox-number"
+        class="mt-1 h-9 w-full rounded-lg border-0 bg-surface-sunken px-2.5 text-sm text-ink ring-1 ring-line ring-inset focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
+        [disabled]="numbers().length < 2"
+        (change)="setFilter('accountId', $any($event.target).value)"
+      >
+        <option value="all" [selected]="filters().accountId === 'all'">All numbers</option>
+        @for (number of numbers(); track number.id) {
+          <option [value]="number.id" [selected]="filters().accountId === number.id">
+            {{ number.label }} · {{ number.displayPhoneNumber }}
+          </option>
+        }
+      </select>
+    </div>
+
+    <div>
+      <label for="inbox-status" class="block text-xs font-medium text-ink-muted">Status</label>
+      <select id="inbox-status" class="mt-1 h-9 w-full rounded-lg border-0 bg-surface-sunken px-2.5 text-sm text-ink ring-1 ring-line ring-inset focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none" (change)="setFilter('status', $any($event.target).value)">
+        @for (option of statusOptions; track option.value) {
+          <option [value]="option.value" [selected]="filters().status === option.value">{{ option.label }}</option>
+        }
+      </select>
+    </div>
+
+    <div>
+      <label for="inbox-assignee" class="block text-xs font-medium text-ink-muted">Assigned to</label>
+      <select id="inbox-assignee" class="mt-1 h-9 w-full rounded-lg border-0 bg-surface-sunken px-2.5 text-sm text-ink ring-1 ring-line ring-inset focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none" (change)="setFilter('assignedTo', $any($event.target).value)">
+        @for (option of assigneeOptions; track option.value) {
+          <option [value]="option.value" [selected]="filters().assignedTo === option.value">{{ option.label }}</option>
+        }
+      </select>
+    </div>
+
+    <div>
+      <label for="inbox-type" class="block text-xs font-medium text-ink-muted">Message type</label>
+      <select id="inbox-type" class="mt-1 h-9 w-full rounded-lg border-0 bg-surface-sunken px-2.5 text-sm text-ink ring-1 ring-line ring-inset focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none" (change)="setFilter('messageType', $any($event.target).value)">
+        @for (option of typeOptions; track option.value) {
+          <option [value]="option.value" [selected]="filters().messageType === option.value">{{ option.label }}</option>
+        }
+      </select>
+    </div>
+
+    <div class="flex items-end">
+      <button appButton variant="ghost" size="md" [disabled]="!hasActiveFilters()" (click)="clearFilters()">
+        Clear
+      </button>
+    </div>
+  </div>
+}
+
 @switch (state()) {
   @case ('loading') {
     <div class="mt-6 grid gap-4 lg:grid-cols-[20rem_1fr]">
@@ -43,11 +123,21 @@
 
   @case ('empty') {
     <div class="mt-6">
-      <app-empty-state
-        icon="inbox"
-        title="No conversations yet"
-        description="When a customer messages your WhatsApp number, the conversation appears here and you have 24 hours to reply freely."
-      />
+      @if (hasActiveFilters()) {
+        <app-empty-state
+          icon="filter"
+          title="No conversations match"
+          description="Nothing fits these filters. Try another number or status, or clear them."
+        >
+          <button appButton variant="outline" size="sm" (click)="clearFilters()">Clear filters</button>
+        </app-empty-state>
+      } @else {
+        <app-empty-state
+          icon="inbox"
+          title="No conversations yet"
+          description="When a customer messages your WhatsApp number, the conversation appears here and you have 24 hours to reply freely."
+        />
+      }
     </div>
   }
 
@@ -55,24 +145,6 @@
     <div class="mt-6 grid gap-4 lg:grid-cols-[20rem_1fr]">
       <!-- Conversation list -->
       <div class="flex max-h-[38rem] flex-col rounded-xl bg-surface ring-1 ring-line shadow-card">
-        <div class="border-b border-line p-3">
-          <div class="relative">
-            <app-icon
-              name="search"
-              [size]="15"
-              class="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-ink-muted"
-            />
-            <input
-              type="search"
-              [value]="search()"
-              (input)="search.set($any($event.target).value)"
-              placeholder="Name or number"
-              aria-label="Search conversations"
-              class="h-9 w-full rounded-lg border-0 bg-surface-sunken py-2 pr-3 pl-9 text-sm text-ink ring-1 ring-line ring-inset placeholder:text-ink-muted focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
-            />
-          </div>
-        </div>
-
         <ul class="flex-1 divide-y divide-line overflow-y-auto">
           @for (conversation of visibleConversations(); track conversation.id) {
             <li>
@@ -99,6 +171,20 @@
                   <p class="mt-0.5 truncate text-xs text-ink-muted">
                     {{ conversation.lastMessagePreview }}
                   </p>
+                  @if ((showNumber() && conversation.accountLabel) || conversation.assignedTo) {
+                    <p class="mt-1 flex flex-wrap items-center gap-1.5 text-[11px]">
+                      @if (showNumber() && conversation.accountLabel) {
+                        <span class="rounded bg-surface-sunken px-1.5 py-px font-medium text-ink-soft ring-1 ring-line ring-inset">
+                          {{ conversation.accountLabel }}
+                        </span>
+                      }
+                      @if (conversation.assignedTo; as assignee) {
+                        <span class="text-ink-muted">
+                          {{ isMe(assignee.id) ? 'You' : assignee.name }}
+                        </span>
+                      }
+                    </p>
+                  }
                 </div>
 
                 @if (conversation.unreadCount > 0) {
@@ -138,8 +224,36 @@
             <app-avatar [name]="conversation.contactName" [initials]="initialsFor(conversation.contactName)" size="md" />
             <div class="min-w-0 flex-1">
               <p class="truncate text-sm font-semibold text-ink">{{ conversation.contactName }}</p>
-              <p class="text-xs text-ink-muted">{{ conversation.phoneNumber }}</p>
+              <p class="text-xs text-ink-muted">
+                {{ conversation.phoneNumber }}
+                @if (conversation.accountLabel) {
+                  <!-- Replies always leave from this number, never the default. -->
+                  · to <span class="font-medium text-ink-soft">{{ conversation.accountLabel }}</span>
+                }
+              </p>
             </div>
+
+            @if (canReply()) {
+              @if (isMe(conversation.assignedTo?.id)) {
+                <button appButton variant="ghost" size="sm" [disabled]="assigning()" (click)="assign(null)">
+                  Unassign me
+                </button>
+              } @else {
+                <button
+                  appButton
+                  variant="outline"
+                  size="sm"
+                  [disabled]="assigning()"
+                  [title]="conversation.assignedTo ? 'Currently ' + conversation.assignedTo.name : 'Nobody has this yet'"
+                  (click)="assign(myUserId())"
+                >
+                  <app-icon name="userGroup" [size]="13" />
+                  {{ conversation.assignedTo ? 'Take over' : 'Assign to me' }}
+                </button>
+              }
+            } @else if (conversation.assignedTo) {
+              <span class="text-xs text-ink-muted">Assigned to {{ conversation.assignedTo.name }}</span>
+            }
 
             @if (windowOpen()) {
               <app-badge [tone]="windowClosingSoon() ? 'warning' : 'success'" [dot]="true">
@@ -288,8 +402,13 @@
                 <div class="min-w-0 flex-1">
                   <p class="text-sm font-medium text-ink">You can read this conversation, but not reply</p>
                   <p class="mt-0.5 text-xs leading-relaxed text-ink-muted">
-                    Replying sends a message under your workspace's verified business name. Ask an
-                    administrator for the Inbox reply permission if you need it.
+                    @if (replyBlockedByNumber()) {
+                      You don't have Reply access on the {{ conversation.accountLabel }} number. Ask an
+                      administrator to add it under Employees, WhatsApp access.
+                    } @else {
+                      Replying sends a message under your workspace's verified business name. Ask an
+                      administrator for the Inbox reply permission if you need it.
+                    }
                   </p>
                 </div>
               </div>

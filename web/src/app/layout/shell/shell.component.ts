@@ -16,6 +16,9 @@ import { LayoutService } from '@core/services/layout.service';
 import { NotificationsService } from '@core/services/notifications.service';
 import { OnboardingService } from '@core/services/onboarding.service';
 import { RealtimeService } from '@core/services/realtime.service';
+import { WhatsAppContextService } from '@core/services/whatsapp-context.service';
+import { SessionHeartbeatService } from '@core/services/session-heartbeat.service';
+import { AdminScopeService } from '@core/scope/admin-scope.service';
 import { CommandPaletteComponent } from '@layout/command-palette/command-palette.component';
 import { ScopeBarComponent } from '@layout/scope-bar/scope-bar.component';
 import { SidebarComponent } from '@layout/sidebar/sidebar.component';
@@ -66,6 +69,9 @@ export class ShellComponent {
   private readonly notifications = inject(NotificationsService);
   private readonly realtime = inject(RealtimeService);
   private readonly onboarding = inject(OnboardingService);
+  private readonly whatsAppContext = inject(WhatsAppContextService);
+  private readonly heartbeat = inject(SessionHeartbeatService);
+  private readonly scope = inject(AdminScopeService);
 
   /** Sidebar is fixed-position, so the content column reserves its width on lg+. */
   protected readonly offset = computed(() =>
@@ -117,9 +123,37 @@ export class ShellComponent {
       untracked(() => setTimeout(() => this.onboarding.maybeStartForFirstLogin(), 0));
     });
 
+    /*
+     * Load the WhatsApp numbers this user may see, once the plan is known.
+     *
+     * Re-runs when a Super Admin changes which admin they are viewing: the
+     * numbers belong to that admin's workspace, and the previous one's list
+     * must not linger. Unscoped Super Admins have no workspace, so nothing loads.
+     */
+    effect(() => {
+      const user = this.auth.user();
+      const ready = this.entitlements.isLoaded();
+      const scopeId = this.scope.selectedId();
+
+      untracked(() => {
+        const inWorkspace = !this.auth.isSuperAdmin() || scopeId !== null;
+        if (user === null || !ready || !inWorkspace || !this.entitlements.hasFeature('whatsapp')) {
+          this.whatsAppContext.clear();
+          return;
+        }
+        this.whatsAppContext.load();
+      });
+    });
+
     // Campaign progress and notifications arrive by push; the reports endpoints
     // are rate limited to 4 per window, so polling is not an option.
     this.realtime.connect();
-    inject(DestroyRef).onDestroy(() => this.realtime.disconnect());
+    // Keeps this device marked active, and is how a session ended elsewhere is
+    // noticed within a minute even on a screen that makes no other requests.
+    this.heartbeat.start();
+    inject(DestroyRef).onDestroy(() => {
+      this.realtime.disconnect();
+      this.heartbeat.stop();
+    });
   }
 }

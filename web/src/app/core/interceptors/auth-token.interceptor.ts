@@ -4,7 +4,11 @@ import { catchError, switchMap, throwError } from 'rxjs';
 
 import { environment } from '@env/environment';
 import { AuthService } from '@core/auth/auth.service';
+import { deviceId } from '@core/auth/device-id';
 import { TokenStorageService } from '@core/auth/token-storage.service';
+import { SESSION_REVOKED_HEADER } from '@core/models/session-security.model';
+
+const DEVICE_ID_HEADER = 'X-Device-Id';
 
 /** Endpoints that must never carry a bearer token or trigger a refresh. */
 const AUTH_FREE_PATHS = [
@@ -21,6 +25,16 @@ function isApiRequest(url: string): boolean {
 
 function withBearer<T>(request: HttpRequest<T>, token: string): HttpRequest<T> {
   return request.clone({ setHeaders: { Authorization: `Bearer ${token}` } });
+}
+
+/**
+ * Ended rather than expired: another sign-in, or an admin, closed this session.
+ *
+ * Refreshing is pointless — the refresh token died with it — and would only
+ * turn a clear "signed in elsewhere" into an unexplained sign-out.
+ */
+function isRevoked(error: HttpErrorResponse): boolean {
+  return error.headers.get(SESSION_REVOKED_HEADER)?.toLowerCase() === 'true';
 }
 
 /**
@@ -41,13 +55,21 @@ export const authTokenInterceptor: HttpInterceptorFn = (request, next) => {
   const storage = inject(TokenStorageService);
   const auth = inject(AuthService);
 
-  const skipAuth = AUTH_FREE_PATHS.some((path) => request.url.includes(path));
-  if (!isApiRequest(request.url) || skipAuth) {
+  if (!isApiRequest(request.url)) {
     return next(request);
   }
 
+  // Every API call, sign-in included: the device a session starts on is the
+  // one it is tracked against, so the login request needs it most of all.
+  const tracked = request.clone({ setHeaders: { [DEVICE_ID_HEADER]: deviceId() } });
+
+  const skipAuth = AUTH_FREE_PATHS.some((path) => request.url.includes(path));
+  if (skipAuth) {
+    return next(tracked);
+  }
+
   const token = storage.accessToken;
-  const authorized = token === null ? request : withBearer(request, token);
+  const authorized = token === null ? tracked : withBearer(tracked, token);
 
   return next(authorized).pipe(
     catchError((error: unknown) => {
@@ -55,12 +77,21 @@ export const authTokenInterceptor: HttpInterceptorFn = (request, next) => {
         return throwError(() => error);
       }
 
+      if (isRevoked(error)) {
+        auth.endRevokedSession();
+        return throwError(() => error);
+      }
+
       return auth.refreshToken().pipe(
         switchMap((tokens) =>
-          next(withBearer(request, tokens.accessToken)).pipe(
+          next(withBearer(tracked, tokens.accessToken)).pipe(
             catchError((retryError: unknown) => {
               if (retryError instanceof HttpErrorResponse && retryError.status === 401) {
-                auth.clearSession();
+                if (isRevoked(retryError)) {
+                  auth.endRevokedSession();
+                } else {
+                  auth.clearSession();
+                }
               }
               return throwError(() => retryError);
             }),

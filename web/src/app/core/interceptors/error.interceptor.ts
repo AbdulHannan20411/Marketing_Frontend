@@ -5,6 +5,7 @@ import { catchError, throwError } from 'rxjs';
 import { AuthService } from '@core/auth/auth.service';
 import { ToastService } from '@core/services/toast.service';
 import type { ApiError } from '@core/models/api.model';
+import { SESSION_REVOKED_HEADER } from '@core/models/session-security.model';
 
 /** RFC 7807 document as returned by the API. Failures are never wrapped. */
 interface ProblemDetails {
@@ -47,6 +48,12 @@ const BUSINESS_RULE_CODES = new Set([
   'ai_not_configured',
   'ai_response_blocked',
   'auto_reply_trigger_not_in_plan',
+  // Multiple WhatsApp numbers: each is shown by the screen that caused it.
+  'whatsapp_account_limit_reached',
+  'whatsapp_number_in_use',
+  'whatsapp_label_taken',
+  'whatsapp_account_not_connected',
+  'whatsapp_account_connected',
 ]);
 
 export function isBusinessRule(error: ApiError): boolean {
@@ -146,7 +153,10 @@ export const errorInterceptor: HttpInterceptorFn = (request, next) => {
       if (apiError.status === 401) {
         // The token interceptor owns refresh; a 401 that reaches here after a
         // refresh attempt means the session is genuinely finished.
-        if (!request.url.includes('/auth/')) {
+        // A revoked session was already signed out, with its reason, by the
+        // token interceptor. Clearing again here would only lose that reason.
+        const revoked = error.headers.get(SESSION_REVOKED_HEADER)?.toLowerCase() === 'true';
+        if (!revoked && !request.url.includes('/auth/')) {
           auth.clearSession();
         }
         return throwError(() => apiError);

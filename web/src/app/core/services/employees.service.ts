@@ -3,6 +3,7 @@ import type { Observable } from 'rxjs';
 
 import type { Employee, EmployeeStatus, PermissionSet } from '@core/models/employee.model';
 import type { Permission } from '@core/models/permission.model';
+import type { WhatsAppAccess, WhatsAppAccessUpdate } from '@core/models/whatsapp-account.model';
 import { ApiService } from './api.service';
 
 export interface InviteEmployeeRequest {
@@ -12,6 +13,8 @@ export interface InviteEmployeeRequest {
   readonly permissions?: readonly Permission[];
   readonly role?: 'Admin' | 'Employee';
   readonly permissionSetId?: string;
+  readonly whatsAppAccess?: readonly WhatsAppAccess[];
+  readonly defaultWhatsAppAccountId?: string | null;
 }
 
 export interface PermissionSetDraft {
@@ -42,6 +45,14 @@ export class EmployeesService {
   /** Complete replacement set, not a delta. Revokes their sessions immediately. */
   updatePermissions(id: string, permissions: readonly Permission[]): Observable<Employee> {
     return this.api.put<Employee>(`/employees/${id}/permissions`, { permissions });
+  }
+
+  /**
+   * Replaces which WhatsApp numbers this person works on, and what they may do
+   * on each. Rejected for an Admin, who always has every number.
+   */
+  updateWhatsAppAccess(id: string, update: WhatsAppAccessUpdate): Observable<Employee> {
+    return this.api.put<Employee, WhatsAppAccessUpdate>(`/employees/${id}/whatsapp-access`, update);
   }
 
   updateRole(id: string, role: 'Admin' | 'Employee'): Observable<Employee> {

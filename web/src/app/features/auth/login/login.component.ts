@@ -30,6 +30,8 @@ export class LoginComponent {
   protected readonly showMockHint = environment.useMockApi;
   protected readonly submitting = signal(false);
   protected readonly formError = signal<string | null>(null);
+  /** Set when the last session was ended by a sign-in elsewhere. Shown once. */
+  protected readonly signOutReason = signal(this.auth.takeSignOutReason());
   protected readonly passwordVisible = signal(false);
 
   protected readonly isSuperAdminPortal = computed(() => this.portal() === 'superadmin');

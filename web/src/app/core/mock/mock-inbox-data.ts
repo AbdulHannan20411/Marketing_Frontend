@@ -31,6 +31,10 @@ export const conversationStore: Conversation[] = [
     lastMessageAt: iso(-minutes(4)),
     unreadCount: 2,
     windowExpiresAt: iso(hours(23) + minutes(56)),
+    accountId: 'wa_sales',
+    accountLabel: 'Sales',
+    awaitingReply: true,
+    assignedTo: null,
   },
   {
     id: 'cnv_2',
@@ -42,6 +46,10 @@ export const conversationStore: Conversation[] = [
     unreadCount: 0,
     // Deliberately close to the edge, so the "closing soon" warning shows.
     windowExpiresAt: iso(minutes(42)),
+    accountId: 'wa_support',
+    accountLabel: 'Support',
+    awaitingReply: true,
+    assignedTo: { id: 'emp_employee', name: 'Employee User' },
   },
   {
     id: 'cnv_3',
@@ -52,6 +60,10 @@ export const conversationStore: Conversation[] = [
     lastMessageAt: iso(-hours(52)),
     unreadCount: 0,
     windowExpiresAt: null,
+    accountId: 'wa_sales',
+    accountLabel: 'Sales',
+    awaitingReply: false,
+    assignedTo: { id: 'emp_admin', name: 'Admin User' },
   },
 ];
 

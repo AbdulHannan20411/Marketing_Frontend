@@ -29,7 +29,11 @@ export type NotificationKind =
   | 'messages.limit'
   // Auto-reply paused: the monthly AI allowance is spent. Presentation still
   // comes from the payload, so listing it here is documentation, not wiring.
-  | 'aiRepliesExhausted';
+  | 'ai.replies.exhausted'
+  /** Sign-in from a device this user hasn't used. Action: /account/security. */
+  | 'security.new_login'
+  /** To workspace admins (new device, new city, sharing signs) or platform staff (high risk). */
+  | 'security.alert';
 
 export interface AppNotification {
   readonly id: string;

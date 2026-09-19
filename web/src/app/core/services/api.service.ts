@@ -17,6 +17,17 @@ export type QueryParams = Readonly<
   Record<string, string | number | boolean | readonly string[]>
 >;
 
+/**
+ * The payload of an envelope, or `null` for an empty body.
+ *
+ * A `204 No Content` arrives with no body at all — the heartbeat and revoke
+ * endpoints answer that way — and reading `.data` off it threw, turning a
+ * successful call into an error for its caller.
+ */
+function unwrap<T>(response: ApiResponse<T> | null): T {
+  return (response === null ? null : response.data) as T;
+}
+
 export function toHttpParams(params: QueryParams | undefined): HttpParams {
   let httpParams = new HttpParams();
   for (const [key, value] of Object.entries(params ?? {})) {
@@ -47,7 +58,7 @@ export class ApiService {
   get<T>(path: string, params?: QueryParams): Observable<T> {
     return this.http
       .get<ApiResponse<T>>(`${this.baseUrl}${path}`, { params: toHttpParams(params) })
-      .pipe(map((response) => response.data));
+      .pipe(map((response) => unwrap(response)));
   }
 
   /**
@@ -66,26 +77,33 @@ export class ApiService {
         params: toHttpParams(params),
         headers,
       })
-      .pipe(map((response) => response.data));
+      .pipe(map((response) => unwrap(response)));
   }
 
   put<TResponse, TBody = unknown>(path: string, body?: TBody): Observable<TResponse> {
     return this.http
       .put<ApiResponse<TResponse>>(`${this.baseUrl}${path}`, body ?? {})
-      .pipe(map((response) => response.data));
+      .pipe(map((response) => unwrap(response)));
+  }
+
+  /** Partial update: only the fields sent change. */
+  patch<TResponse, TBody = unknown>(path: string, body: TBody): Observable<TResponse> {
+    return this.http
+      .patch<ApiResponse<TResponse>>(`${this.baseUrl}${path}`, body)
+      .pipe(map((response) => unwrap(response)));
   }
 
   delete<TResponse = null>(path: string, body?: unknown): Observable<TResponse> {
     return this.http
       .delete<ApiResponse<TResponse>>(`${this.baseUrl}${path}`, { body })
-      .pipe(map((response) => response.data));
+      .pipe(map((response) => unwrap(response)));
   }
 
   /** Multipart upload; the envelope is unwrapped as usual. */
   upload<T>(path: string, form: FormData): Observable<T> {
     return this.http
       .post<ApiResponse<T>>(`${this.baseUrl}${path}`, form)
-      .pipe(map((response) => response.data));
+      .pipe(map((response) => unwrap(response)));
   }
 
   /**

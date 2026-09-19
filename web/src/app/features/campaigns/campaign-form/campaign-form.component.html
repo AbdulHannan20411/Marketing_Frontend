@@ -98,6 +98,51 @@
               }
             </div>
 
+            <!-- Sending number. Templates follow it, so it comes before the template step. -->
+            @if (choosesNumber()) {
+              <div>
+                <label for="campaign-number" class="block text-sm font-medium text-ink-soft">
+                  Send from WhatsApp number
+                </label>
+                <select
+                  id="campaign-number"
+                  class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink ring-1 ring-line ring-inset focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                  [class.ring-red-400]="showErrors() && numberProblem() !== null"
+                  (change)="accountId.set($any($event.target).value || null)"
+                >
+                  <option value="" [selected]="accountId() === null" disabled>Choose a number</option>
+                  @for (number of numbers(); track number.id) {
+                    <option
+                      [value]="number.id"
+                      [selected]="accountId() === number.id"
+                      [disabled]="!canBroadcastFrom(number)"
+                    >
+                      {{ number.label }} · {{ number.displayPhoneNumber }}{{
+                        number.status !== 'connected'
+                          ? ' (not connected)'
+                          : !number.myPermissions.includes('broadcast')
+                            ? ' (no broadcast access)'
+                            : ''
+                      }}
+                    </option>
+                  }
+                </select>
+                @if (showErrors() && numberProblem() !== null) {
+                  <p class="mt-1 text-xs text-danger">{{ numberProblem() }}</p>
+                } @else {
+                  <p class="mt-1 text-xs text-ink-muted">
+                    Customers see this number. Only its approved templates are offered in the next step.
+                  </p>
+                }
+              </div>
+            } @else if (sendingAccount()) {
+              <p class="flex items-center gap-2 text-sm text-ink-soft">
+                <app-icon name="chat" [size]="15" class="text-ink-muted" />
+                Sends from
+                <span class="font-medium text-ink">{{ sendingAccount()?.label }} · {{ sendingAccount()?.displayPhoneNumber }}</span>
+              </p>
+            }
+
             <div>
               <label for="campaign-description" class="block text-sm font-medium text-ink-soft">
                 Description <span class="font-normal text-ink-muted">(optional)</span>

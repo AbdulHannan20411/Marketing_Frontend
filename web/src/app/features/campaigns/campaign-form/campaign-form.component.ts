@@ -19,6 +19,8 @@ import {
 } from '@core/models/recurrence.model';
 import type { MessageTemplate, WhatsAppConnection } from '@core/models/whatsapp.model';
 import { CampaignsService, type CampaignDraft } from '@core/services/campaigns.service';
+import { WhatsAppContextService } from '@core/services/whatsapp-context.service';
+import type { WhatsAppAccount } from '@core/models/whatsapp-account.model';
 import { ContactsService } from '@core/services/contacts.service';
 import { ToastService } from '@core/services/toast.service';
 import { WhatsAppService } from '@core/services/whatsapp.service';
@@ -87,6 +89,7 @@ export class CampaignFormComponent {
 
   private readonly campaigns = inject(CampaignsService);
   private readonly whatsapp = inject(WhatsAppService);
+  private readonly whatsAppContext = inject(WhatsAppContextService);
 
   /**
    * Only for the expiry warning.
@@ -96,6 +99,32 @@ export class CampaignFormComponent {
    * discovers the credential has lapsed.
    */
   protected readonly connection = signal<WhatsAppConnection | null>(null);
+
+  /* ----------------------------- sending number ----------------------------- */
+
+  /**
+   * The number this campaign sends from.
+   *
+   * Starts at the user's default number when creating, and at the campaign's
+   * own number when editing. Changing it reloads the templates, because
+   * templates belong to a number's WABA — one approved on Sales may not exist
+   * on Marketing at all.
+   */
+  protected readonly accountId = signal<string | null>(null);
+
+  /** Numbers this person may broadcast from. Others are listed but not choosable. */
+  protected readonly numbers = computed(() => this.whatsAppContext.accounts());
+
+  protected readonly sendingAccount = computed(
+    () => this.numbers().find((account) => account.id === this.accountId()) ?? null,
+  );
+
+  /** A choice only exists with two or more numbers; with one it is just stated. */
+  protected readonly choosesNumber = computed(() => this.numbers().length > 1);
+
+  protected canBroadcastFrom(account: WhatsAppAccount): boolean {
+    return account.status === 'connected' && account.myPermissions.includes('broadcast');
+  }
   private readonly contacts = inject(ContactsService);
   private readonly toast = inject(ToastService);
   private readonly router = inject(Router);
@@ -242,7 +271,38 @@ export class CampaignFormComponent {
     return null;
   });
 
+  /**
+   * What the API refused on save, shown under the field it names.
+   *
+   * The server has the last word on two things the client cannot fully check:
+   * that the template belongs to the number's WABA, and which number a
+   * multi-number workspace must name.
+   */
+  protected readonly serverFieldErrors = signal<Readonly<Record<string, string>>>({});
+
+  /** Required once the workspace has more than one number: the API refuses to guess. */
+  protected readonly numberProblem = computed(() => {
+    const server = this.serverFieldErrors()['whatsAppAccountId'];
+    if (server !== undefined) {
+      return server;
+    }
+    if (!this.choosesNumber()) {
+      return null;
+    }
+    const account = this.sendingAccount();
+    if (account === null) {
+      return 'Choose which number sends this campaign.';
+    }
+    if (!this.canBroadcastFrom(account)) {
+      return account.status === 'connected'
+        ? `You can't send campaigns from ${account.label}.`
+        : `${account.label} is not connected.`;
+    }
+    return null;
+  });
+
   protected readonly templateProblem = computed(() =>
+    this.serverFieldErrors()['templateId'] ??
     this.selectedTemplateId() === '' ? 'Choose an approved template.' : null,
   );
 
@@ -255,7 +315,7 @@ export class CampaignFormComponent {
   /** Which steps are incomplete, so the review can point at them. */
   protected readonly incompleteSteps = computed<readonly Step[]>(() => {
     const incomplete: Step[] = [];
-    if (this.nameProblem() !== null) {
+    if (this.nameProblem() !== null || this.numberProblem() !== null) {
       incomplete.push('details');
     }
     if (this.templateProblem() !== null) {
@@ -285,6 +345,47 @@ export class CampaignFormComponent {
     effect(() => {
       const id = this.campaignId();
       untracked(() => this.load(id));
+    });
+
+    effect(() => {
+      this.selectedTemplateId();
+      this.accountId();
+      untracked(() => this.serverFieldErrors.set({}));
+    });
+
+    // A new campaign starts on the user's default number, once the list of
+    // numbers has arrived. Editing keeps the campaign's own number.
+    effect(() => {
+      const numbers = this.numbers();
+      untracked(() => {
+        if (this.accountId() !== null || this.campaignId() !== undefined || numbers.length === 0) {
+          return;
+        }
+        const preferred = this.whatsAppContext.defaultAccount();
+        const start =
+          preferred !== null && this.canBroadcastFrom(preferred)
+            ? preferred
+            : (numbers.find((account) => this.canBroadcastFrom(account)) ?? null);
+        this.accountId.set(start?.id ?? null);
+      });
+    });
+
+    // Templates and connection health follow the chosen number.
+    let loadedFor: string | null | undefined;
+    effect(() => {
+      const id = this.accountId();
+      untracked(() => {
+        if (loadedFor === undefined) {
+          // The first value is covered by the initial load.
+          loadedFor = id;
+          return;
+        }
+        if (id === loadedFor) {
+          return;
+        }
+        loadedFor = id;
+        this.reloadForNumber(id);
+      });
     });
 
     effect(() => {
@@ -334,9 +435,9 @@ export class CampaignFormComponent {
     this.state.set('loading');
 
     forkJoin({
-      templates: this.whatsapp.listAllTemplates(),
+      templates: this.whatsapp.listAllTemplates(this.accountId()),
       groups: this.contacts.listGroups(),
-      connection: this.whatsapp.getConnection(),
+      connection: this.whatsapp.getConnection(this.accountId()),
     }).subscribe({
       next: ({ templates, groups, connection }) => {
         this.templates.set(templates);
@@ -350,6 +451,32 @@ export class CampaignFormComponent {
         this.hydrate(id);
       },
       error: () => this.state.set('error'),
+    });
+  }
+
+  /**
+   * Refetches what depends on the sending number.
+   *
+   * A chosen template that does not exist on the new number is cleared rather
+   * than kept: the API would refuse it, and a silently kept selection would
+   * only surface at the review step.
+   */
+  private reloadForNumber(accountId: string | null): void {
+    forkJoin({
+      templates: this.whatsapp.listAllTemplates(accountId),
+      connection: this.whatsapp.getConnection(accountId),
+    }).subscribe({
+      next: ({ templates, connection }) => {
+        this.templates.set(templates);
+        this.connection.set(connection);
+        if (!templates.some((template) => template.id === this.selectedTemplateId())) {
+          this.selectedTemplateId.set('');
+        }
+      },
+      error: () => {
+        this.templates.set([]);
+        this.selectedTemplateId.set('');
+      },
     });
   }
 
@@ -397,6 +524,7 @@ export class CampaignFormComponent {
 
   private apply(campaign: Campaign): void {
     this.existing.set(campaign);
+    this.accountId.set(campaign.whatsAppAccountId ?? null);
     this.form.patchValue({
       name: campaign.name,
       description: campaign.description ?? '',
@@ -503,6 +631,8 @@ export class CampaignFormComponent {
     const rule = this.recurrence();
     return {
       name: this.form.controls.name.value.trim(),
+      // Omitted when there is only one number, which the API reads as that number.
+      ...(this.accountId() === null ? {} : { whatsAppAccountId: this.accountId() }),
       description: this.form.controls.description.value.trim(),
       templateId: this.selectedTemplateId(),
       audienceLabel: this.audienceLabel(),
@@ -565,9 +695,39 @@ export class CampaignFormComponent {
       },
       error: (error: ApiError) => {
         flag.set(false);
+        if (this.showFieldErrors(error)) {
+          return;
+        }
         this.toast.error(error.title, error.detail);
       },
     });
+  }
+
+  /**
+   * Puts a 422 about the template or the number under that field, and opens
+   * the step it lives on. False when the error is about something else.
+   */
+  private showFieldErrors(error: ApiError): boolean {
+    if (error.status !== 422) {
+      return false;
+    }
+    // The API keys fields in camelCase or PascalCase depending on the endpoint.
+    const lookup = (key: string): string | undefined =>
+      Object.entries(error.fieldErrors).find(([field]) => field.toLowerCase() === key.toLowerCase())?.[1][0];
+
+    const templateId = lookup('templateId');
+    const whatsAppAccountId = lookup('whatsAppAccountId');
+    if (templateId === undefined && whatsAppAccountId === undefined) {
+      return false;
+    }
+
+    this.serverFieldErrors.set({
+      ...(templateId === undefined ? {} : { templateId }),
+      ...(whatsAppAccountId === undefined ? {} : { whatsAppAccountId }),
+    });
+    this.showErrors.set(true);
+    this.step.set(whatsAppAccountId !== undefined ? 'details' : 'template');
+    return true;
   }
 
   /**

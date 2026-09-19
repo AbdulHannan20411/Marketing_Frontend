@@ -94,6 +94,7 @@ export const SUPERADMIN_NAVIGATION: readonly NavSection[] = [
       { label: 'Email templates', route: '/superadmin/email-templates', icon: 'envelope', permissions: [] },
       { label: 'Tenants', route: '/superadmin/tenants', icon: 'building', permissions: [] },
       { label: 'Audit Logs', route: '/superadmin/audit', icon: 'clipboard', permissions: [] },
+      { label: 'Security', route: '/superadmin/security', icon: 'lock', permissions: [] },
       { label: 'Monitoring', route: '/superadmin/monitoring', icon: 'shield', permissions: [] },
     ],
   },

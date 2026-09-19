@@ -1,3 +1,4 @@
+import { RouterLink } from '@angular/router';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 
 import type { LoadState } from '@core/models/api.model';
@@ -40,6 +41,7 @@ const PLAN_TONE: Readonly<Record<TenantPlan, BadgeTone>> = {
     BadgeComponent,
     ButtonDirective,
     IconComponent,
+    RouterLink,
   ],
   templateUrl: './tenants.component.html',
 })
@@ -62,6 +64,7 @@ export class TenantsComponent {
     { key: 'seats', header: 'Seats', align: 'right', hideOnMobile: true },
     { key: 'usage', header: 'Quota used', align: 'right' },
     { key: 'created', header: 'Created', align: 'right', hideOnMobile: true },
+    { key: 'security', header: 'Security', align: 'right' },
   ];
 
   protected readonly totals = computed(() => {

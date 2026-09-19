@@ -1,0 +1,203 @@
+<div class="animate-fade-in space-y-6">
+  <app-page-header
+    [title]="isPlatform() ? (overview()?.organizationName ?? 'Workspace') + ' · Security' : 'Security'"
+    [description]="
+      isPlatform()
+        ? 'Sessions, devices and sharing risk for this workspace. Risk comes with its reasons — they are the evidence.'
+        : 'Who in your team is signed in where. Each account can be signed in on one device at a time.'
+    "
+    [breadcrumbs]="breadcrumbs()"
+  >
+    <button appButton variant="outline" size="md" (click)="load()">
+      <app-icon name="refresh" [size]="16" />
+      Refresh
+    </button>
+  </app-page-header>
+
+  @switch (state()) {
+    @case ('loading') {
+      <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-busy="true">
+        @for (row of skeletons; track row) {
+          <app-skeleton height="5.5rem" />
+        }
+      </div>
+      <app-skeleton height="18rem" />
+    }
+
+    @case ('error') {
+      <app-card>
+        <app-error-state
+          title="Could not load security"
+          description="Nothing has changed. Try again in a moment."
+          (retry)="load()"
+        />
+      </app-card>
+    }
+
+    @case ('empty') {
+      <app-card>
+        <app-empty-state
+          icon="users"
+          title="Nobody has signed in yet"
+          description="Devices and sessions appear here once people in this workspace start signing in."
+        />
+      </app-card>
+    }
+
+    @default {
+      @if (overview(); as data) {
+        <!-- Headline facts -->
+        <section class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Security summary">
+          <app-card>
+            <p class="text-xs font-medium text-ink-muted">Seats</p>
+            <p class="mt-1 text-2xl font-semibold tracking-tight text-ink tabular-nums">
+              {{ data.usedSeats }}
+              <span class="text-sm font-normal text-ink-muted">
+                / {{ data.purchasedSeats === null ? 'unlimited' : data.purchasedSeats }}
+              </span>
+            </p>
+            <p class="mt-1 text-xs text-ink-muted">{{ data.planName }} plan</p>
+          </app-card>
+          <app-card>
+            <p class="text-xs font-medium text-ink-muted">Signed in now</p>
+            <p class="mt-1 text-2xl font-semibold tracking-tight text-ink tabular-nums">{{ data.activeSessions }}</p>
+            <p class="mt-1 text-xs text-ink-muted">Never more than the number of people</p>
+          </app-card>
+          <app-card>
+            <p class="text-xs font-medium text-ink-muted">Devices used</p>
+            <p class="mt-1 text-2xl font-semibold tracking-tight text-ink tabular-nums">{{ data.uniqueDevices }}</p>
+            <p class="mt-1 text-xs text-ink-muted">Across everyone, last {{ data.deviceWindowDays }} days</p>
+          </app-card>
+          <app-card>
+            <p class="text-xs font-medium text-ink-muted">Worth a look</p>
+            <p
+              class="mt-1 text-2xl font-semibold tracking-tight tabular-nums"
+              [class]="attentionCount() > 0 ? 'text-amber-700' : 'text-ink'"
+            >
+              {{ attentionCount() }}
+            </p>
+            <p class="mt-1 text-xs text-ink-muted">
+              More than {{ deviceThreshold }} devices, or {{ displacementThreshold }}+ sign-ins pushed off in a day
+            </p>
+          </app-card>
+        </section>
+
+        <!-- The one number that shows sharing, explained once. -->
+        <p class="flex items-start gap-2 rounded-lg bg-surface-sunken px-4 py-3 text-xs leading-relaxed text-ink-soft ring-1 ring-line">
+          <app-icon name="info" [size]="15" class="mt-px shrink-0 text-ink-muted" />
+          <span>
+            Signing in ends any other session of the same account, so two people sharing a login keep signing
+            each other out. <span class="font-medium text-ink">"Pushed off (24h)"</span> counts how often that
+            happened — the clearest sign that a login is shared.
+          </span>
+        </p>
+
+        <!-- People -->
+        <app-card [padded]="false">
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm" [class.min-w-[56rem]]="isPlatform()" [class.min-w-[44rem]]="!isPlatform()">
+              <thead>
+                <tr class="border-b border-line text-left text-xs tracking-wide text-ink-muted uppercase">
+                  <th scope="col" class="px-5 py-3 font-medium">Person</th>
+                  <th scope="col" class="px-3 py-3 text-right font-medium">Signed in</th>
+                  <th scope="col" class="px-3 py-3 text-right font-medium">Devices</th>
+                  <th scope="col" class="px-3 py-3 text-right font-medium">Pushed off (24h)</th>
+                  <th scope="col" class="px-3 py-3 font-medium">Last active</th>
+                  @if (isPlatform()) {
+                    <th scope="col" class="px-3 py-3 font-medium">Risk</th>
+                  }
+                  <th scope="col" class="px-5 py-3 text-right font-medium"><span class="sr-only">Actions</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (employee of employees(); track employee.userId) {
+                  <tr class="border-b border-line/70 align-top transition-colors last:border-0 hover:bg-surface-muted/60">
+                    <td class="px-5 py-3">
+                      <p class="font-medium text-ink">{{ employee.name }}</p>
+                      <p class="text-xs text-ink-muted">{{ employee.email }} · {{ employee.role }}</p>
+                    </td>
+                    <td class="px-3 py-3 text-right tabular-nums text-ink-soft">{{ employee.activeSessions }}</td>
+                    <td class="px-3 py-3 text-right tabular-nums">
+                      <span
+                        [class]="manyDevices(employee) ? 'rounded bg-amber-50 px-1.5 py-0.5 font-semibold text-amber-800' : 'text-ink-soft'"
+                        [attr.title]="manyDevices(employee) ? 'More than ' + deviceThreshold + ' devices in ' + data.deviceWindowDays + ' days' : null"
+                      >
+                        {{ employee.devices }}
+                      </span>
+                    </td>
+                    <td class="px-3 py-3 text-right tabular-nums">
+                      <span
+                        [class]="oftenDisplaced(employee) ? 'rounded bg-red-50 px-1.5 py-0.5 font-semibold text-red-700' : 'text-ink-soft'"
+                        [attr.title]="oftenDisplaced(employee) ? 'Likely a shared login' : null"
+                      >
+                        {{ employee.displacedLast24Hours }}
+                      </span>
+                    </td>
+                    <td class="px-3 py-3 text-xs whitespace-nowrap text-ink-muted">
+                      {{ employee.lastActiveAt === null ? 'Never' : (employee.lastActiveAt | timeAgo) }}
+                    </td>
+                    @if (isPlatform()) {
+                      <td class="px-3 py-3">
+                        @if (employee.risk; as risk) {
+                          <span
+                            class="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium capitalize ring-1 ring-inset"
+                            [class]="riskClass[risk.level]"
+                          >
+                            {{ risk.level }} · {{ risk.score }}
+                          </span>
+                          @if (risk.reasons.length > 0) {
+                            <ul class="mt-1.5 space-y-0.5 text-xs text-ink-muted">
+                              @for (reason of risk.reasons; track reason) {
+                                <li>· {{ reason }}</li>
+                              }
+                            </ul>
+                          }
+                        } @else {
+                          <span class="text-xs text-ink-muted">—</span>
+                        }
+                      </td>
+                    }
+                    <td class="px-5 py-3 text-right">
+                      <button appButton variant="ghost" size="sm" (click)="inspect(employee)">
+                        <app-icon name="computer" [size]="14" />
+                        Devices
+                      </button>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </app-card>
+      }
+    }
+  }
+</div>
+
+@if (inspecting(); as employee) {
+  <app-modal
+    [title]="employee.name + ' — devices'"
+    [subtitle]="employee.email"
+    size="lg"
+    (closed)="inspecting.set(null)"
+  >
+    @switch (devicesState()) {
+      @case ('loading') {
+        <div class="space-y-3" aria-busy="true">
+          <app-skeleton height="3.5rem" />
+          <app-skeleton height="3.5rem" />
+        </div>
+      }
+      @case ('error') {
+        <app-error-state title="Could not load devices" (retry)="inspect(employee)" />
+      }
+      @case ('empty') {
+        <p class="text-sm text-ink-muted">No devices recorded for this person yet.</p>
+      }
+      @default {
+        <app-device-list [devices]="devices()" [revokingId]="revokingId()" (revoke)="revoke($event)" />
+      }
+    }
+    <button modalFooter appButton variant="ghost" (click)="inspecting.set(null)">Close</button>
+  </app-modal>
+}

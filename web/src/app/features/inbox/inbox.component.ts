@@ -9,20 +9,25 @@ import {
   untracked,
   viewChild,
 } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
-import { interval } from 'rxjs';
+import { debounceTime, distinctUntilChanged, interval, skip } from 'rxjs';
 
 import type { ApiError, LoadState } from '@core/models/api.model';
 import type {
   Conversation,
+  ConversationAssigneeFilter,
+  ConversationFilters,
   ConversationMessage,
+  ConversationStatusFilter,
+  ConversationTypeFilter,
   InboundMessageEvent,
   MediaAsset,
   MediaKind,
 } from '@core/models/whatsapp.model';
 import {
   AUDIO_RULE,
+  DEFAULT_CONVERSATION_FILTERS,
   MEDIA_RULES,
   formatWindowRemaining,
   isWindowOpen,
@@ -33,6 +38,8 @@ import { RealtimeService } from '@core/services/realtime.service';
 import { ToastService } from '@core/services/toast.service';
 import { AuthService } from '@core/auth/auth.service';
 import { WhatsAppService } from '@core/services/whatsapp.service';
+import { WhatsAppContextService } from '@core/services/whatsapp-context.service';
+import { employeeIdOf, isSamePerson } from '@core/models/employee.model';
 import { TimeAgoPipe } from '@shared/pipes/time-ago.pipe';
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
 import { BadgeComponent } from '@shared/ui/badge/badge.component';
@@ -60,6 +67,26 @@ const PAGE_SIZE = 30;
  */
 /** Enough to fill the pane without a second request in the common case. */
 const CONVERSATION_PAGE_SIZE = 30;
+
+const STATUS_OPTIONS: readonly { value: ConversationStatusFilter; label: string }[] = [
+  { value: 'all', label: 'All' },
+  { value: 'unread', label: 'Unread' },
+  { value: 'awaiting_reply', label: 'Waiting for reply' },
+  { value: 'replied', label: 'Replied' },
+];
+
+const ASSIGNEE_OPTIONS: readonly { value: ConversationAssigneeFilter; label: string }[] = [
+  { value: 'all', label: 'Anyone' },
+  { value: 'me', label: 'Me' },
+  { value: 'unassigned', label: 'Unassigned' },
+];
+
+const TYPE_OPTIONS: readonly { value: ConversationTypeFilter; label: string }[] = [
+  { value: 'all', label: 'All' },
+  { value: 'text', label: 'Text' },
+  { value: 'media', label: 'Media' },
+  { value: 'template', label: 'Template' },
+];
 
 @Component({
   selector: 'app-inbox',
@@ -104,7 +131,62 @@ export class InboxComponent {
    * it, and collect a 403 — the permission model working correctly and the UI
    * refusing to admit it.
    */
-  protected readonly canReply = computed(() => this.auth.hasPermission('whatsapp.inbox.reply'));
+  protected readonly canReply = computed(
+    () => this.auth.hasPermission('whatsapp.inbox.reply') && !this.replyBlockedByNumber(),
+  );
+
+  /**
+   * The person may reply in general, but not on this conversation's number.
+   *
+   * Told apart from the missing global permission because the fix differs: one
+   * is "ask for the Inbox reply permission", the other "ask to be given Reply
+   * on Support".
+   */
+  protected readonly replyBlockedByNumber = computed(() => {
+    const accountId = this.selected()?.accountId;
+    if (accountId === undefined) {
+      return false;
+    }
+    const account = this.context.accounts().find((entry) => entry.id === accountId);
+    // Not in the list yet means it has not loaded; the server still decides.
+    return account !== undefined && !account.myPermissions.includes('reply');
+  });
+
+  private readonly context = inject(WhatsAppContextService);
+
+  /* ------------------------------ filters ------------------------------ */
+
+  protected readonly statusOptions = STATUS_OPTIONS;
+  protected readonly assigneeOptions = ASSIGNEE_OPTIONS;
+  protected readonly typeOptions = TYPE_OPTIONS;
+
+  protected readonly filters = signal<ConversationFilters>(DEFAULT_CONVERSATION_FILTERS);
+  protected readonly numbers = computed(() => this.context.accounts());
+
+  /** Which number a row came from only matters once there is more than one. */
+  protected readonly showNumber = computed(() => this.context.hasMultiple());
+
+  protected readonly hasActiveFilters = computed(() => {
+    const filters = this.filters();
+    return (
+      this.search().trim() !== '' ||
+      filters.accountId !== 'all' ||
+      filters.status !== 'all' ||
+      filters.assignedTo !== 'all' ||
+      filters.messageType !== 'all'
+    );
+  });
+
+  /** In the `emp_` form conversations use, so "assigned to me" can match. */
+  protected readonly myUserId = computed(() => {
+    const id = this.auth.user()?.id;
+    return id === undefined ? null : employeeIdOf(id);
+  });
+
+  protected isMe(id: string | null | undefined): boolean {
+    return isSamePerson(id, this.myUserId());
+  }
+  protected readonly assigning = signal(false);
 
   private readonly auth = inject(AuthService);
 
@@ -214,6 +296,26 @@ export class InboxComponent {
       .pipe(takeUntilDestroyed())
       .subscribe((event) => this.onInboundMessage(event));
 
+    // Another agent took a conversation: reflect it without a reload.
+    this.realtime.conversationAssignments$
+      .pipe(takeUntilDestroyed())
+      .subscribe((conversation) => this.replaceConversation(conversation));
+
+    // Search and filters reload the list. Search used to change only the box —
+    // nothing was fetched until Refresh was pressed, so it looked broken.
+    toObservable(computed(() => ({ search: this.search().trim(), filters: this.filters() })))
+      .pipe(
+        skip(1),
+        debounceTime(300),
+        distinctUntilChanged((previous, next) => previous.search === next.search && previous.filters === next.filters),
+        takeUntilDestroyed(),
+      )
+      .subscribe(() => {
+        // The open thread may not match the new filters; the first result opens instead.
+        this.selectedId.set(null);
+        this.load();
+      });
+
     effect(() => {
       const id = this.selectedId();
       untracked(() => {
@@ -283,7 +385,7 @@ export class InboxComponent {
     }
     this.page.set(1);
 
-    this.whatsapp.listConversations(1, CONVERSATION_PAGE_SIZE, this.search().trim()).subscribe({
+    this.whatsapp.listConversations(1, CONVERSATION_PAGE_SIZE, this.search().trim(), this.filters()).subscribe({
       next: (result) => {
         this.conversations.set(result.items);
         this.totalItems.set(result.totalItems);
@@ -299,6 +401,34 @@ export class InboxComponent {
         if (!silent) {
           this.state.set('error');
         }
+      },
+    });
+  }
+
+  protected setFilter<K extends keyof ConversationFilters>(key: K, value: ConversationFilters[K]): void {
+    this.filters.update((current) => ({ ...current, [key]: value }));
+  }
+
+  protected clearFilters(): void {
+    this.search.set('');
+    this.filters.set(DEFAULT_CONVERSATION_FILTERS);
+  }
+
+  /** `null` unassigns. */
+  protected assign(userId: string | null): void {
+    const conversation = this.selected();
+    if (conversation === null || this.assigning()) {
+      return;
+    }
+    this.assigning.set(true);
+    this.whatsapp.assignConversation(conversation.id, userId).subscribe({
+      next: (updated) => {
+        this.assigning.set(false);
+        this.replaceConversation(updated);
+      },
+      error: (error: ApiError) => {
+        this.assigning.set(false);
+        this.toast.error(error.title, error.detail);
       },
     });
   }
@@ -321,7 +451,7 @@ export class InboxComponent {
     this.loadingMore.set(true);
 
     this.whatsapp
-      .listConversations(next, CONVERSATION_PAGE_SIZE, this.search().trim())
+      .listConversations(next, CONVERSATION_PAGE_SIZE, this.search().trim(), this.filters())
       .subscribe({
         next: (result) => {
           this.loadingMore.set(false);
@@ -415,7 +545,8 @@ export class InboxComponent {
     }
 
     this.uploading.set(true);
-    this.whatsapp.uploadMedia(file, kind).subscribe({
+    // Through the conversation's own number: Meta's handle only works there.
+    this.whatsapp.uploadMedia(file, kind, this.selected()?.accountId).subscribe({
       next: (asset) => {
         this.uploading.set(false);
         this.attachment.set(asset);

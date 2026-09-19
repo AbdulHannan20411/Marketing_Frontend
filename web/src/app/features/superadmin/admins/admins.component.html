@@ -175,6 +175,19 @@
             <app-icon name="eye" [size]="14" />
             View as
           </button>
+          @if (admin.tenantId) {
+            <a
+              appButton
+              variant="outline"
+              size="sm"
+              [routerLink]="['/superadmin/tenants', admin.tenantId, 'security']"
+              [attr.aria-label]="'Security for ' + admin.organisation"
+              (click)="$event.stopPropagation()"
+            >
+              <app-icon name="lock" [size]="14" />
+              Security
+            </a>
+          }
 
           <!-- "trialing" is how a pending organisation is reported on the wire -->
           @if (admin.status === 'trialing') {

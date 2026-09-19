@@ -21,6 +21,10 @@
   </button>
 </app-page-header>
 
+<!-- Every number, its health and plan usage. The detail below follows the
+     number chosen here or in the top bar. -->
+<app-whatsapp-accounts-panel (connectAnother)="connect()" />
+
 @if (state() === 'loading') {
   <div class="mt-6 space-y-4">
     <div class="rounded-xl bg-surface p-6 ring-1 ring-line shadow-card">

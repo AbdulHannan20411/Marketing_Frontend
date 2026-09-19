@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { ActivatedRoute, Router } from '@angular/router';
+import { RouterLink, ActivatedRoute, Router } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 
 import type { ApiError, LoadState } from '@core/models/api.model';
@@ -44,6 +44,7 @@ const PLAN_TONE: Readonly<Record<TenantPlan, BadgeTone>> = {
   selector: 'app-superadmin-admins',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    RouterLink,
     TimeAgoPipe,
     PageHeaderComponent,
     CardComponent,

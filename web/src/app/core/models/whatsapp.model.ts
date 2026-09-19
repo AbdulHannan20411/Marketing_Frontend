@@ -168,6 +168,8 @@ export function failedStep(onboarding: ConnectionOnboarding): OnboardingStepStat
 }
 
 export interface WhatsAppConnection {
+  /** The account this connection is. Absent from a single-number server. */
+  readonly accountId?: string;
   readonly status: ConnectionStatus;
   readonly displayPhoneNumber: string;
   readonly verifiedName: string;
@@ -461,7 +463,45 @@ export interface Conversation {
    * it only an approved template may be sent.
    */
   readonly windowExpiresAt: string | null;
+  /**
+   * The number the customer wrote to — replies always go out from it.
+   *
+   * Optional while the API still serves a single number; absent means "the
+   * workspace's only account". See `docs/API-MULTI-WHATSAPP-BACKEND.md` §4.
+   */
+  readonly accountId?: string;
+  readonly accountLabel?: string;
+  /** The last message is the customer's. */
+  readonly awaitingReply?: boolean;
+  readonly assignedTo?: ConversationAssignee | null;
 }
+
+export interface ConversationAssignee {
+  readonly id: string;
+  readonly name: string;
+}
+
+export type ConversationStatusFilter = 'all' | 'unread' | 'awaiting_reply' | 'replied';
+export type ConversationAssigneeFilter = 'all' | 'me' | 'unassigned';
+export type ConversationTypeFilter = 'all' | 'text' | 'media' | 'template';
+
+/**
+ * Inbox filters. `all` is sent as an absent parameter — the API treats both the
+ * same, and absent keeps a server that predates the filters working.
+ */
+export interface ConversationFilters {
+  readonly accountId: string | 'all';
+  readonly status: ConversationStatusFilter;
+  readonly assignedTo: ConversationAssigneeFilter;
+  readonly messageType: ConversationTypeFilter;
+}
+
+export const DEFAULT_CONVERSATION_FILTERS: ConversationFilters = {
+  accountId: 'all',
+  status: 'all',
+  assignedTo: 'all',
+  messageType: 'all',
+};
 
 /** Milliseconds left in the window, or 0 when it is shut. */
 export function windowRemainingMs(conversation: Conversation, now = Date.now()): number {
@@ -496,6 +536,9 @@ export function formatWindowRemaining(ms: number): string {
  */
 export interface InboundMessageEvent {
   readonly conversationId: string;
+  /** Which number received it. Absent from a server that predates multiple numbers. */
+  readonly accountId?: string;
+  readonly accountLabel?: string;
   readonly contactName: string;
   readonly phoneNumber: string;
   readonly preview: string;

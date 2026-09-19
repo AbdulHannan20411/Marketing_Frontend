@@ -19,6 +19,11 @@ export interface AudiencePreview {
 
 export interface CampaignDraft {
   readonly name: string;
+  /**
+   * The number to send from. Required by the API once a workspace has more than
+   * one; with a single number it may be omitted and means that number.
+   */
+  readonly whatsAppAccountId?: string | null;
   readonly description?: string;
   /** Must reference an **approved** template; the API rejects anything else. */
   readonly templateId: string;

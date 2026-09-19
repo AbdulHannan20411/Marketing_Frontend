@@ -2,10 +2,13 @@ import { ChangeDetectionStrategy, Component, computed, inject, input, output, si
 
 import { AuthService } from '@core/auth/auth.service';
 import type { PermissionSet } from '@core/models/employee.model';
+import type { WhatsAppAccessUpdate } from '@core/models/whatsapp-account.model';
+import { WhatsAppContextService } from '@core/services/whatsapp-context.service';
 import { environment } from '@env/environment';
 import { ButtonDirective } from '@shared/ui/button/button.directive';
 import { IconComponent } from '@shared/ui/icon/icon.component';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
+import { WhatsAppAccessEditorComponent } from './whatsapp-access-editor.component';
 
 export interface InviteDraft {
   readonly name: string;
@@ -14,6 +17,8 @@ export interface InviteDraft {
   readonly role: 'Admin' | 'Employee';
   /** Empty means "no access yet" — set it in the matrix afterwards. */
   readonly permissionSetId: string;
+  /** Ignored for a co-admin, who has every number. */
+  readonly whatsAppAccess: WhatsAppAccessUpdate;
 }
 
 /**
@@ -28,7 +33,7 @@ export interface InviteDraft {
 @Component({
   selector: 'app-employee-invite',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ModalComponent, ButtonDirective, IconComponent],
+  imports: [ModalComponent, ButtonDirective, IconComponent, WhatsAppAccessEditorComponent],
   templateUrl: './employee-invite.component.html',
 })
 export class EmployeeInviteComponent {
@@ -41,6 +46,7 @@ export class EmployeeInviteComponent {
   readonly cancelled = output<void>();
 
   private readonly auth = inject(AuthService);
+  protected readonly whatsApp = inject(WhatsAppContextService);
 
   protected readonly appName = environment.appName;
 
@@ -49,6 +55,7 @@ export class EmployeeInviteComponent {
   protected readonly jobTitle = signal('');
   protected readonly role = signal<'Admin' | 'Employee'>('Employee');
   protected readonly permissionSetId = signal('');
+  protected readonly whatsAppAccess = signal<WhatsAppAccessUpdate>({ access: [], defaultAccountId: null });
 
   /** Who the invitation will say it is from. */
   protected readonly senderName = computed(() => this.auth.user()?.name ?? 'your workspace');
@@ -88,6 +95,7 @@ export class EmployeeInviteComponent {
       jobTitle: this.jobTitle().trim(),
       role: this.role(),
       permissionSetId: this.permissionSetId(),
+      whatsAppAccess: this.whatsAppAccess(),
     });
   }
 }

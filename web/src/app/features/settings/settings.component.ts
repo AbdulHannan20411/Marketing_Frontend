@@ -7,6 +7,7 @@ import {
   signal,
   untracked,
 } from '@angular/core';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { toSignal } from '@angular/core/rxjs-interop';
 
@@ -74,6 +75,7 @@ const THEME_OPTIONS: readonly ThemeOption[] = [
   selector: 'app-settings',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    RouterLink,
     ReactiveFormsModule,
     PageHeaderComponent,
     CardComponent,
@@ -132,7 +134,16 @@ export class SettingsComponent {
     initialValue: this.profileForm.getRawValue(),
   });
 
+  private readonly route = inject(ActivatedRoute);
+
+  /** Team sessions are an admin's view, and only in a workspace. */
+  protected readonly canSeeTeamSecurity = computed(
+    () => !this.auth.isSuperAdmin() && this.auth.hasPermission('settings.employees'),
+  );
+
   constructor() {
+    queueMicrotask(() => this.openRequestedEditor());
+
     // Seed from the session, and re-seed when the profile reloads — but never
     // while the form is open, or a background refresh would discard typing.
     effect(() => {
@@ -156,6 +167,13 @@ export class SettingsComponent {
     });
     this.showProfileErrors.set(false);
     this.serverErrors.set({});
+  }
+
+  /** Opened from "change your password" links, such as the security page's. */
+  private openRequestedEditor(): void {
+    if (this.route.snapshot.queryParamMap.get('edit') === 'profile') {
+      this.startEditingProfile();
+    }
   }
 
   protected startEditingProfile(): void {

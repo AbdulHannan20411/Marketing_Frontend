@@ -1,0 +1,234 @@
+@if (show() && list(); as current) {
+  <section class="mt-6 animate-rise" aria-labelledby="numbers-heading">
+    <div class="flex flex-wrap items-end justify-between gap-3">
+      <div>
+        <h2 id="numbers-heading" class="text-sm font-semibold text-ink">WhatsApp numbers</h2>
+        <p class="mt-0.5 text-xs text-ink-muted">
+          Choose a number to see its details below. Messages always go out from the number the
+          customer wrote to.
+        </p>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-3">
+        <!-- Plan usage: a slot is taken until a number is removed, even when disconnected. -->
+        @if (current.limit !== null) {
+          <div class="min-w-40">
+            <p class="flex justify-between gap-3 text-xs text-ink-muted">
+              <span>Numbers on your plan</span>
+              <span class="font-medium tabular-nums text-ink">{{ current.used }} / {{ current.limit }}</span>
+            </p>
+            <div class="mt-1 h-1.5 overflow-hidden rounded-full bg-surface-sunken">
+              <div
+                class="h-full rounded-full transition-[width] duration-500"
+                [class]="atLimit() ? 'bg-amber-500' : 'bg-brand-500'"
+                [style.width.%]="usagePercent()"
+              ></div>
+            </div>
+          </div>
+        }
+
+        @if (canManage()) {
+          @if (atLimit()) {
+            <a appButton variant="outline" size="sm" routerLink="/subscription" [title]="'Your plan includes ' + current.limit + ' numbers'">
+              <app-icon name="sparkles" [size]="14" />
+              Upgrade for more numbers
+            </a>
+          } @else {
+            <button appButton size="sm" (click)="connectAnother.emit()">
+              <app-icon name="plus" [size]="14" />
+              Connect another number
+            </button>
+          }
+        }
+      </div>
+    </div>
+
+    <ul class="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      @for (account of current.items; track account.id) {
+        <li
+          class="flex flex-col rounded-xl bg-surface p-4 ring-1 shadow-card transition-all duration-200 hover:shadow-card-hover"
+          [class]="isSelected(account) ? 'ring-2 ring-brand-400' : 'ring-line'"
+        >
+          <!-- Identity -->
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0 flex-1">
+              @if (renamingId() === account.id) {
+                <form class="flex items-center gap-1.5" (submit)="$event.preventDefault(); saveRename(account)">
+                  <input
+                    type="text"
+                    maxlength="40"
+                    aria-label="Number name"
+                    class="h-8 min-w-0 flex-1 rounded-md border-0 bg-surface-sunken px-2 text-sm text-ink ring-1 ring-line ring-inset focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                    [value]="renameValue()"
+                    (input)="renameValue.set($any($event.target).value)"
+                    (keydown.escape)="cancelRename()"
+                  />
+                  <button appButton type="submit" size="sm" [disabled]="busyId() === account.id">Save</button>
+                  <button appButton type="button" variant="ghost" size="sm" (click)="cancelRename()">Cancel</button>
+                </form>
+                @if (renameError(); as message) {
+                  <p class="mt-1 text-xs text-danger" role="alert">{{ message }}</p>
+                }
+              } @else {
+                <div class="flex items-center gap-2">
+                  <h3 class="truncate text-sm font-semibold text-ink">{{ account.label }}</h3>
+                  @if (account.isDefault) {
+                    <span class="rounded bg-brand-50 px-1.5 py-px text-[10px] font-medium text-brand-700 ring-1 ring-brand-200 ring-inset">
+                      Default
+                    </span>
+                  }
+                  @if (canManage()) {
+                    <button
+                      type="button"
+                      class="rounded p-0.5 text-ink-muted transition-colors hover:text-ink focus-visible:outline-2 focus-visible:outline-brand-600"
+                      [attr.aria-label]="'Rename ' + account.label"
+                      (click)="startRename(account)"
+                    >
+                      <app-icon name="pencil" [size]="13" />
+                    </button>
+                  }
+                </div>
+                <p class="mt-0.5 truncate text-xs text-ink-muted">
+                  {{ account.displayPhoneNumber }} · {{ account.verifiedName }}
+                </p>
+              }
+            </div>
+            <app-whatsapp-health [account]="account" [showLabel]="true" />
+          </div>
+
+          <!-- What needs attention, in words -->
+          @if (problems(account).length > 0) {
+            <ul class="mt-3 space-y-1 rounded-lg bg-surface-sunken p-2.5 text-xs text-ink-soft">
+              @for (problem of problems(account); track problem) {
+                <li class="flex items-start gap-1.5">
+                  <app-icon name="warning" [size]="12" class="mt-0.5 shrink-0 text-amber-600" />
+                  {{ problem }}
+                </li>
+              }
+            </ul>
+          }
+
+          <!-- Troubleshooting facts -->
+          <dl class="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
+            <div>
+              <dt class="text-ink-muted">Last webhook</dt>
+              <dd class="font-medium text-ink">
+                {{ account.health.lastWebhookAt === null ? 'Never' : (account.health.lastWebhookAt | timeAgo) }}
+              </dd>
+            </div>
+            <div>
+              <dt class="text-ink-muted">Meta API</dt>
+              <dd class="font-medium capitalize text-ink">{{ account.health.apiStatus }}</dd>
+            </div>
+            <div>
+              <dt class="text-ink-muted">Last sent</dt>
+              <dd class="font-medium text-ink">
+                {{ account.health.lastMessageSentAt === null ? '—' : (account.health.lastMessageSentAt | timeAgo) }}
+              </dd>
+            </div>
+            <div>
+              <dt class="text-ink-muted">Last received</dt>
+              <dd class="font-medium text-ink">
+                {{
+                  account.health.lastMessageReceivedAt === null ? '—' : (account.health.lastMessageReceivedAt | timeAgo)
+                }}
+              </dd>
+            </div>
+            <div>
+              <dt class="text-ink-muted">Token</dt>
+              <dd class="font-medium text-ink">{{ tokenLabel(account) }}</dd>
+            </div>
+            <div>
+              <dt class="text-ink-muted">Quality · tier</dt>
+              <dd class="font-medium capitalize text-ink">
+                {{ account.qualityRating }} · {{ tierLabels[account.messagingTier] }}
+              </dd>
+            </div>
+            <div>
+              <dt class="text-ink-muted">Number status</dt>
+              <dd class="font-medium text-ink">{{ account.health.phoneNumberStatus ?? '—' }}</dd>
+            </div>
+            <div>
+              <dt class="text-ink-muted">Account status</dt>
+              <dd class="font-medium text-ink">{{ account.health.accountStatus ?? '—' }}</dd>
+            </div>
+          </dl>
+
+          @if (account.health.lastError; as error) {
+            <p class="mt-3 rounded-lg bg-red-50 p-2.5 text-xs text-red-800 ring-1 ring-red-200 ring-inset">
+              {{ error }}
+            </p>
+          }
+
+          <!-- Actions -->
+          <div class="mt-auto flex flex-wrap items-center gap-1.5 border-t border-line pt-3 [&:not(:first-child)]:mt-4">
+            @if (!isSelected(account)) {
+              <button appButton variant="outline" size="sm" (click)="open(account)">
+                <app-icon name="eye" [size]="13" />
+                View details
+              </button>
+            } @else {
+              <span class="inline-flex h-8 items-center gap-1 px-2 text-xs font-medium text-brand-700">
+                <app-icon name="checkCircle" [size]="13" />
+                Showing below
+              </span>
+            }
+
+            <button
+              appButton
+              variant="ghost"
+              size="sm"
+              [disabled]="busyId() === account.id"
+              [attr.aria-label]="'Refresh ' + account.label + ' from Meta'"
+              (click)="refresh(account)"
+            >
+              <app-icon name="refresh" [size]="13" [class.animate-spin]="busyId() === account.id" />
+            </button>
+
+            @if (canManage()) {
+              @if (!account.isDefault && account.status === 'connected') {
+                <button appButton variant="ghost" size="sm" [disabled]="busyId() === account.id" (click)="makeDefault(account)">
+                  Make default
+                </button>
+              }
+              <span class="flex-1"></span>
+              @if (account.status === 'connected') {
+                <button appButton variant="ghost" size="sm" class="text-danger" (click)="confirm('disconnect', account)">
+                  Disconnect
+                </button>
+              } @else if (canRemove()) {
+                <button appButton variant="ghost" size="sm" class="text-danger" (click)="confirm('remove', account)">
+                  <app-icon name="trash" [size]="13" />
+                  Remove
+                </button>
+              }
+            }
+          </div>
+        </li>
+      }
+    </ul>
+  </section>
+}
+
+@if (confirming(); as target) {
+  <app-modal
+    [title]="target.kind === 'disconnect' ? 'Disconnect ' + target.account.label + '?' : 'Remove ' + target.account.label + '?'"
+    size="sm"
+    (closed)="confirming.set(null)"
+  >
+    <p class="text-sm leading-relaxed text-ink-soft">
+      @if (target.kind === 'disconnect') {
+        Customers can no longer be answered from {{ target.account.displayPhoneNumber }}, and campaigns on it
+        stop. Conversations and who works on this number are kept, so reconnecting the same number restores
+        everything. It still counts towards your plan until you remove it.
+      } @else {
+        This frees its slot on your plan. Its conversation history stays readable, but nobody is assigned
+        to it any more.
+      }
+    </p>
+    <button modalFooter appButton variant="ghost" (click)="confirming.set(null)">Cancel</button>
+    <button modalFooter appButton variant="danger" [disabled]="busyId() === target.account.id" (click)="proceed()">
+      {{ target.kind === 'disconnect' ? 'Disconnect' : 'Remove number' }}
+    </button>
+  </app-modal>
+}

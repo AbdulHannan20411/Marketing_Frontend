@@ -106,5 +106,18 @@
     <td class="hidden px-4 py-3.5 text-right text-sm whitespace-nowrap text-ink-muted md:table-cell">
       {{ tenant.createdAt | timeAgo }}
     </td>
+
+    <td class="px-4 py-3.5 text-right">
+      <a
+        appButton
+        variant="ghost"
+        size="sm"
+        [routerLink]="['/superadmin/tenants', tenant.id, 'security']"
+        [attr.aria-label]="'Security for ' + tenant.name"
+      >
+        <app-icon name="lock" [size]="14" />
+        Security
+      </a>
+    </td>
   </ng-template>
 </app-data-table>

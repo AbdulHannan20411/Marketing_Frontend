@@ -119,6 +119,22 @@
   </app-card>
 </div>
 
+<!-- Sessions and devices: yours for everyone, the team's for admins. -->
+<app-card class="mt-4 block" title="Security" subtitle="Where you and your team are signed in.">
+  <div class="flex flex-wrap gap-2">
+    <a appButton variant="outline" size="sm" routerLink="/account/security">
+      <app-icon name="computer" [size]="14" />
+      Your devices
+    </a>
+    @if (canSeeTeamSecurity()) {
+      <a appButton variant="outline" size="sm" routerLink="/settings/security">
+        <app-icon name="users" [size]="14" />
+        Team sessions and devices
+      </a>
+    }
+  </div>
+</app-card>
+
 <!-- Profile editing. Name, email and password in one form: someone correcting
      their own details should not have to find three screens to do it. -->
 @if (editingProfile()) {

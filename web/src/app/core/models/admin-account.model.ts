@@ -23,6 +23,11 @@ export interface AdminAccount {
   readonly messagesThisMonth: number;
   readonly lastActiveAt: string;
   readonly createdAt: string;
+  /**
+   * The workspace, `tnt_…` — what the platform's workspace routes take, such as
+   * a workspace's security page. Absent from an API that predates it.
+   */
+  readonly tenantId?: string | null;
 }
 
 /** Aggregated figures across every Admin on the platform. */

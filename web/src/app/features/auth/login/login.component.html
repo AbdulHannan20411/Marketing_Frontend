@@ -26,6 +26,22 @@
       <h1 class="mt-8 text-2xl font-semibold tracking-tight text-ink">{{ heading() }}</h1>
       <p class="mt-1.5 text-sm text-ink-muted">{{ subheading() }}</p>
 
+      <!-- Not an error: nothing the user did was wrong, and red would say it was. -->
+      @if (signOutReason(); as reason) {
+        <div
+          role="status"
+          class="mt-6 flex items-start gap-2.5 rounded-lg bg-amber-50 p-3 ring-1 ring-amber-200 animate-fade-in"
+        >
+          <app-icon name="lock" [size]="18" class="mt-px shrink-0 text-amber-700" />
+          <div class="text-sm text-amber-900">
+            <p>{{ reason }}</p>
+            <p class="mt-1 text-xs text-amber-800">
+              If that wasn't you, sign in and change your password.
+            </p>
+          </div>
+        </div>
+      }
+
       @if (formError(); as message) {
         <div
           role="alert"

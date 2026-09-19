@@ -195,7 +195,7 @@ Behaviour worth reflecting in copy:
 - Only inside the **24-hour window**. Outside it nothing is sent.
 - **An agent replying first cancels it** — checked at the moment of sending.
 - **A customer writing again resets the timer.**
-- When the allowance runs out, replies pause and every admin gets an **`aiRepliesExhausted`**
+- When the allowance runs out, replies pause and every admin gets an **`ai.replies.exhausted`**
   notification. New `NotificationKind` — add an icon and route for it (`/subscription`).
 
 ### Super Admin plan editor

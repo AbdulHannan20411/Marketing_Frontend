@@ -13,6 +13,7 @@ import {
 } from 'rxjs';
 
 import { environment } from '@env/environment';
+import { SIGNED_OUT_ELSEWHERE } from '@core/models/session-security.model';
 import type { ApiResponse } from '@core/models/api.model';
 import type {
   AuthTokens,
@@ -26,6 +27,8 @@ import type {
 } from '@core/models/auth.model';
 import { decodeJwt, isExpired, toAuthUser } from './jwt.util';
 import { TokenStorageService } from './token-storage.service';
+
+const SIGN_OUT_REASON_KEY = 'vd.auth.signout-reason';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
@@ -202,6 +205,35 @@ export class AuthService {
       error: () => undefined,
     });
     this.clearSession();
+  }
+
+  /**
+   * Signs out a session the server has ended, and says why on the login page.
+   *
+   * Several requests can fail at once when a session is revoked — the
+   * heartbeat, a list, a poll — so only the first one acts.
+   */
+  endRevokedSession(): void {
+    if (this.currentUser() === null) {
+      return;
+    }
+    try {
+      sessionStorage.setItem(SIGN_OUT_REASON_KEY, SIGNED_OUT_ELSEWHERE);
+    } catch {
+      // The sign-out still happens; only the explanation is lost.
+    }
+    this.clearSession();
+  }
+
+  /** Why the user was last signed out, read once so it does not linger. */
+  takeSignOutReason(): string | null {
+    try {
+      const reason = sessionStorage.getItem(SIGN_OUT_REASON_KEY);
+      sessionStorage.removeItem(SIGN_OUT_REASON_KEY);
+      return reason;
+    } catch {
+      return null;
+    }
   }
 
   /** Drops local session state without navigating. */

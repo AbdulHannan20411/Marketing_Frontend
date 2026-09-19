@@ -19,6 +19,7 @@ import { TimeAgoPipe } from '@shared/pipes/time-ago.pipe';
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
 import { BadgeComponent, type BadgeTone } from '@shared/ui/badge/badge.component';
 import { IconComponent } from '@shared/ui/icon/icon.component';
+import { WhatsAppSwitcherComponent } from '@layout/whatsapp-switcher/whatsapp-switcher.component';
 
 export const NOTIFICATION_TONE: Readonly<Record<AppNotification['priority'], BadgeTone>> = {
   critical: 'danger',
@@ -30,7 +31,14 @@ export const NOTIFICATION_TONE: Readonly<Record<AppNotification['priority'], Bad
 @Component({
   selector: 'app-topbar',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, TimeAgoPipe, IconComponent, AvatarComponent, BadgeComponent],
+  imports: [
+    RouterLink,
+    TimeAgoPipe,
+    IconComponent,
+    AvatarComponent,
+    BadgeComponent,
+    WhatsAppSwitcherComponent,
+  ],
   templateUrl: './topbar.component.html',
   host: {
     class:
