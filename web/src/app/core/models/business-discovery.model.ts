@@ -21,15 +21,48 @@ export interface LatLng {
 }
 
 /**
- * Radii offered in the UI, in kilometres.
+ * Radii offered before the plan's limit is known, in kilometres.
  *
- * Capped at 50: provider cost scales with area, and a 50 km circle over a city
- * already returns more businesses than anyone will review. The backend enforces
- * its own ceiling — this list is convenience, not security.
+ * The platform caps every search at 10 km: provider cost scales with area, and
+ * a 10 km circle over a city already returns more businesses than anyone will
+ * review. The backend enforces the ceiling — this list is convenience.
  */
-export const RADIUS_OPTIONS_KM: readonly number[] = [1, 2, 5, 10, 20, 50];
+export const RADIUS_OPTIONS_KM: readonly number[] = [1, 2, 5, 10];
 
 export const DEFAULT_RADIUS_KM = 5;
+
+/** The platform's own ceiling, whatever the plan says. */
+export const MAX_RADIUS_KM = 10;
+
+/**
+ * The radii a plan allows: every whole kilometre from 1 to its limit, so a
+ * 5 km plan offers 1–5 and a 10 km plan 1–10.
+ *
+ * - `null` (no plan ceiling) offers 1 to the platform's 10.
+ * - `0` offers nothing: the plan has no nearby search.
+ * - `undefined` — limits not loaded yet, or an API that does not send the
+ *   field — keeps the old fixed list rather than offering nothing.
+ */
+export function radiusOptionsFor(limit: number | null | undefined): readonly number[] {
+  if (limit === undefined) {
+    return RADIUS_OPTIONS_KM;
+  }
+  const ceiling = limit === null ? MAX_RADIUS_KM : Math.min(Math.floor(limit), MAX_RADIUS_KM);
+  return Array.from({ length: Math.max(0, ceiling) }, (_, index) => index + 1);
+}
+
+/**
+ * The radius actually used: the choice if the plan allows it, otherwise the
+ * widest allowed radius below it — so a 5 km default on a 3 km plan becomes 3.
+ * `0` when nothing is allowed.
+ */
+export function effectiveRadius(chosen: number, options: readonly number[]): number {
+  if (options.includes(chosen)) {
+    return chosen;
+  }
+  const below = options.filter((option) => option <= chosen);
+  return below.length > 0 ? below[below.length - 1] : (options[0] ?? 0);
+}
 
 export interface BusinessCategory {
   /** Sent to the API. Provider-neutral slug, e.g. `barber`. */

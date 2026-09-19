@@ -353,7 +353,7 @@ This feature can spend real money quickly, and it is worth being conservative fr
 | --- | --- |
 | Searches per user | 30/hour |
 | Searches per tenant | 200/day |
-| Max radius | 50 km, enforced server-side |
+| Max radius | 10 km, enforced server-side (was 50; plans can set lower — see API-AI-AUTOREPLY-PERMISSION-AND-RADIUS-BACKEND.md) |
 | Max `pageSize` | 50 |
 | Max pages per search | Cap total results per search — 200 is generous for a review UI |
 | Cache TTL | 24 h on search results (§3) |

@@ -24,6 +24,13 @@ import type {
 import type { Contact } from '@core/models/contact.model';
 import type { AutoReplyDraft, AutoReplySettings } from '@core/models/auto-reply.model';
 import { AUTO_REPLY_TRIGGERS, autoReplyProblems } from '@core/models/auto-reply.model';
+import type { AutoReplyKnowledge, AutoReplyKnowledgeDraft } from '@core/models/auto-reply-knowledge.model';
+import {
+  DEFAULT_FALLBACK_MESSAGE,
+  KNOWLEDGE_KINDS,
+  KNOWLEDGE_LIMITS,
+  knowledgeEntryProblems,
+} from '@core/models/auto-reply-knowledge.model';
 import type { Employee } from '@core/models/employee.model';
 import type { WhatsAppAccess } from '@core/models/whatsapp-account.model';
 import type {
@@ -154,6 +161,15 @@ let autoReplySettings: AutoReplySettings = {
   remainingThisPeriod: 363,
   periodEndsAt: new Date(Date.now() + 12 * 86_400_000).toISOString(),
   assistantConfigured: true,
+};
+/** Empty to start, so the template-first screen is what a new admin sees. */
+let autoReplyKnowledge: AutoReplyKnowledge = {
+  entries: [],
+  fallback: 'handoff',
+  fallbackMessage: DEFAULT_FALLBACK_MESSAGE,
+  sourceFileName: null,
+  updatedAt: null,
+  updatedByName: null,
 };
 function nextPlanId(): string {
   return `plan_${crypto.randomUUID().slice(0, 8)}`;
@@ -617,12 +633,21 @@ function handleBusinessDiscovery(
     };
 
     // The real API caps the radius; refusing here proves the client surfaces it.
-    if (query.radiusKm > 50) {
+    if (query.radiusKm > 10) {
       return fail(
         422,
         'Radius too large',
-        'The maximum search radius is 50 km.',
+        'The maximum search radius is 10 km.',
         'radius_too_large',
+      );
+    }
+    const planRadius = SUBSCRIPTION_SNAPSHOT.plan.limits.maxSearchRadiusKm;
+    if (planRadius !== null && query.radiusKm > planRadius) {
+      return fail(
+        403,
+        'Radius not in your plan',
+        `Your plan allows searching up to ${planRadius} km.`,
+        'radius_exceeds_plan',
       );
     }
 
@@ -1893,6 +1918,67 @@ export const mockBackendInterceptor: HttpInterceptorFn = (request, next) => {
   }
   if (method === 'POST' && path === '/templates/sync') {
     return ok(TEMPLATES, `Synced ${TEMPLATES.length} templates from Meta.`);
+  }
+  if (path === '/whatsapp/auto-reply/knowledge') {
+    if (method === 'GET') {
+      return ok(autoReplyKnowledge);
+    }
+    if (method === 'DELETE') {
+      autoReplyKnowledge = {
+        ...autoReplyKnowledge,
+        entries: [],
+        sourceFileName: null,
+        updatedAt: new Date().toISOString(),
+        updatedByName: 'Ayesha Khan',
+      };
+      return ok(null);
+    }
+    if (method === 'PUT') {
+      const draft = (request.body ?? {}) as Partial<AutoReplyKnowledgeDraft>;
+      const entries = draft.entries ?? [];
+      const errors: Record<string, string[]> = {};
+
+      if (entries.length > KNOWLEDGE_LIMITS.maxEntries) {
+        errors['entries'] = [`At most ${KNOWLEDGE_LIMITS.maxEntries} entries.`];
+      }
+      const firstIndexFor = new Map<string, number>();
+      entries.forEach((entry, index) => {
+        const problems = KNOWLEDGE_KINDS.includes(entry.kind)
+          ? knowledgeEntryProblems(entry)
+          : ['Unknown type.'];
+        const key = `${entry.kind}|${entry.title.trim().toLowerCase().replace(/\s+/g, ' ')}`;
+        const earlier = firstIndexFor.get(key);
+        if (earlier === undefined) {
+          firstIndexFor.set(key, index);
+        } else {
+          problems.push(`the same ${entry.kind} title is already in entry ${earlier + 1}. Keep one of them.`);
+        }
+        if (problems.length > 0) {
+          errors[`entries[${index}]`] = problems.map((problem) => `Entry ${index + 1} ("${entry.title}"): ${problem}`);
+        }
+      });
+      const fallback = draft.fallback === 'silent' ? 'silent' : 'handoff';
+      const message = (draft.fallbackMessage ?? '').trim();
+      if (fallback === 'handoff' && (message === '' || message.length > KNOWLEDGE_LIMITS.fallbackMessageMax)) {
+        errors['fallbackMessage'] = [`The holding message must be 1 to ${KNOWLEDGE_LIMITS.fallbackMessageMax} characters.`];
+      }
+      if (Object.keys(errors).length > 0) {
+        return failValidation(errors);
+      }
+
+      autoReplyKnowledge = {
+        // As the API stores them: products keep price and availability, nothing else does.
+        entries: entries.map((entry) =>
+          entry.kind === 'product' ? entry : { ...entry, price: null, available: null },
+        ),
+        fallback,
+        fallbackMessage: message === '' ? autoReplyKnowledge.fallbackMessage : message,
+        sourceFileName: draft.sourceFileName?.split(/[\\/]/).pop()?.slice(0, 255) ?? null,
+        updatedAt: new Date().toISOString(),
+        updatedByName: 'Ayesha Khan',
+      };
+      return ok(autoReplyKnowledge, 'Knowledge saved.');
+    }
   }
   if (path === '/whatsapp/auto-reply') {
     if (method === 'GET') {

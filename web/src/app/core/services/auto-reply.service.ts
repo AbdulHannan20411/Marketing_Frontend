@@ -9,7 +9,7 @@ const BASE = '/whatsapp/auto-reply';
 /**
  * AI auto-reply settings.
  *
- * Module-gated on the API (`ai`) and behind `settings.integrations`, so a 403
+ * Module-gated on the API (`ai`) and behind `ai.autoreply.manage`, so a 403
  * here is a real answer rather than a bug.
  */
 @Injectable({ providedIn: 'root' })

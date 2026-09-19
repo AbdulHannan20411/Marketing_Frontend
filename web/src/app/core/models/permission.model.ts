@@ -64,6 +64,7 @@ export const PERMISSIONS = [
 
   // AI
   'ai.assistant.use',
+  'ai.autoreply.manage',
 
   // Settings
   'settings.company',
@@ -298,14 +299,20 @@ export const PERMISSION_CATALOGUE: readonly PermissionCategory[] = [
   },
   {
     key: 'ai',
-    label: 'AI Assistant',
-    description: 'Marketing copy generated with AI.',
+    label: 'AI',
+    description: 'Marketing copy generated with AI, and automatic replies to customers.',
     module: 'ai',
     permissions: [
       {
         key: 'ai.assistant.use',
         label: 'Use AI assistant',
         description: 'Generate marketing copy. Each request uses AI credits.',
+      },
+      {
+        key: 'ai.autoreply.manage',
+        label: 'Manage auto-reply',
+        description:
+          'Turn automatic replies on or off, choose when they send, and upload what the assistant knows.',
       },
     ],
   },

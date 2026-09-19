@@ -225,6 +225,15 @@ export const routes: Routes = [
         loadComponent: () =>
           import('@features/ai-assistant/ai-assistant.component').then((m) => m.AiAssistantComponent),
       },
+      {
+        path: 'ai-assistant/auto-reply',
+        title: 'AI auto-reply',
+        canActivate: [scopeGuard],
+        loadComponent: () =>
+          import('@features/whatsapp/auto-reply/auto-reply.component').then(
+            (m) => m.AutoReplyComponent,
+          ),
+      },
 
       /* Platform-level administration */
       {
@@ -432,16 +441,8 @@ export const routes: Routes = [
             (m) => m.CampaignDetailComponent,
           ),
       },
-      {
-        path: 'whatsapp/auto-reply',
-        title: 'AI auto-reply',
-        canActivate: [permissionGuard, featureGuard],
-        data: { permissions: ['settings.integrations'], module: 'ai' },
-        loadComponent: () =>
-          import('@features/whatsapp/auto-reply/auto-reply.component').then(
-            (m) => m.AutoReplyComponent,
-          ),
-      },
+      // Moved under AI; kept so old bookmarks and links still land.
+      { path: 'whatsapp/auto-reply', redirectTo: 'ai-assistant/auto-reply', pathMatch: 'full' },
       {
         path: 'inbox',
         title: 'Inbox',
@@ -458,6 +459,16 @@ export const routes: Routes = [
         data: { permissions: ['ai.assistant.use'], module: 'ai' },
         loadComponent: () =>
           import('@features/ai-assistant/ai-assistant.component').then((m) => m.AiAssistantComponent),
+      },
+      {
+        path: 'ai-assistant/auto-reply',
+        title: 'AI auto-reply',
+        canActivate: [permissionGuard, featureGuard],
+        data: { permissions: ['ai.autoreply.manage'], module: 'ai' },
+        loadComponent: () =>
+          import('@features/whatsapp/auto-reply/auto-reply.component').then(
+            (m) => m.AutoReplyComponent,
+          ),
       },
 
       /* ---------------- Insights ---------------- */

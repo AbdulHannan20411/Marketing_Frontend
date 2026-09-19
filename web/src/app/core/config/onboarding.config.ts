@@ -63,6 +63,18 @@ export const TOUR_STEPS: readonly TourStepContent[] = [
       'When someone replies, the conversation lands here. You can answer freely for 24 hours after their last message; after that WhatsApp requires a template again.',
   },
   {
+    route: '/ai-assistant',
+    title: 'AI Assistant',
+    description:
+      'Describe what you need — a promotion, a reminder, a follow-up — and get ready-to-use marketing copy in seconds, to paste into a template or a campaign.',
+  },
+  {
+    route: '/ai-assistant/auto-reply',
+    title: 'Auto-reply',
+    description:
+      'Let the assistant answer customers for you when your team is busy. You choose when it replies and upload a spreadsheet of what it knows — it never guesses beyond that.',
+  },
+  {
     route: '/reports',
     title: 'Reports',
     description:

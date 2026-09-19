@@ -64,6 +64,13 @@ export const SUPERADMIN_NAVIGATION: readonly NavSection[] = [
         permissions: [],
         requiresScope: true,
       },
+      {
+        label: 'Auto-reply',
+        route: '/superadmin/ai-assistant/auto-reply',
+        icon: 'chat',
+        permissions: [],
+        requiresScope: true,
+      },
     ],
   },
   {

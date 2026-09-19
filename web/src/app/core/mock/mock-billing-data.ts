@@ -56,8 +56,8 @@ interface PlanSeed {
   readonly recommended: boolean;
   readonly support: SupportLevel;
   readonly enabled: readonly FeatureModule[];
-  /** The AI reply ceiling is derived below, so seeds need not carry it. */
-  readonly limits: Omit<PlanLimits, 'monthlyAiReplyLimit'>;
+  /** The AI reply ceiling and search radius are derived below, so seeds need not carry them. */
+  readonly limits: Omit<PlanLimits, 'monthlyAiReplyLimit' | 'maxSearchRadiusKm'>;
   readonly highlights: readonly string[];
 }
 
@@ -227,6 +227,15 @@ const PLAN_SEEDS: readonly PlanSeed[] = [
   },
 ];
 
+/** 10 km is the platform ceiling. Growth is the signed-in workspace, so 1–10 is offered. */
+const SEARCH_RADIUS_BY_PLAN: Readonly<Record<string, number | null>> = {
+  plan_starter: 5,
+  plan_growth: 10,
+  plan_scale: 10,
+  plan_enterprise: null,
+  plan_launch_promo: 10,
+};
+
 export const PLANS: readonly SubscriptionPlan[] = PLAN_SEEDS.map((seed, index) => ({
   id: seed.id,
   // Auto-reply is sold with the AI module in these seeds, and `unanswered` is
@@ -250,7 +259,11 @@ export const PLANS: readonly SubscriptionPlan[] = PLAN_SEEDS.map((seed, index) =
   status: seed.promotional ? 'inactive' : 'active',
   supportLevel: seed.support,
   modules: modules(seed.enabled),
-  limits: { ...seed.limits, monthlyAiReplyLimit: seed.enabled.includes('ai') ? 500 : 0 },
+  limits: {
+    ...seed.limits,
+    monthlyAiReplyLimit: seed.enabled.includes('ai') ? 500 : 0,
+    maxSearchRadiusKm: SEARCH_RADIUS_BY_PLAN[seed.id] ?? 5,
+  },
   highlights: seed.highlights,
   sortOrder: index,
   updatedAt: offsetDays(-(index * 9 + 4)),

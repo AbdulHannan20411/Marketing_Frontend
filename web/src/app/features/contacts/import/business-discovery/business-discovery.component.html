@@ -66,7 +66,7 @@
               Click the map to drop a pin instead — searching for businesses still works.
             }
           </div>
-        } @else if (placeQuery().trim().length >= 3) {
+        } @else if (showNoMatch()) {
           <div
             class="absolute z-20 mt-1 w-full rounded-lg bg-surface px-3 py-2.5 text-sm text-ink-muted shadow-lg ring-1 ring-line"
             role="status"
@@ -96,14 +96,28 @@
       <label for="radius" class="block text-sm font-medium text-ink">Radius</label>
       <select
         id="radius"
-        class="mt-1.5 h-10 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink ring-1 ring-line ring-inset transition-all focus:ring-2 focus:ring-brand-500 focus:outline-none"
+        aria-describedby="radius-help"
+        class="mt-1.5 h-10 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink ring-1 ring-line ring-inset transition-all focus:ring-2 focus:ring-brand-500 focus:outline-none disabled:opacity-50"
+        [disabled]="radiusLocked()"
         (change)="setRadius(+$any($event.target).value)"
       >
-        @for (option of radiusOptions; track option) {
+        @for (option of radiusOptions(); track option) {
           <option [value]="option" [selected]="radiusKm() === option">{{ option }} km</option>
+        } @empty {
+          <option value="0" selected>Not in your plan</option>
         }
       </select>
-      <p class="mt-1.5 text-xs text-ink-muted">Shown as a circle on the map.</p>
+      <p id="radius-help" class="mt-1.5 text-xs text-ink-muted">
+        @if (radiusLocked()) {
+          Your plan does not include nearby business search.
+          <a routerLink="/subscription" class="font-medium text-brand-700 hover:underline">See plans</a>
+        } @else if (radiusLimit()) {
+          Up to {{ radiusLimit() }} km on your plan.
+          <a routerLink="/subscription" class="font-medium text-brand-700 hover:underline">Need wider?</a>
+        } @else {
+          Shown as a circle on the map.
+        }
+      </p>
     </div>
   </div>
 

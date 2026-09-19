@@ -60,13 +60,6 @@ export const NAVIGATION: readonly NavSection[] = [
         module: 'whatsapp',
       },
       {
-        label: 'Auto-reply',
-        route: '/whatsapp/auto-reply',
-        icon: 'sparkles',
-        permissions: ['settings.integrations'],
-        module: 'ai',
-      },
-      {
         label: 'Templates',
         route: '/templates',
         icon: 'document',
@@ -97,6 +90,13 @@ export const NAVIGATION: readonly NavSection[] = [
         route: '/ai-assistant',
         icon: 'sparkles',
         permissions: ['ai.assistant.use'],
+        module: 'ai',
+      },
+      {
+        label: 'Auto-reply',
+        route: '/ai-assistant/auto-reply',
+        icon: 'chat',
+        permissions: ['ai.autoreply.manage'],
         module: 'ai',
       },
     ],

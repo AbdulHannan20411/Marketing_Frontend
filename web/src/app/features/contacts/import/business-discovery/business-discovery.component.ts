@@ -1,8 +1,8 @@
 import { DecimalPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Router } from '@angular/router';
-import { Subject, catchError, debounceTime, distinctUntilChanged, of, switchMap } from 'rxjs';
+import { Router, RouterLink } from '@angular/router';
+import { Subject, catchError, debounceTime, map, of, switchMap } from 'rxjs';
 
 import type { ApiError } from '@core/models/api.model';
 import type {
@@ -13,8 +13,9 @@ import type {
 } from '@core/models/business-discovery.model';
 import {
   DEFAULT_RADIUS_KM,
-  RADIUS_OPTIONS_KM,
   buildBusinessCsv,
+  effectiveRadius,
+  radiusOptionsFor,
   businessCsvFileName,
   isContactable,
 } from '@core/models/business-discovery.model';
@@ -22,6 +23,7 @@ import {
   BusinessDiscoveryService,
   type PlaceSuggestion,
 } from '@core/services/business-discovery.service';
+import { EntitlementService } from '@core/services/entitlement.service';
 import { ToastService } from '@core/services/toast.service';
 import { ButtonDirective } from '@shared/ui/button/button.directive';
 import { CardComponent } from '@shared/ui/card/card.component';
@@ -75,6 +77,7 @@ type Stage = 'search' | 'results' | 'review';
   selector: 'app-business-discovery',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    RouterLink,
     DecimalPipe,
     ButtonDirective,
     CardComponent,
@@ -91,7 +94,19 @@ export class BusinessDiscoveryComponent {
   private readonly toast = inject(ToastService);
   private readonly router = inject(Router);
 
-  protected readonly radiusOptions = RADIUS_OPTIONS_KM;
+  private readonly entitlements = inject(EntitlementService);
+
+  /**
+   * The plan's widest search. `undefined` until entitlements arrive or on an
+   * API that predates the limit; `null` for no ceiling, which is also what a
+   * Super Admin gets — plan limits never apply to them.
+   */
+  protected readonly radiusLimit = computed<number | null | undefined>(() =>
+    this.entitlements.isUnrestricted() ? null : this.entitlements.limits()?.maxSearchRadiusKm,
+  );
+  protected readonly radiusOptions = computed(() => radiusOptionsFor(this.radiusLimit()));
+  /** The plan allows no nearby search at all. */
+  protected readonly radiusLocked = computed(() => this.radiusOptions().length === 0);
   protected readonly stage = signal<Stage>('search');
 
   /* ------------------------------ location ------------------------------ */
@@ -112,12 +127,29 @@ export class BusinessDiscoveryComponent {
    */
   protected readonly placeSearchIssue = signal<'none' | 'unavailable' | 'unconfigured'>('none');
   protected readonly locatingMe = signal(false);
+  /**
+   * The typed term a finished search found nothing for.
+   *
+   * "No places match" used to show whenever the box held three characters and
+   * the dropdown was empty — which is also true right after choosing a place or
+   * a map pin fills the box with its name, and while a search is still running.
+   * It now shows only when a search for exactly this text came back empty.
+   */
+  protected readonly noMatchFor = signal<string | null>(null);
+  protected readonly showNoMatch = computed(
+    () =>
+      !this.searchingPlaces() &&
+      this.noMatchFor() !== null &&
+      this.noMatchFor() === this.placeQuery().trim(),
+  );
 
   private readonly placeInput = new Subject<string>();
 
   /* ------------------------------- inputs ------------------------------- */
 
-  protected readonly radiusKm = signal(DEFAULT_RADIUS_KM);
+  /** What the user picked. `radiusKm` is what is used, kept inside the plan. */
+  private readonly chosenRadiusKm = signal(DEFAULT_RADIUS_KM);
+  protected readonly radiusKm = computed(() => effectiveRadius(this.chosenRadiusKm(), this.radiusOptions()));
   protected readonly categories = signal<readonly BusinessCategory[]>(FALLBACK_CATEGORIES);
   protected readonly categoryQuery = signal('');
   protected readonly categoryId = signal<string | null>(null);
@@ -157,7 +189,6 @@ export class BusinessDiscoveryComponent {
     this.placeInput
       .pipe(
         debounceTime(350),
-        distinctUntilChanged(),
         switchMap((term) => {
           this.searchingPlaces.set(true);
 
@@ -166,23 +197,30 @@ export class BusinessDiscoveryComponent {
           // ignores every later keystroke for the life of the screen - the
           // first failure silently broke the feature until a reload.
           return this.discovery.searchPlaces(term).pipe(
+            map((found): readonly [string, readonly PlaceSuggestion[] | null] => [term, found]),
             catchError((error: ApiError) => {
               this.placeSearchIssue.set(
                 error.errorCode === 'provider_not_configured' ? 'unconfigured' : 'unavailable',
               );
-              return of(null as readonly PlaceSuggestion[] | null);
+              return of([term, null] as const);
             }),
           );
         }),
         takeUntilDestroyed(),
       )
-      .subscribe((found) => {
+      .subscribe(([term, found]) => {
+        this.searchingPlaces.set(false);
+        // The box moved on while this was in flight — a place was chosen, a pin
+        // dropped, or more was typed. A late answer must not reopen the list.
+        if (term !== this.placeQuery().trim()) {
+          return;
+        }
         // Geocoding is a convenience; the map and pin still work without it.
         this.suggestions.set(found ?? []);
         if (found !== null) {
           this.placeSearchIssue.set('none');
+          this.noMatchFor.set(found.length === 0 ? term : null);
         }
-        this.searchingPlaces.set(false);
       });
 
     this.discovery.listCategories().subscribe({
@@ -203,7 +241,9 @@ export class BusinessDiscoveryComponent {
   protected onPlaceQuery(event: Event): void {
     const value = (event.target as HTMLInputElement).value;
     this.placeQuery.set(value);
+    this.noMatchFor.set(null);
     if (value.trim().length >= 3) {
+      this.searchingPlaces.set(true);
       this.placeInput.next(value.trim());
     } else {
       this.suggestions.set([]);
@@ -219,6 +259,8 @@ export class BusinessDiscoveryComponent {
     this.placeCountry.set(place.country);
     this.placeQuery.set(place.label);
     this.suggestions.set([]);
+    this.noMatchFor.set(null);
+    this.searchingPlaces.set(false);
   }
 
   /**
@@ -232,6 +274,9 @@ export class BusinessDiscoveryComponent {
     this.center.set(point);
     this.placeLabel.set(null);
     this.placeQuery.set('');
+    this.suggestions.set([]);
+    this.noMatchFor.set(null);
+    this.searchingPlaces.set(false);
 
     this.discovery.describePoint(point).subscribe({
       next: (place) => {
@@ -280,7 +325,7 @@ export class BusinessDiscoveryComponent {
   }
 
   protected setRadius(km: number): void {
-    this.radiusKm.set(km);
+    this.chosenRadiusKm.set(km);
   }
 
   /* ------------------------------ category ------------------------------ */
@@ -445,6 +490,10 @@ export class BusinessDiscoveryComponent {
     // is never mistaken for a transient failure worth retrying.
     if (error.errorCode === 'provider_not_configured') {
       return 'Business search has not been set up on this deployment yet.';
+    }
+    // The plan changed since the page loaded; the API's message names the new limit.
+    if (error.errorCode === 'radius_exceeds_plan') {
+      return error.detail || 'That radius is wider than your plan allows. Choose a smaller one.';
     }
     return error.detail;
   }

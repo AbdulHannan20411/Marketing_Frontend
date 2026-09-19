@@ -1,5 +1,7 @@
 <div class="animate-fade-in space-y-6">
+  <!-- `data-tour-ready` is static: every tour target renders with the page. -->
   <app-page-header
+    data-tour-ready
     title="AI Marketing Assistant"
     description="Describe what you need and get ready-to-use marketing copy in seconds."
     [breadcrumbs]="breadcrumbs"
@@ -7,7 +9,7 @@
 
   <div class="grid items-start gap-6 xl:grid-cols-2">
     <!-- Prompt -->
-    <app-card>
+    <app-card data-tour="ai.prompt">
       <form class="space-y-4" (submit)="$event.preventDefault(); generate()">
         <div>
           <div class="flex items-baseline justify-between gap-3">
@@ -42,7 +44,7 @@
           }
         </div>
 
-        <div>
+        <div data-tour="ai.examples">
           <p class="text-xs font-medium text-ink-muted">Try an example</p>
           <div class="mt-1.5 flex flex-wrap gap-1.5">
             @for (example of examples; track example) {
@@ -61,7 +63,7 @@
           @if (canClear()) {
             <button appButton type="button" variant="ghost" (click)="clear()">Clear</button>
           }
-          <button appButton type="submit" [disabled]="!canGenerate()">
+          <button appButton type="submit" data-tour="ai.generate" [disabled]="!canGenerate()">
             <app-icon name="sparkles" [size]="16" [class.animate-pulse]="state() === 'loading'" />
             {{ state() === 'loading' ? 'Generating…' : 'Generate' }}
           </button>
@@ -70,7 +72,7 @@
     </app-card>
 
     <!-- Response -->
-    <app-card [padded]="false">
+    <app-card [padded]="false" data-tour="ai.response">
       <div class="flex items-center justify-between gap-3 border-b border-line px-5 py-4">
         <h2 class="text-sm font-semibold text-ink">AI Response</h2>
         @if (state() === 'success') {

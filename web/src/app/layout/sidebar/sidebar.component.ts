@@ -23,6 +23,14 @@ export class SidebarComponent {
 
   protected readonly appName = environment.appName;
   protected readonly sections = this.layout.visibleNavigation;
+  /**
+   * Routes another item sits beneath — AI Assistant above Auto-reply, Contacts
+   * above Import. These match exactly, or both would light up on the child page.
+   */
+  protected readonly parentRoutes = computed(() => {
+    const routes = this.sections().flatMap((section) => section.items.map((item) => item.route));
+    return new Set(routes.filter((route) => routes.some((other) => other.startsWith(`${route}/`))));
+  });
   protected readonly collapsed = this.layout.sidebarCollapsed;
   protected readonly mobileOpen = this.layout.mobileNavOpen;
   protected readonly widthClass = computed(() => (this.collapsed() ? 'w-[4.75rem]' : 'w-64'));

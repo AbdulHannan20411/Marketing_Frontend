@@ -2,6 +2,7 @@ import { DatePipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 
+import { AuthService } from '@core/auth/auth.service';
 import type { ApiError, LoadState } from '@core/models/api.model';
 import {
   AUTO_REPLY_RANGES,
@@ -22,6 +23,7 @@ import { IconComponent } from '@shared/ui/icon/icon.component';
 import { PageHeaderComponent } from '@shared/ui/page-header/page-header.component';
 import { SkeletonComponent } from '@shared/ui/skeleton/skeleton.component';
 import { ErrorStateComponent } from '@shared/ui/state/error-state.component';
+import { AutoReplyKnowledgeComponent } from './auto-reply-knowledge.component';
 
 /**
  * Lets an admin hand routine first replies to the assistant.
@@ -43,6 +45,7 @@ import { ErrorStateComponent } from '@shared/ui/state/error-state.component';
     IconComponent,
     SkeletonComponent,
     ErrorStateComponent,
+    AutoReplyKnowledgeComponent,
   ],
   templateUrl: './auto-reply.component.html',
 })
@@ -50,11 +53,17 @@ export class AutoReplyComponent {
   private readonly service = inject(AutoReplyService);
   private readonly toast = inject(ToastService);
 
-  protected readonly breadcrumbs = [
-    { label: 'Home', route: '/dashboard' },
-    { label: 'WhatsApp', route: '/whatsapp' },
-    { label: 'Auto-reply', route: null },
-  ];
+  private readonly auth = inject(AuthService);
+
+  /** Lives under AI in both portals; a Super Admin's links keep the `/superadmin` prefix. */
+  protected readonly breadcrumbs = computed(() => {
+    const base = this.auth.isSuperAdmin() ? '/superadmin' : '';
+    return [
+      { label: 'Home', route: `${base}/dashboard` },
+      { label: 'AI Assistant', route: `${base}/ai-assistant` },
+      { label: 'Auto-reply', route: null },
+    ];
+  });
   protected readonly triggerKeys = AUTO_REPLY_TRIGGERS;
   protected readonly triggerCopy = AUTO_REPLY_TRIGGER_COPY;
   protected readonly ranges = AUTO_REPLY_RANGES;
@@ -75,6 +84,7 @@ export class AutoReplyComponent {
   protected readonly delaySeconds = signal(60);
   protected readonly unansweredAfterMinutes = signal(300);
   protected readonly maxPerConversationPerDay = signal(3);
+  /** No longer edited here — the knowledge file replaced the free-text box. Sent back unchanged. */
   protected readonly instructions = signal('');
 
   protected readonly configured = computed(() => this.settings()?.assistantConfigured === true);

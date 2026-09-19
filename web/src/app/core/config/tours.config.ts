@@ -236,6 +236,109 @@ const CAMPAIGNS_TOUR: GuidedTour = {
   ],
 };
 
+/** The AI copywriter: what to ask, and what to do with the answer. */
+const AI_ASSISTANT_TOUR: GuidedTour = {
+  id: 'ai-assistant-tour',
+  title: 'AI Assistant',
+  description: 'Learn how to write marketing copy with AI.',
+  type: 'module',
+  module: 'ai',
+  requiresRoute: '/ai-assistant',
+  steps: [
+    {
+      route: '/ai-assistant',
+      title: 'AI Assistant',
+      description:
+        'Marketing copy on demand — promotions, reminders, follow-ups and announcements, written for WhatsApp. Each request uses AI credits from your plan.',
+    },
+    {
+      route: '/ai-assistant',
+      target: 'ai.prompt',
+      title: 'Say what you need',
+      description:
+        'Name the business, the offer and who it is for. "20% off teeth whitening for new patients this week" gets a far better result than "a promotion".',
+    },
+    {
+      route: '/ai-assistant',
+      target: 'ai.examples',
+      title: 'Not sure where to start?',
+      description: 'Pick an example to fill the box, then change the details to match your business.',
+    },
+    {
+      route: '/ai-assistant',
+      target: 'ai.generate',
+      title: 'Generate',
+      description: 'Takes a few seconds. Not quite right? Adjust the request and generate again.',
+    },
+    {
+      route: '/ai-assistant',
+      target: 'ai.response',
+      title: 'Use the result',
+      description:
+        'Copy it into a new template or a campaign. Read it through first — you are the one sending it, so check names, prices and dates.',
+    },
+  ],
+};
+
+/** Automatic replies: when they fire, and what the assistant is allowed to say. */
+const AUTO_REPLY_TOUR: GuidedTour = {
+  id: 'auto-reply-tour',
+  title: 'Auto-reply',
+  description: 'Learn how the assistant answers customers for you, and how to teach it your business.',
+  type: 'module',
+  module: 'ai',
+  requiresRoute: '/ai-assistant/auto-reply',
+  steps: [
+    {
+      route: '/ai-assistant/auto-reply',
+      title: 'Auto-reply',
+      description:
+        'The assistant answers customers on WhatsApp when your team has not yet — only inside the 24-hour window, and never after someone from your team has replied.',
+    },
+    {
+      route: '/ai-assistant/auto-reply',
+      target: 'autoreply.switch',
+      title: 'The master switch',
+      description: 'Turns every automatic reply on or off at once. Your settings are kept either way.',
+    },
+    {
+      route: '/ai-assistant/auto-reply',
+      target: 'autoreply.occasions',
+      title: 'When it replies',
+      description:
+        'A greeting, a new customer’s first message, or a message nobody has answered. Occasions your plan does not include are shown with an upgrade link.',
+    },
+    {
+      route: '/ai-assistant/auto-reply',
+      target: 'autoreply.timing',
+      title: 'Timing and limits',
+      description:
+        'A short wait gives your team the chance to answer first. The daily cap stops one customer from getting a stream of automatic messages.',
+    },
+    {
+      route: '/ai-assistant/auto-reply',
+      target: 'autoreply.knowledge',
+      title: 'What it knows',
+      description:
+        'The assistant answers only from the rows you upload: business info, FAQs, products and prices, policies and rules. For anything else it sends your holding message, or nothing — your choice.',
+    },
+    {
+      route: '/ai-assistant/auto-reply',
+      target: 'autoreply.template',
+      title: 'Start from the template',
+      description:
+        'An Excel file with dropdowns for each option and example rows. Fill it in, upload it, and check the preview — problems are pointed out by row number before anything is saved.',
+    },
+    {
+      route: '/ai-assistant/auto-reply',
+      target: 'autoreply.allowance',
+      title: 'Your monthly allowance',
+      description:
+        'How many automatic replies your plan includes this cycle. When it runs out they pause until the next cycle, and admins are notified.',
+    },
+  ],
+};
+
 /**
  * The registry. Order is the order Settings lists them in.
  *
@@ -247,6 +350,8 @@ export const GUIDED_TOURS: readonly GuidedTour[] = [
   CONTACTS_TOUR,
   CAMPAIGNS_TOUR,
   TEMPLATES_TOUR,
+  AI_ASSISTANT_TOUR,
+  AUTO_REPLY_TOUR,
 ];
 
 /** The general tour's id, for the one place that genuinely needs to name it. */

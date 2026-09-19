@@ -1,0 +1,351 @@
+<app-card
+  title="What should the assistant know?"
+  subtitle="Fill in the template. It answers only from your rows — anything else goes to your team."
+>
+  <button cardActions appButton variant="outline" size="sm" data-tour="autoreply.template" (click)="downloadTemplate()">
+    <app-icon name="download" [size]="14" />
+    Template
+  </button>
+
+  <input
+    #fileInput
+    type="file"
+    class="sr-only"
+    tabindex="-1"
+    aria-hidden="true"
+    [accept]="acceptAttr"
+    (change)="onFileInput($event)"
+  />
+
+  @switch (state()) {
+    @case ('loading') {
+      <div class="space-y-3" aria-busy="true">
+        <app-skeleton height="5rem" />
+        <app-skeleton height="3rem" />
+      </div>
+    }
+    @case ('error') {
+      <app-error-state
+        title="Could not load what the assistant knows"
+        description="Nothing has changed. Try again in a moment."
+        (retry)="load()"
+      />
+    }
+    @default {
+      <div class="space-y-5">
+        @if (state() === 'unsupported') {
+          <p class="flex items-start gap-2 rounded-lg bg-amber-50 p-3 text-xs text-amber-800 ring-1 ring-amber-200 ring-inset" role="status">
+            <app-icon name="info" [size]="15" class="mt-px shrink-0" />
+            The template and file check work now. Saving turns on once the server is updated.
+          </p>
+        }
+
+        @if (hasLegacyNotes()) {
+          <div class="rounded-lg bg-surface-sunken p-3.5 ring-1 ring-line ring-inset">
+            <p class="text-sm font-medium text-ink">Your earlier notes are still in use</p>
+            <p class="mt-0.5 line-clamp-2 text-xs text-ink-muted">"{{ legacyNotes() }}"</p>
+            <p class="mt-1.5 text-xs text-ink-muted">
+              They are replaced once you upload a file.
+              <button type="button" class="font-medium text-brand-700 hover:underline" (click)="downloadCurrent()">
+                Download the template with them in it
+              </button>
+              so nothing is lost.
+            </p>
+          </div>
+        }
+
+        <!-- ─── Preview of an uploaded file ─── -->
+        @if (preview(); as current) {
+          <section class="animate-fade-in space-y-4" aria-label="File preview">
+            <div class="flex flex-wrap items-start justify-between gap-3">
+              <div class="flex min-w-0 items-start gap-3">
+                <span class="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-brand-50 text-brand-700 ring-1 ring-brand-200 ring-inset">
+                  <app-icon name="tableCells" [size]="20" />
+                </span>
+                <div class="min-w-0">
+                  <p class="truncate text-sm font-semibold text-ink">{{ current.fileName }}</p>
+                  <p class="mt-0.5 text-xs text-ink-muted">
+                    <span class="font-medium text-brand-700">{{ current.result.entries.length }} {{ entryWord(current.result.entries.length) }} ready</span>
+                    @if (current.result.issues.length > 0) {
+                      · <span class="font-medium text-danger">{{ current.result.issues.length }} {{ current.result.issues.length === 1 ? 'row needs' : 'rows need' }} fixing</span>
+                    }
+                  </p>
+                </div>
+              </div>
+              <button appButton variant="ghost" size="sm" (click)="fileInput.click()">
+                <app-icon name="upload" [size]="14" />
+                Choose another file
+              </button>
+            </div>
+
+            @if (current.result.issues.length > 0) {
+              <div class="rounded-lg bg-red-50 p-3.5 ring-1 ring-red-200 ring-inset" role="alert">
+                <p class="text-sm font-medium text-red-800">
+                  These rows are left out. Fix them in the file and upload it again, or save the rest.
+                </p>
+                <ul class="mt-2 space-y-1 text-xs text-red-700">
+                  @for (issue of issuesShown() ? current.result.issues : current.result.issues.slice(0, 5); track $index) {
+                    <li><span class="font-semibold tabular-nums">Row {{ issue.row }}:</span> {{ issue.message }}</li>
+                  }
+                </ul>
+                @if (!issuesShown() && current.result.issues.length > 5) {
+                  <button type="button" class="mt-1.5 text-xs font-medium text-red-800 underline" (click)="issuesShown.set(true)">
+                    Show all {{ current.result.issues.length }}
+                  </button>
+                }
+              </div>
+            }
+
+            @for (warning of current.result.warnings; track $index) {
+              <p class="flex items-start gap-2 rounded-lg bg-amber-50 p-3 text-xs text-amber-800 ring-1 ring-amber-200 ring-inset">
+                <app-icon name="warning" [size]="15" class="mt-px shrink-0" />
+                {{ warning }}
+              </p>
+            }
+
+            @if (current.result.entries.length > 0) {
+              <app-knowledge-entry-list [entries]="current.result.entries" />
+            }
+          </section>
+        }
+
+        @else if (savedEntries().length > 0) {
+          <!-- What is saved -->
+          <section class="space-y-4" aria-label="Saved knowledge">
+            <div class="grid grid-cols-2 gap-2 sm:grid-cols-5">
+              @for (kind of kinds; track kind) {
+                <div class="rounded-lg bg-surface-sunken px-3 py-2.5 ring-1 ring-line ring-inset">
+                  <p class="text-lg font-semibold text-ink tabular-nums">{{ savedCounts()[kind] }}</p>
+                  <p class="text-[11px] text-ink-muted">{{ kindCopy[kind].plural }}</p>
+                </div>
+              }
+            </div>
+
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <p class="text-xs text-ink-muted">
+                @if (saved()?.sourceFileName; as fileName) {
+                  From <span class="font-medium text-ink-soft">{{ fileName }}</span>
+                }
+                @if (saved()?.updatedAt; as updatedAt) {
+                  · updated {{ updatedAt | date: 'd MMM, HH:mm' }}
+                  @if (saved()?.updatedByName; as by) {
+                    by {{ by }}
+                  }
+                }
+              </p>
+              <div class="flex flex-wrap gap-2">
+                <button appButton variant="outline" size="sm" (click)="downloadCurrent()">
+                  <app-icon name="download" [size]="14" />
+                  Download to edit
+                </button>
+                @if (confirmingClear()) {
+                  <span class="flex items-center gap-1.5 rounded-lg bg-red-50 px-2 py-1 ring-1 ring-red-200 ring-inset">
+                    <span class="text-xs text-red-800">Remove all {{ savedEntries().length }}?</span>
+                    <button appButton variant="ghost" size="sm" (click)="confirmingClear.set(false)">Keep</button>
+                    <button appButton variant="danger" size="sm" [disabled]="saving()" (click)="clear()">Remove</button>
+                  </span>
+                } @else {
+                  <button appButton variant="ghost" size="sm" [disabled]="!configured()" (click)="confirmingClear.set(true)">
+                    <app-icon name="trash" [size]="14" />
+                    Remove
+                  </button>
+                }
+              </div>
+            </div>
+
+            <app-knowledge-entry-list [entries]="savedEntries()" />
+          </section>
+        }
+
+        @else {
+          @if (saved()?.updatedAt; as clearedAt) {
+            <p class="text-xs text-ink-muted">
+              Removed {{ clearedAt | date: 'd MMM, HH:mm' }}
+              @if (saved()?.updatedByName; as by) {
+                by {{ by }}
+              }
+              — upload a file to give the assistant something to answer from again.
+            </p>
+          }
+          <ol class="grid gap-3 md:grid-cols-3">
+            <li class="rounded-lg bg-surface-sunken p-4 ring-1 ring-line ring-inset">
+              <span class="grid h-6 w-6 place-items-center rounded-full bg-brand-600 text-xs font-semibold text-white">1</span>
+              <p class="mt-2.5 text-sm font-medium text-ink">Download the template</p>
+              <p class="mt-1 text-xs leading-relaxed text-ink-muted">
+                An Excel file with a dropdown for each option, example rows and a "How to fill" sheet.
+              </p>
+              <button appButton variant="outline" size="sm" class="mt-3" (click)="downloadTemplate()">
+                <app-icon name="download" [size]="14" />
+                Download template
+              </button>
+            </li>
+            <li class="rounded-lg bg-surface-sunken p-4 ring-1 ring-line ring-inset">
+              <span class="grid h-6 w-6 place-items-center rounded-full bg-brand-600 text-xs font-semibold text-white">2</span>
+              <p class="mt-2.5 text-sm font-medium text-ink">Fill it in</p>
+              <p class="mt-1 text-xs leading-relaxed text-ink-muted">
+                One fact per row. Works in Excel or Google Sheets — replace the examples with your own.
+              </p>
+            </li>
+            <li class="rounded-lg bg-surface-sunken p-4 ring-1 ring-line ring-inset">
+              <span class="grid h-6 w-6 place-items-center rounded-full bg-brand-600 text-xs font-semibold text-white">3</span>
+              <p class="mt-2.5 text-sm font-medium text-ink">Upload and check</p>
+              <p class="mt-1 text-xs leading-relaxed text-ink-muted">
+                You see every row before anything is saved, with any problems pointed out by row number.
+              </p>
+            </li>
+          </ol>
+
+          <div>
+            <p class="text-xs font-medium text-ink-soft">What each "Type" is for</p>
+            <dl class="mt-2 grid gap-x-4 gap-y-2 sm:grid-cols-2">
+              @for (kind of kinds; track kind) {
+                <div class="flex gap-2 text-xs">
+                  <dt class="w-32 shrink-0 font-medium text-ink">{{ kindCopy[kind].option }}</dt>
+                  <dd class="text-ink-muted">{{ kindCopy[kind].titleHint }}</dd>
+                </div>
+              }
+            </dl>
+          </div>
+        }
+
+        <!-- ─── Upload area (hidden while a preview is open; it has its own button) ─── -->
+        @if (preview() === null) {
+          <div
+            class="flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-6 py-7 text-center transition-all duration-200 sm:flex-row sm:gap-4 sm:text-left"
+            [class]="
+              dragging()
+                ? 'border-brand-500 bg-brand-50'
+                : 'border-line bg-surface-sunken/60 hover:border-brand-400 hover:bg-brand-50/40'
+            "
+            (dragover)="onDragOver($event)"
+            (dragleave)="onDragLeave($event)"
+            (drop)="onDrop($event)"
+          >
+            <span class="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-surface text-ink-muted ring-1 ring-line">
+              @if (reading()) {
+                <app-icon name="refresh" [size]="18" class="animate-spin" />
+              } @else {
+                <app-icon name="upload" [size]="18" />
+              }
+            </span>
+            <div class="min-w-0 flex-1">
+              <p class="text-sm font-medium text-ink">
+                @if (reading()) {
+                  Reading the file…
+                } @else if (savedEntries().length > 0) {
+                  Upload a new version
+                } @else {
+                  Upload your filled-in template
+                }
+              </p>
+              <p class="text-xs text-ink-muted">
+                Drop it here, or browse. .xlsx or .csv, up to 2 MB.
+                @if (savedEntries().length > 0) {
+                  It replaces all {{ savedEntries().length }} {{ entryWord(savedEntries().length) }} — you check it first.
+                }
+              </p>
+            </div>
+            <button appButton variant="outline" size="sm" [disabled]="reading()" (click)="fileInput.click()">
+              Browse files
+            </button>
+          </div>
+        }
+
+        @if (fileError(); as message) {
+          <p class="animate-fade-in flex items-start gap-2 rounded-lg bg-red-50 p-3 text-sm text-red-700 ring-1 ring-red-200 ring-inset" role="alert">
+            <app-icon name="xCircle" [size]="17" class="mt-px shrink-0 text-danger" />
+            {{ message }}
+          </p>
+        }
+
+        <!-- ─── Unknown questions ─── -->
+        <fieldset class="border-t border-line pt-5">
+          <legend class="sr-only">When the answer is not in your rows</legend>
+          <p class="text-sm font-medium text-ink" aria-hidden="true">When the answer is not in your rows</p>
+          <p class="mt-0.5 text-xs text-ink-muted">The assistant never guesses. Choose what the customer gets instead.</p>
+
+          <div class="mt-3 grid gap-2 sm:grid-cols-2">
+            @for (option of fallbackOptions; track option.value) {
+              <button
+                type="button"
+                class="rounded-lg px-3.5 py-3 text-left ring-1 transition-all focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none disabled:opacity-50"
+                [class]="fallback() === option.value ? 'bg-brand-50 ring-brand-300' : 'bg-surface-sunken ring-line hover:ring-brand-200'"
+                [attr.aria-pressed]="fallback() === option.value"
+                [disabled]="!configured()"
+                (click)="fallback.set(option.value)"
+              >
+                <span class="text-sm font-medium text-ink">{{ option.label }}</span>
+                <span class="mt-0.5 block text-xs text-ink-muted">{{ option.hint }}</span>
+              </button>
+            }
+          </div>
+
+          @if (fallback() === 'handoff') {
+            <div class="mt-3">
+              <div class="flex items-baseline justify-between gap-3">
+                <label for="fallback-message" class="text-xs font-medium text-ink-soft">Holding message</label>
+                <span
+                  class="text-xs tabular-nums"
+                  [class]="fallbackMessage().length > limits.fallbackMessageMax ? 'text-danger' : 'text-ink-muted'"
+                >
+                  {{ fallbackMessage().length }} / {{ limits.fallbackMessageMax }}
+                </span>
+              </div>
+              <textarea
+                id="fallback-message"
+                rows="2"
+                [value]="fallbackMessage()"
+                [disabled]="!configured()"
+                (input)="fallbackMessage.set($any($event.target).value)"
+                class="app-scrollbar mt-1.5 w-full resize-y rounded-lg border-0 bg-surface-sunken p-3 text-sm leading-6 text-ink ring-1 ring-line ring-inset placeholder:text-ink-muted focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none disabled:opacity-50"
+              ></textarea>
+            </div>
+          }
+        </fieldset>
+
+        <!-- ─── Actions ─── -->
+        @if (saveError(); as problem) {
+          <p class="flex items-start gap-2 rounded-lg bg-red-50 p-3 text-sm text-red-700 ring-1 ring-red-200 ring-inset" role="alert">
+            <app-icon name="warning" [size]="16" class="mt-0.5 shrink-0" />
+            {{ problem }}
+          </p>
+        }
+
+        @if (preview(); as current) {
+          <div class="flex flex-wrap items-center justify-end gap-2">
+            @if (saveBlocker(); as blocker) {
+              <p class="mr-auto text-xs text-ink-muted">{{ blocker }}</p>
+            } @else if (savedEntries().length > 0) {
+              <p class="mr-auto text-xs text-ink-muted">
+                Replaces the {{ savedEntries().length }} {{ entryWord(savedEntries().length) }} in use now.
+              </p>
+            }
+            <button appButton variant="ghost" (click)="cancelPreview()">Cancel</button>
+            <button
+              appButton
+              [disabled]="saving() || saveBlocker() !== null || current.result.entries.length === 0"
+              (click)="savePreview()"
+            >
+              <app-icon name="checkCircle" [size]="16" />
+              @if (saving()) {
+                Saving…
+              } @else {
+                Save {{ current.result.entries.length }} {{ entryWord(current.result.entries.length) }}
+              }
+            </button>
+          </div>
+        } @else if (fallbackDirty()) {
+          <div class="flex flex-wrap items-center justify-end gap-2">
+            @if (saveBlocker(); as blocker) {
+              <p class="mr-auto text-xs text-ink-muted">{{ blocker }}</p>
+            }
+            <button appButton variant="ghost" (click)="resetFallback()">Discard</button>
+            <button appButton [disabled]="saving() || saveBlocker() !== null" (click)="saveFallback()">
+              {{ saving() ? 'Saving…' : 'Save' }}
+            </button>
+          </div>
+        }
+      </div>
+    }
+  }
+</app-card>

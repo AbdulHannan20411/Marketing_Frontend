@@ -22,6 +22,12 @@ export interface PlanLimits {
   readonly monthlyMessageLimit: number | null;
   /** AI auto-replies included per billing cycle. `null` means no ceiling. */
   readonly monthlyAiReplyLimit: number | null;
+  /**
+   * Widest business search, in whole kilometres (1–10). `null` means the
+   * platform ceiling (10 km); `0` means the plan has no nearby-business search.
+   * Absent from an API that predates it — see `radiusOptionsFor`.
+   */
+  readonly maxSearchRadiusKm: number | null;
 }
 
 export type PlanModules = Readonly<Record<FeatureModule, boolean>>;

@@ -44,6 +44,11 @@ const LIMIT_FIELDS: readonly LimitField[] = [
   { key: 'dailyMessageLimit', label: 'Daily message limit', hint: 'Rolling 24 hours' },
   { key: 'monthlyMessageLimit', label: 'Monthly message limit', hint: 'Per billing cycle' },
   { key: 'monthlyAiReplyLimit', label: 'Monthly AI replies', hint: 'Automatic replies per cycle' },
+  {
+    key: 'maxSearchRadiusKm',
+    label: 'Business search radius (km)',
+    hint: 'Import from map: 1 to this many km, 10 max. 0 turns it off',
+  },
 ];
 
 const EMPTY_LIMITS: PlanLimits = {
@@ -58,6 +63,7 @@ const EMPTY_LIMITS: PlanLimits = {
   dailyMessageLimit: 2_000,
   monthlyMessageLimit: 50_000,
   monthlyAiReplyLimit: 500,
+  maxSearchRadiusKm: 5,
 };
 
 const EMPTY_AUTO_REPLY_TRIGGERS: AutoReplyTriggerMap = {
