@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 
-import type { LoadState } from '@core/models/api.model';
+import type { ApiError, LoadState } from '@core/models/api.model';
 import { FEATURE_MODULE_LABEL, type FeatureModule } from '@core/models/permission.model';
 import type { PlanStatus, SubscriptionPlan } from '@core/models/subscription.model';
 import { PlanAdminService, type PlanDraft } from '@core/services/plan-admin.service';
@@ -134,11 +134,27 @@ export class PlansComponent {
           target === 'new' ? 'Plan created' : 'Plan saved',
           `${plan.name} is now ${plan.status}.`,
         );
+        // An API that predates the field accepts the save and silently drops
+        // it. Say so, rather than let the editor look like it forgot.
+        const sent = draft.limits?.maxSearchRadiusKm;
+        const kept = plan.limits.maxSearchRadiusKm;
+        if (sent !== undefined && kept !== sent) {
+          this.toast.warning(
+            'Search radius was not saved',
+            kept === undefined
+              ? 'The server does not store this limit yet. Restart the API with its latest update, then save again.'
+              : `The server kept ${kept === null ? 'unlimited' : `${kept} km`} instead.`,
+          );
+        }
         this.load();
       },
-      error: () => {
+      error: (error: ApiError) => {
         this.saving.set(false);
-        this.toast.error('Could not save plan', 'The request failed. Please try again.');
+        const first = Object.values(error.fieldErrors ?? {})[0]?.[0];
+        this.toast.error(
+          'Could not save plan',
+          error.status === 422 ? (first ?? error.detail) : 'The request failed. Please try again.',
+        );
       },
     });
   }

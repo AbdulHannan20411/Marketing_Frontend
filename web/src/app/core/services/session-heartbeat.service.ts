@@ -1,5 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 
+import { AuthService } from '@core/auth/auth.service';
 import { SessionSecurityService } from './session-security.service';
 
 const INTERVAL_MS = 60_000;
@@ -19,10 +20,13 @@ const INTERVAL_MS = 60_000;
 @Injectable({ providedIn: 'root' })
 export class SessionHeartbeatService {
   private readonly security = inject(SessionSecurityService);
+  private readonly auth = inject(AuthService);
   private handle: ReturnType<typeof setInterval> | null = null;
 
   start(): void {
-    if (this.handle !== null) {
+    // Session security — one session per account, device tracking, risk —
+    // applies to admins and employees only. Platform staff are not tracked.
+    if (this.handle !== null || this.auth.isSuperAdmin()) {
       return;
     }
     this.beat();

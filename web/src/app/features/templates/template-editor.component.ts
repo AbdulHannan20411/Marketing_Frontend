@@ -1,4 +1,15 @@
-import { ChangeDetectionStrategy, Component, computed, effect, input, output, signal, untracked } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  ElementRef,
+  computed,
+  effect,
+  input,
+  output,
+  signal,
+  untracked,
+  viewChild,
+} from '@angular/core';
 
 import type {
   MessageTemplate,
@@ -11,9 +22,20 @@ import type {
 import {
   TEMPLATE_LIMITS,
   TEMPLATE_NAME_PATTERN,
-  templateBodyProblem,
   templateVariables,
 } from '@core/models/whatsapp.model';
+import {
+  TEMPLATE_EMOJI,
+  distinctPlaceholders,
+  insertAt,
+  renderWhatsAppPreview,
+  templateChecks,
+  toggleFormat,
+  type TemplateCheck,
+  type TemplateCheckField,
+  type TextEdit,
+  type WhatsAppFormat,
+} from '@core/models/template-rules.model';
 import { ButtonDirective } from '@shared/ui/button/button.directive';
 import { IconComponent } from '@shared/ui/icon/icon.component';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
@@ -55,6 +77,14 @@ const HEADER_KINDS: readonly { value: TemplateHeaderKind; label: string }[] = [
   { value: 'document', label: 'Document' },
 ];
 
+/** The toolbar: WhatsApp's four formats, with the shortcut each answers to. */
+const FORMATS: readonly { format: WhatsAppFormat; label: string; sample: string; shortcut: string | null }[] = [
+  { format: 'bold', label: 'Bold', sample: 'B', shortcut: 'b' },
+  { format: 'italic', label: 'Italic', sample: 'I', shortcut: 'i' },
+  { format: 'strike', label: 'Strikethrough', sample: 'S', shortcut: null },
+  { format: 'mono', label: 'Monospace', sample: '</>', shortcut: null },
+];
+
 const BUTTON_KINDS: readonly { value: TemplateButtonKind; label: string; hint: string }[] = [
   { value: 'quick_reply', label: 'Quick reply', hint: 'Sends the label back as a reply.' },
   { value: 'url', label: 'Visit website', hint: 'Opens a link.' },
@@ -89,6 +119,11 @@ export class TemplateEditorComponent {
   protected readonly headerKinds = HEADER_KINDS;
   protected readonly buttonKinds = BUTTON_KINDS;
   protected readonly limits = TEMPLATE_LIMITS;
+  protected readonly formats = FORMATS;
+  protected readonly emoji = TEMPLATE_EMOJI;
+
+  private readonly bodyInput = viewChild<ElementRef<HTMLTextAreaElement>>('bodyInput');
+  protected readonly emojiOpen = signal(false);
 
   protected readonly name = signal('');
   protected readonly category = signal<TemplateCategory>('marketing');
@@ -98,11 +133,35 @@ export class TemplateEditorComponent {
   protected readonly bodyText = signal('');
   protected readonly footerText = signal('');
   protected readonly buttons = signal<readonly TemplateButtonDraft[]>([]);
+  /** Indexed by variable number minus one. */
+  protected readonly bodyExamples = signal<readonly string[]>([]);
+  protected readonly headerExample = signal('');
 
   protected readonly isEdit = computed(() => this.template() !== null);
 
   protected readonly variables = computed(() => templateVariables(this.bodyText()));
-  protected readonly bodyProblem = computed(() => templateBodyProblem(this.bodyText()));
+  protected readonly variableNumbers = computed(() => distinctPlaceholders(this.bodyText()));
+  protected readonly headerHasVariable = computed(
+    () => this.headerKind() === 'text' && distinctPlaceholders(this.headerText()).length > 0,
+  );
+
+  /** Meta's review rules, re-run on every keystroke. */
+  protected readonly checks = computed<readonly TemplateCheck[]>(() =>
+    templateChecks({
+      category: this.category(),
+      headerKind: this.headerKind(),
+      headerText: this.headerText(),
+      bodyText: this.bodyText(),
+      bodyExamples: this.bodyExamples(),
+      headerExample: this.headerExample(),
+      footerText: this.footerText(),
+      buttons: this.buttons(),
+    }),
+  );
+  protected readonly errors = computed(() => this.checks().filter((check) => check.level === 'error'));
+  protected readonly warnings = computed(() => this.checks().filter((check) => check.level === 'warning'));
+  /** Started typing: until then an empty form is not shouted at. */
+  protected readonly touched = computed(() => this.bodyText().trim() !== '');
 
   protected readonly nameProblem = computed(() => {
     const value = this.name().trim();
@@ -118,39 +177,16 @@ export class TemplateEditorComponent {
     return null;
   });
 
-  protected readonly headerProblem = computed(() =>
-    this.headerKind() === 'text' && this.headerText().trim() === ''
-      ? 'Add header text, or choose a different header type.'
-      : null,
-  );
-
-  protected readonly buttonProblem = computed(() => {
-    for (const button of this.buttons()) {
-      if (button.label.trim() === '') {
-        return 'Every button needs a label.';
-      }
-      if (button.kind !== 'quick_reply' && button.value.trim() === '') {
-        return 'Link and call buttons need a destination.';
-      }
-    }
-    return null;
-  });
-
-  protected readonly invalid = computed(
-    () =>
-      this.nameProblem() !== null ||
-      this.bodyProblem() !== null ||
-      this.headerProblem() !== null ||
-      this.buttonProblem() !== null,
-  );
+  protected readonly invalid = computed(() => this.nameProblem() !== null || this.errors().length > 0);
 
   protected readonly canAddButton = computed(
     () => this.buttons().length < TEMPLATE_LIMITS.maxButtons,
   );
 
-  /** Body with placeholders rendered as sample values, for the preview. */
-  protected readonly preview = computed(() =>
-    this.bodyText().replace(/\{\{\s*(\d+)\s*\}\}/g, (_, index: string) => `«value ${index}»`),
+  /** The body as WhatsApp shows it: formatting applied, examples filled in. Escaped HTML. */
+  protected readonly preview = computed(() => renderWhatsAppPreview(this.bodyText(), this.bodyExamples()));
+  protected readonly headerPreview = computed(() =>
+    this.headerText().replace(/\{\{\s*1\s*\}\}/g, this.headerExample().trim() || '{{1}}'),
   );
 
   constructor() {
@@ -170,6 +206,8 @@ export class TemplateEditorComponent {
       this.bodyText.set('');
       this.footerText.set('');
       this.buttons.set([]);
+      this.bodyExamples.set([]);
+      this.headerExample.set('');
       return;
     }
 
@@ -184,6 +222,72 @@ export class TemplateEditorComponent {
     this.buttons.set(
       source.buttons.map((label) => ({ kind: 'quick_reply' as const, label, value: '' })),
     );
+    // Meta does not hand examples back, so a resubmission asks for them again.
+    this.bodyExamples.set([]);
+    this.headerExample.set('');
+  }
+
+  /* ------------------------------ toolbar ------------------------------ */
+
+  /** Writes an edit into the body and restores the selection it describes. */
+  private applyEdit(edit: TextEdit): void {
+    const element = this.bodyInput()?.nativeElement;
+    this.bodyText.set(edit.text);
+    if (element !== undefined) {
+      element.value = edit.text;
+      element.focus();
+      element.setSelectionRange(edit.selectionStart, edit.selectionEnd);
+    }
+  }
+
+  private selection(): { start: number; end: number } {
+    const element = this.bodyInput()?.nativeElement;
+    const length = this.bodyText().length;
+    return element === undefined
+      ? { start: length, end: length }
+      : { start: element.selectionStart, end: element.selectionEnd };
+  }
+
+  protected format(format: WhatsAppFormat): void {
+    const { start, end } = this.selection();
+    this.applyEdit(toggleFormat(this.bodyText(), start, end, format));
+  }
+
+  protected insertEmoji(symbol: string): void {
+    const { start, end } = this.selection();
+    this.applyEdit(insertAt(this.bodyText(), start, end, symbol));
+    this.emojiOpen.set(false);
+  }
+
+  /** Ctrl/Cmd+B and +I, as in any editor. */
+  protected onBodyKeydown(event: KeyboardEvent): void {
+    if (!(event.ctrlKey || event.metaKey) || event.altKey) {
+      return;
+    }
+    const match = FORMATS.find((entry) => entry.shortcut === event.key.toLowerCase());
+    if (match !== undefined) {
+      event.preventDefault();
+      this.format(match.format);
+    }
+  }
+
+  protected setExample(index: number, value: string): void {
+    this.bodyExamples.update((current) => {
+      const next = [...current];
+      while (next.length <= index) {
+        next.push('');
+      }
+      next[index] = value;
+      return next;
+    });
+  }
+
+  protected exampleFor(index: number): string {
+    return this.bodyExamples()[index] ?? '';
+  }
+
+  protected problemsIn(field: TemplateCheckField): readonly TemplateCheck[] {
+    return this.checks().filter((check) => check.field === field);
   }
 
   protected setCategory(value: TemplateCategory): void {
@@ -211,10 +315,18 @@ export class TemplateEditorComponent {
     this.buttons.update((current) => current.filter((_, i) => i !== index));
   }
 
-  /** Appends the next placeholder, so numbering cannot drift out of sequence. */
+  /**
+   * Inserts the next placeholder at the cursor, so numbering cannot drift out
+   * of sequence. Padded with spaces where it would touch a word, since
+   * "Hi{{1}}" reads as one token to Meta's reviewers.
+   */
   protected insertVariable(): void {
-    const next = this.variables().length + 1;
-    this.bodyText.update((body) => `${body}{{${next}}}`);
+    const next = (this.variableNumbers().at(-1) ?? 0) + 1;
+    const { start, end } = this.selection();
+    const text = this.bodyText();
+    const before = start > 0 && !/\s/.test(text[start - 1] ?? '') ? ' ' : '';
+    const after = end < text.length && !/\s/.test(text[end] ?? '') ? ' ' : '';
+    this.applyEdit(insertAt(text, start, end, `${before}{{${next}}}${after}`));
   }
 
   protected submit(): void {
@@ -229,6 +341,8 @@ export class TemplateEditorComponent {
       headerKind: this.headerKind(),
       headerText: this.headerKind() === 'text' ? this.headerText().trim() : '',
       bodyText: this.bodyText().trim(),
+      bodyExamples: this.variableNumbers().map((_, index) => this.exampleFor(index).trim()),
+      headerExample: this.headerHasVariable() ? this.headerExample().trim() : '',
       footerText: this.footerText().trim(),
       buttons: this.buttons().map((button) => ({
         kind: button.kind,

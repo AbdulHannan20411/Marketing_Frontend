@@ -186,6 +186,10 @@ export class BusinessDiscoveryComponent {
   protected readonly importResult = signal<ImportBusinessesResult | null>(null);
 
   constructor() {
+    // Entitlements load once per sign-in. A plan change made since then — a new
+    // radius, say — would not reach this dropdown until the next login.
+    this.entitlements.load();
+
     this.placeInput
       .pipe(
         debounceTime(350),

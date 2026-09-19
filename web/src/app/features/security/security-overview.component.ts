@@ -1,7 +1,16 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal, untracked } from '@angular/core';
 
+import { AuthService } from '@core/auth/auth.service';
 import type { ApiError, LoadState } from '@core/models/api.model';
+import { isSamePerson } from '@core/models/employee.model';
 import {
+  canSuspendFrom,
+  isPlatformStaff,
+  isSuspended,
+  securityAlertLevel,
+  suspendNeedsConfirmation,
+  SUSPEND_REASON_MAX,
+  type SecurityAlertLevel,
   DEVICE_ALERT_THRESHOLD,
   DISPLACEMENT_ALERT_THRESHOLD,
   hasManyDevices,
@@ -70,6 +79,7 @@ export class SecurityOverviewComponent {
 
   private readonly security = inject(SessionSecurityService);
   private readonly toast = inject(ToastService);
+  private readonly auth = inject(AuthService);
 
   protected readonly deviceThreshold = DEVICE_ALERT_THRESHOLD;
   protected readonly displacementThreshold = DISPLACEMENT_ALERT_THRESHOLD;
@@ -88,7 +98,10 @@ export class SecurityOverviewComponent {
   protected readonly state = signal<LoadState>('loading');
   protected readonly overview = signal<SecurityOverview | null>(null);
 
-  protected readonly employees = computed(() => sortForReview(this.overview()?.employees ?? []));
+  /** Platform staff are outside session security, so never listed even if an API sends them. */
+  protected readonly employees = computed(() =>
+    sortForReview((this.overview()?.employees ?? []).filter((employee) => !isPlatformStaff(employee))),
+  );
   protected readonly attentionCount = computed(() => this.employees().filter(needsAttention).length);
 
   protected readonly breadcrumbs = computed(() =>
@@ -113,6 +126,95 @@ export class SecurityOverviewComponent {
 
   protected readonly manyDevices = hasManyDevices;
   protected readonly oftenDisplaced = isFrequentlyDisplaced;
+
+  /* ------------------------------- suspending ------------------------------- */
+
+  protected readonly suspended = isSuspended;
+  protected readonly alertLevel = securityAlertLevel;
+  protected readonly reasonMax = SUSPEND_REASON_MAX;
+  /** Row whose suspend or reactivate call is in flight. */
+  protected readonly busyId = signal<string | null>(null);
+  /** Low-risk suspensions wait here for a yes. */
+  protected readonly confirming = signal<SecurityEmployee | null>(null);
+  protected readonly suspendReason = signal('');
+
+  protected canSuspend(employee: SecurityEmployee): boolean {
+    return canSuspendFrom(employee, this.view(), isSamePerson(this.auth.user()?.id, employee.userId));
+  }
+
+  /** Low risk asks first; a warning or worse acts at once. */
+  protected requestSuspend(employee: SecurityEmployee): void {
+    if (!this.canSuspend(employee) || this.busyId() !== null) {
+      return;
+    }
+    const level = securityAlertLevel(employee);
+    if (suspendNeedsConfirmation(level)) {
+      this.suspendReason.set('');
+      this.confirming.set(employee);
+      return;
+    }
+    this.suspend(employee, level, null);
+  }
+
+  protected confirmSuspend(): void {
+    const employee = this.confirming();
+    if (employee === null) {
+      return;
+    }
+    const reason = this.suspendReason().trim();
+    this.suspend(employee, securityAlertLevel(employee), reason === '' ? null : reason.slice(0, SUSPEND_REASON_MAX));
+  }
+
+  private suspend(employee: SecurityEmployee, alertLevel: SecurityAlertLevel, reason: string | null): void {
+    this.busyId.set(employee.userId);
+    this.security.suspend(this.scope(), employee.userId, { reason, alertLevel }).subscribe({
+      next: (updated) => {
+        this.busyId.set(null);
+        this.confirming.set(null);
+        this.replaceRow({ ...employee, ...updated, status: updated.status ?? 'suspended', activeSessions: 0 });
+        if (this.inspecting()?.userId === employee.userId) {
+          this.inspecting.set(null);
+        }
+        this.toast.success(
+          `${employee.name} is suspended`,
+          'Signed out on every device. They cannot sign in again until reactivated.',
+        );
+      },
+      error: (error: ApiError) => {
+        this.busyId.set(null);
+        this.toast.error(error.title || 'Could not suspend', error.detail || 'Please try again.');
+      },
+    });
+  }
+
+  protected reactivate(employee: SecurityEmployee): void {
+    if (this.busyId() !== null) {
+      return;
+    }
+    this.busyId.set(employee.userId);
+    this.security.reactivate(this.scope(), employee.userId).subscribe({
+      next: (updated) => {
+        this.busyId.set(null);
+        this.replaceRow({ ...employee, ...updated, status: updated.status ?? 'active' });
+        this.toast.success(`${employee.name} is active again`, 'They can sign in now.');
+      },
+      error: (error: ApiError) => {
+        this.busyId.set(null);
+        this.toast.error(error.title || 'Could not reactivate', error.detail || 'Please try again.');
+      },
+    });
+  }
+
+  private replaceRow(row: SecurityEmployee): void {
+    this.overview.update((current) =>
+      current === null
+        ? null
+        : {
+            ...current,
+            employees: current.employees.map((entry) => (entry.userId === row.userId ? row : entry)),
+          },
+    );
+  }
 
   constructor() {
     effect(() => {

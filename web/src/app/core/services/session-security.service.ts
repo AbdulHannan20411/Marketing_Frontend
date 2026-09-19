@@ -3,8 +3,10 @@ import type { Observable } from 'rxjs';
 
 import type {
   DeviceSession,
+  SecurityEmployee,
   SecurityOverview,
   SecurityScope,
+  SuspendAccountRequest,
 } from '@core/models/session-security.model';
 import { ApiService } from './api.service';
 
@@ -50,6 +52,26 @@ export class SessionSecurityService {
         ? `/security/employees/${employee}/devices`
         : `/superadmin/security/tenants/${encodeURIComponent(scope.tenantId)}/employees/${employee}/devices`,
     );
+  }
+
+  /**
+   * Suspends an account and ends every session it has. Returns the person's
+   * row as it now stands. Refused with 403 for platform staff, yourself, or —
+   * from a workspace — its admin.
+   */
+  suspend(scope: SecurityScope, userId: string, request: SuspendAccountRequest): Observable<SecurityEmployee> {
+    return this.api.post<SecurityEmployee, SuspendAccountRequest>(`${this.personPath(scope, userId)}/suspend`, request);
+  }
+
+  reactivate(scope: SecurityScope, userId: string): Observable<SecurityEmployee> {
+    return this.api.post<SecurityEmployee>(`${this.personPath(scope, userId)}/reactivate`);
+  }
+
+  private personPath(scope: SecurityScope, userId: string): string {
+    const person = encodeURIComponent(userId);
+    return scope.kind === 'workspace'
+      ? `/security/employees/${person}`
+      : `/superadmin/security/tenants/${encodeURIComponent(scope.tenantId)}/employees/${person}`;
   }
 
   revokeSession(scope: SecurityScope, sessionId: string): Observable<null> {

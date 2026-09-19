@@ -13,7 +13,7 @@ import {
 } from 'rxjs';
 
 import { environment } from '@env/environment';
-import { SIGNED_OUT_ELSEWHERE } from '@core/models/session-security.model';
+import { SIGNED_OUT_ELSEWHERE, ACCOUNT_SUSPENDED_CODE, SIGNED_OUT_SUSPENDED, errorCodeOf } from '@core/models/session-security.model';
 import type { ApiResponse } from '@core/models/api.model';
 import type {
   AuthTokens,
@@ -184,6 +184,11 @@ export class AuthService {
         }),
         catchError((error: unknown) => {
           this.refresh$ = null;
+          // Suspended while away: say so on the login page rather than
+          // dropping the user there with no explanation.
+          if (errorCodeOf(error) === ACCOUNT_SUSPENDED_CODE) {
+            this.rememberSignOutReason(SIGNED_OUT_SUSPENDED);
+          }
           this.clearSession();
           return throwError(() => error);
         }),
@@ -213,16 +218,20 @@ export class AuthService {
    * Several requests can fail at once when a session is revoked — the
    * heartbeat, a list, a poll — so only the first one acts.
    */
-  endRevokedSession(): void {
+  endRevokedSession(reason: string = SIGNED_OUT_ELSEWHERE): void {
     if (this.currentUser() === null) {
       return;
     }
+    this.rememberSignOutReason(reason);
+    this.clearSession();
+  }
+
+  private rememberSignOutReason(reason: string): void {
     try {
-      sessionStorage.setItem(SIGN_OUT_REASON_KEY, SIGNED_OUT_ELSEWHERE);
+      sessionStorage.setItem(SIGN_OUT_REASON_KEY, reason);
     } catch {
       // The sign-out still happens; only the explanation is lost.
     }
-    this.clearSession();
   }
 
   /** Why the user was last signed out, read once so it does not linger. */

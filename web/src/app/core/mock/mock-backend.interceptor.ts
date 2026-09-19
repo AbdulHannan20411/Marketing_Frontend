@@ -112,7 +112,7 @@ import {
 } from './mock-inbox-data';
 import { campaignStore, handleCampaigns } from './mock-campaign-handler';
 import { handleEmailTemplates } from './mock-email-templates';
-import { handleSessionSecurity } from './mock-session-security';
+import { handleSessionSecurity, isMockAccountSuspended } from './mock-session-security';
 import {
   accountLabel,
   canOnMockAccount,
@@ -171,6 +171,9 @@ let autoReplyKnowledge: AutoReplyKnowledge = {
   updatedAt: null,
   updatedByName: null,
 };
+const SUSPENDED_DETAIL =
+  'This account has been suspended. Contact your workspace admin to have it reactivated.';
+
 function nextPlanId(): string {
   return `plan_${crypto.randomUUID().slice(0, 8)}`;
 }
@@ -399,16 +402,25 @@ function handleAuth(
         candidate.email.toLowerCase() === credentials.email.trim().toLowerCase() &&
         candidate.password === credentials.password,
     );
-    return account === undefined
-      ? fail(401, 'Sign-in failed', 'That email and password combination is not recognised.')
-      : ok<AuthTokens>(issueMockTokens(account));
+    if (account === undefined) {
+      return fail(401, 'Sign-in failed', 'That email and password combination is not recognised.');
+    }
+    // Only after a correct password, as the API does, so it reveals nothing about which emails exist.
+    if (isMockAccountSuspended(account.email)) {
+      return fail(401, 'Account suspended', SUSPENDED_DETAIL, 'account_suspended');
+    }
+    return ok<AuthTokens>(issueMockTokens(account));
   }
   if (method === 'POST' && path === '/auth/refresh') {
     const { refreshToken } = body as { refreshToken: string };
     const account = accountFromRefreshToken(refreshToken);
-    return account === null
-      ? fail(401, 'Session expired', 'Please sign in again.')
-      : ok<AuthTokens>(issueMockTokens(account));
+    if (account === null) {
+      return fail(401, 'Session expired', 'Please sign in again.');
+    }
+    if (isMockAccountSuspended(account.email)) {
+      return fail(401, 'Account suspended', SUSPENDED_DETAIL, 'account_suspended');
+    }
+    return ok<AuthTokens>(issueMockTokens(account));
   }
   if (method === 'POST' && path === '/auth/change-password') {
     const account = accountFromRequest(request);

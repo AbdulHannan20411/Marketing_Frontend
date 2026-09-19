@@ -331,12 +331,22 @@ export interface TemplateDraft {
   readonly bodyText: string;
   readonly footerText: string;
   readonly buttons: readonly TemplateButtonDraft[];
+  /**
+   * A realistic value for each body variable, `{{1}}` first. Meta reviews the
+   * message with these filled in and rejects vague ones, so the editor asks for
+   * them rather than the API inventing "Sample 1".
+   */
+  readonly bodyExamples: readonly string[];
+  /** The example for a text header's `{{1}}`; empty when it has none. */
+  readonly headerExample: string;
 }
 
 /** Pulls `{{1}}`, `{{2}}` … out of body copy, in the order Meta expects them. */
 export function templateVariables(body: string): readonly string[] {
   const found = body.match(/\{\{\s*\d+\s*\}\}/g) ?? [];
-  return [...new Set(found.map((token) => token.replace(/\s/g, '')))].sort();
+  const numbers = [...new Set(found.map((token) => Number(token.replace(/[^\d]/g, ''))))];
+  // Numerically: as strings, {{10}} would sort before {{2}}.
+  return numbers.sort((left, right) => left - right).map((number) => `{{${number}}}`);
 }
 
 /**

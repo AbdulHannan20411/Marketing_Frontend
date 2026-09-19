@@ -1,3 +1,4 @@
+import { MAX_RADIUS_KM } from '@core/models/business-discovery.model';
 import { ChangeDetectionStrategy, Component, computed, effect, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
@@ -30,6 +31,8 @@ interface LimitField {
   readonly key: keyof PlanLimits;
   readonly label: string;
   readonly hint: string;
+  /** Highest value the API accepts; absent where there is no ceiling. */
+  readonly max?: number;
 }
 
 const LIMIT_FIELDS: readonly LimitField[] = [
@@ -48,6 +51,7 @@ const LIMIT_FIELDS: readonly LimitField[] = [
     key: 'maxSearchRadiusKm',
     label: 'Business search radius (km)',
     hint: 'Import from map: 1 to this many km, 10 max. 0 turns it off',
+    max: MAX_RADIUS_KM,
   },
 ];
 
@@ -180,7 +184,9 @@ export class PlanEditorComponent {
       this.status.set(source.status);
       this.supportLevel.set(source.supportLevel);
       this.modules.set({ ...source.modules });
-      this.limits.set({ ...source.limits });
+      // Defaults first: a plan from an API that predates a limit arrives without
+      // it, and an absent value would render blank and then be dropped on save.
+      this.limits.set({ ...EMPTY_LIMITS, ...source.limits });
       this.autoReplyTriggers.set({ ...source.autoReplyTriggers });
       this.highlightsText.set(source.highlights.join('\n'));
     });
@@ -216,10 +222,15 @@ export class PlanEditorComponent {
 
   protected setLimit(key: keyof PlanLimits, raw: string): void {
     const parsed = Number(raw);
+    const max = LIMIT_FIELDS.find((field) => field.key === key)?.max ?? Number.POSITIVE_INFINITY;
     this.limits.update((current) => ({
       ...current,
-      [key]: Number.isFinite(parsed) ? Math.max(0, Math.trunc(parsed)) : 0,
+      [key]: Number.isFinite(parsed) ? Math.min(max, Math.max(0, Math.trunc(parsed))) : 0,
     }));
+  }
+
+  protected limitMax(key: keyof PlanLimits): number | null {
+    return LIMIT_FIELDS.find((field) => field.key === key)?.max ?? null;
   }
 
   protected submit(): void {
