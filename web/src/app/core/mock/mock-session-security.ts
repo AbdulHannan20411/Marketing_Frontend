@@ -71,14 +71,25 @@ const devicesByUser = new Map<string, DeviceSession[]>([
 const PEOPLE: readonly Omit<SecurityEmployee, 'activeSessions' | 'devices' | 'lastActiveAt' | 'risk'>[] = [
   { userId: 'usr_admin', name: 'Admin User', email: 'admin@nextreach.io', role: 'Admin', displacedLast24Hours: 0 },
   { userId: 'usr_employee', name: 'Employee User', email: 'employee@nextreach.io', role: 'Employee', displacedLast24Hours: 4 },
-  { userId: 'usr_sara', name: 'Sara Khan', email: 'sara@nextreach.io', role: 'Employee', displacedLast24Hours: 0 },
+  { userId: 'usr_sara', name: 'Sara Khan', email: 'sara@nextreach.io', role: 'Employee', displacedLast24Hours: 2 },
 ];
+
+/** Suspended accounts, by user id. */
+const suspendedIds = new Set<string>();
+
+/** For the mock sign-in: the API refuses a suspended account after a correct password. */
+export function isMockAccountSuspended(email: string): boolean {
+  const person = PEOPLE.find((entry) => entry.email.toLowerCase() === email.toLowerCase());
+  return person !== undefined && suspendedIds.has(person.userId);
+}
 
 function employeeRow(person: (typeof PEOPLE)[number], withRisk: boolean): SecurityEmployee {
   const devices = devicesByUser.get(person.userId) ?? [];
   const risky = person.displacedLast24Hours >= 3;
+  const warning = !risky && person.displacedLast24Hours > 0;
   return {
     ...person,
+    status: suspendedIds.has(person.userId) ? 'suspended' : 'active',
     activeSessions: devices.filter((entry) => entry.isActive).length,
     devices: devices.length,
     lastActiveAt: devices.map((entry) => entry.lastActiveAt).sort().at(-1) ?? null,
@@ -95,7 +106,13 @@ function employeeRow(person: (typeof PEOPLE)[number], withRisk: boolean): Securi
               'New device in the last 24 hours',
             ],
           }
-        : { level: 'low', score: 5, reasons: [] },
+        : warning
+          ? {
+              level: 'medium',
+              score: 45,
+              reasons: [`${person.displacedLast24Hours} sign-ins pushed another session off in 24 hours`, 'New device in the last 24 hours'],
+            }
+          : { level: 'low', score: 5, reasons: [] },
   };
 }
 
@@ -197,6 +214,29 @@ export function handleSessionSecurity(
     const devices = devicesByUser.get(devicesMatch[1]) ?? [];
     // Nobody's session is "current" from an admin's point of view except their own.
     return ok(devices.map((entry) => ({ ...entry, isCurrent: false, canRevoke: true })));
+  }
+
+  const suspendMatch = /\/employees\/([^/]+)\/(suspend|reactivate)$/.exec(path);
+  if (method === 'POST' && suspendMatch !== null) {
+    const [, userId, action] = suspendMatch;
+    const person = PEOPLE.find((entry) => entry.userId === userId);
+    if (person === undefined) {
+      return fail(404, 'Not found', 'That person is not in this workspace.');
+    }
+    if (userId === actor.userId) {
+      return fail(403, 'Not permitted', 'You cannot suspend your own account.', 'cannot_suspend_self');
+    }
+    if (!platform && person.role === 'Admin') {
+      return fail(403, 'Not permitted', "A workspace's admin can only be suspended by platform staff.", 'cannot_suspend_admin');
+    }
+    if (action === 'suspend') {
+      suspendedIds.add(userId);
+      // Every session ends with the suspension.
+      devicesByUser.set(userId, (devicesByUser.get(userId) ?? []).map((entry) => ({ ...entry, isActive: false })));
+    } else {
+      suspendedIds.delete(userId);
+    }
+    return ok(employeeRow(person, platform), action === 'suspend' ? 'Account suspended.' : 'Account reactivated.');
   }
 
   const revokeMatch = /\/sessions\/([^/]+)\/revoke$/.exec(path);

@@ -33,7 +33,9 @@ export type NotificationKind =
   /** Sign-in from a device this user hasn't used. Action: /account/security. */
   | 'security.new_login'
   /** To workspace admins (new device, new city, sharing signs) or platform staff (high risk). */
-  | 'security.alert';
+  | 'security.alert'
+  /** To workspace admins when platform staff suspend one of their people. Action: /settings/security. */
+  | 'security.account_suspended';
 
 export interface AppNotification {
   readonly id: string;

@@ -6,7 +6,15 @@ import { environment } from '@env/environment';
 import { AuthService } from '@core/auth/auth.service';
 import { deviceId } from '@core/auth/device-id';
 import { TokenStorageService } from '@core/auth/token-storage.service';
-import { SESSION_REVOKED_HEADER } from '@core/models/session-security.model';
+import {
+  ACCOUNT_SUSPENDED_CODE,
+  SESSION_REVOKED_HEADER,
+  SESSION_REVOKED_REASON_HEADER,
+  SIGNED_OUT_BY_ADMIN,
+  SIGNED_OUT_ELSEWHERE,
+  SIGNED_OUT_SUSPENDED,
+  errorCodeOf,
+} from '@core/models/session-security.model';
 
 const DEVICE_ID_HEADER = 'X-Device-Id';
 
@@ -35,6 +43,15 @@ function withBearer<T>(request: HttpRequest<T>, token: string): HttpRequest<T> {
  */
 function isRevoked(error: HttpErrorResponse): boolean {
   return error.headers.get(SESSION_REVOKED_HEADER)?.toLowerCase() === 'true';
+}
+
+/** Why the session ended, for the login page: a suspension reads very differently from a displacement. */
+function revokedReason(error: HttpErrorResponse): string {
+  const reason = error.headers.get(SESSION_REVOKED_REASON_HEADER)?.toLowerCase() ?? errorCodeOf(error);
+  if (reason === ACCOUNT_SUSPENDED_CODE) {
+    return SIGNED_OUT_SUSPENDED;
+  }
+  return reason === 'ended_by_admin' ? SIGNED_OUT_BY_ADMIN : SIGNED_OUT_ELSEWHERE;
 }
 
 /**
@@ -78,7 +95,7 @@ export const authTokenInterceptor: HttpInterceptorFn = (request, next) => {
       }
 
       if (isRevoked(error)) {
-        auth.endRevokedSession();
+        auth.endRevokedSession(revokedReason(error));
         return throwError(() => error);
       }
 
@@ -88,7 +105,7 @@ export const authTokenInterceptor: HttpInterceptorFn = (request, next) => {
             catchError((retryError: unknown) => {
               if (retryError instanceof HttpErrorResponse && retryError.status === 401) {
                 if (isRevoked(retryError)) {
-                  auth.endRevokedSession();
+                  auth.endRevokedSession(revokedReason(retryError));
                 } else {
                   auth.clearSession();
                 }

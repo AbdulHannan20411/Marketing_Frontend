@@ -13,11 +13,13 @@ import {
   provideRouter,
   withComponentInputBinding,
   withInMemoryScrolling,
+  withNavigationErrorHandler,
   withViewTransitions,
 } from '@angular/router';
 
 import { environment } from '@env/environment';
 import { AppTitleStrategy } from '@core/config/title.strategy';
+import { recoverFromStaleChunk } from '@core/config/stale-chunk-recovery';
 import { authTokenInterceptor } from '@core/interceptors/auth-token.interceptor';
 import { errorInterceptor } from '@core/interceptors/error.interceptor';
 import { mockBackendInterceptor } from '@core/mock/mock-backend.interceptor';
@@ -41,6 +43,9 @@ export const appConfig: ApplicationConfig = {
       withComponentInputBinding(),
       withViewTransitions(),
       withInMemoryScrolling({ scrollPositionRestoration: 'top', anchorScrolling: 'enabled' }),
+      // A tab left open across a rebuild or deploy asks for page files that no
+      // longer exist; reload to the page instead of silently doing nothing.
+      withNavigationErrorHandler(recoverFromStaleChunk),
     ),
     // Order matters: error normalisation wraps the token retry, and the scope
     // parameter is applied last so it lands on the outgoing request.

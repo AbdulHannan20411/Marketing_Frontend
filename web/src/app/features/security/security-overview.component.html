@@ -113,7 +113,14 @@
                 @for (employee of employees(); track employee.userId) {
                   <tr class="border-b border-line/70 align-top transition-colors last:border-0 hover:bg-surface-muted/60">
                     <td class="px-5 py-3">
-                      <p class="font-medium text-ink">{{ employee.name }}</p>
+                      <p class="flex flex-wrap items-center gap-2 font-medium text-ink">
+                        {{ employee.name }}
+                        @if (suspended(employee)) {
+                          <span class="rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-medium text-red-700 ring-1 ring-red-200 ring-inset">
+                            Suspended
+                          </span>
+                        }
+                      </p>
                       <p class="text-xs text-ink-muted">{{ employee.email }} · {{ employee.role }}</p>
                     </td>
                     <td class="px-3 py-3 text-right tabular-nums text-ink-soft">{{ employee.activeSessions }}</td>
@@ -158,10 +165,47 @@
                       </td>
                     }
                     <td class="px-5 py-3 text-right">
-                      <button appButton variant="ghost" size="sm" (click)="inspect(employee)">
-                        <app-icon name="computer" [size]="14" />
-                        Devices
-                      </button>
+                      <div class="flex flex-wrap justify-end gap-1.5">
+                        <button appButton variant="ghost" size="sm" (click)="inspect(employee)">
+                          <app-icon name="computer" [size]="14" />
+                          Devices
+                        </button>
+                        @if (suspended(employee)) {
+                          <button
+                            appButton
+                            variant="outline"
+                            size="sm"
+                            [disabled]="busyId() !== null"
+                            [attr.aria-label]="'Reactivate ' + employee.name"
+                            (click)="reactivate(employee)"
+                          >
+                            <app-icon name="refresh" [size]="14" [class.animate-spin]="busyId() === employee.userId" />
+                            Reactivate
+                          </button>
+                        } @else if (canSuspend(employee)) {
+                          <!-- A warning or worse suspends on the spot; low risk asks first, hence the ellipsis. -->
+                          <button
+                            appButton
+                            size="sm"
+                            [variant]="alertLevel(employee) === 'low' ? 'ghost' : 'danger'"
+                            [disabled]="busyId() !== null"
+                            [attr.aria-label]="
+                              alertLevel(employee) === 'low'
+                                ? 'Suspend ' + employee.name + ' (asks to confirm)'
+                                : 'Suspend ' + employee.name + ' now'
+                            "
+                            [attr.title]="
+                              alertLevel(employee) === 'low'
+                                ? null
+                                : 'Security checks are alerting — suspends immediately and signs them out everywhere'
+                            "
+                            (click)="requestSuspend(employee)"
+                          >
+                            <app-icon name="lock" [size]="14" [class.animate-pulse]="busyId() === employee.userId" />
+                            {{ alertLevel(employee) === 'low' ? 'Suspend…' : 'Suspend now' }}
+                          </button>
+                        }
+                      </div>
                     </td>
                   </tr>
                 }
@@ -173,6 +217,42 @@
     }
   }
 </div>
+
+@if (confirming(); as employee) {
+  <app-modal
+    [title]="'Suspend ' + employee.name + '?'"
+    subtitle="The security checks are not alerting about this person."
+    (closed)="confirming.set(null)"
+  >
+    <div class="space-y-4">
+      <p class="text-sm leading-relaxed text-ink-soft">
+        Do you really want to suspend <span class="font-medium text-ink">{{ employee.name }}</span>
+        ({{ employee.email }})? They are signed out on every device straight away and cannot sign in
+        until someone reactivates them.
+      </p>
+      <div>
+        <div class="flex items-baseline justify-between gap-3">
+          <label for="suspend-reason" class="text-xs font-medium text-ink-soft">Reason (optional)</label>
+          <span class="text-xs text-ink-muted tabular-nums">{{ suspendReason().length }} / {{ reasonMax }}</span>
+        </div>
+        <textarea
+          id="suspend-reason"
+          rows="3"
+          [attr.maxlength]="reasonMax"
+          [value]="suspendReason()"
+          (input)="suspendReason.set($any($event.target).value)"
+          placeholder="Recorded in the audit log."
+          class="app-scrollbar mt-1.5 w-full resize-y rounded-lg border-0 bg-surface-sunken p-3 text-sm text-ink ring-1 ring-line ring-inset placeholder:text-ink-muted focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
+        ></textarea>
+      </div>
+    </div>
+    <button modalFooter appButton variant="ghost" (click)="confirming.set(null)">Cancel</button>
+    <button modalFooter appButton variant="danger" [disabled]="busyId() !== null" (click)="confirmSuspend()">
+      <app-icon name="lock" [size]="14" />
+      {{ busyId() !== null ? 'Suspending…' : 'Suspend' }}
+    </button>
+  </app-modal>
+}
 
 @if (inspecting(); as employee) {
   <app-modal

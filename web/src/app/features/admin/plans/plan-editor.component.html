@@ -245,6 +245,7 @@
             [id]="'limit-' + field.key"
             type="number" appPositiveNumber
             min="0"
+            [attr.max]="limitMax(field.key)"
             [value]="limitValue(field.key) ?? 0"
             [disabled]="isUnlimited(field.key)"
             (input)="setLimit(field.key, $any($event.target).value)"
