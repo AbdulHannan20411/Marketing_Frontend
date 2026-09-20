@@ -160,6 +160,32 @@ export class AutoReplyComponent {
     this.instructions.set(settings.instructions);
   }
 
+  /**
+   * Re-reads what the plan sells, keeping the draft.
+   *
+   * Only the occasions the plan has stopped selling are cleared; everything the
+   * admin set stays as they left it, still dirty and still saveable.
+   */
+  private refreshAllowances(): void {
+    this.service.get().subscribe({
+      next: (settings) => {
+        this.settings.set(settings);
+        this.triggers.update((current) => {
+          const kept = { ...current };
+          for (const trigger of AUTO_REPLY_TRIGGERS) {
+            if (!settings.allowedTriggers[trigger]) {
+              kept[trigger] = false;
+            }
+          }
+          return kept;
+        });
+      },
+      // The refusal is already on screen; failing to refresh what the plan
+      // sells changes nothing the admin can act on.
+      error: () => undefined,
+    });
+  }
+
   protected allowed(trigger: AutoReplyTrigger): boolean {
     return this.settings()?.allowedTriggers[trigger] === true;
   }
@@ -227,9 +253,13 @@ export class AutoReplyComponent {
 
         if (error.errorCode === 'auto_reply_trigger_not_in_plan') {
           // The plan changed under them, so what this screen believes is
-          // allowed is already stale — reload rather than argue with it.
+          // allowed is already stale. Refresh what it sells — but keep the rest
+          // of their draft: a full reload put the master switch back to off
+          // along with the refused occasion, so an admin who turned auto-reply
+          // on and ticked one occasion too many ended up with both undone, and
+          // nothing on screen said the switch had moved.
           this.serverProblem.set(error.detail);
-          this.load();
+          this.refreshAllowances();
           return;
         }
         if (error.status === 422) {

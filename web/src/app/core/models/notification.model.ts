@@ -30,6 +30,9 @@ export type NotificationKind =
   // Auto-reply paused: the monthly AI allowance is spent. Presentation still
   // comes from the payload, so listing it here is documentation, not wiring.
   | 'ai.replies.exhausted'
+  /** A customer wrote in, to whoever may read that number. Action: /inbox. Raised once
+   * per thread — when it goes from read to unread — not once per message. */
+  | 'inbox.message'
   /** Sign-in from a device this user hasn't used. Action: /account/security. */
   | 'security.new_login'
   /** To workspace admins (new device, new city, sharing signs) or platform staff (high risk). */
