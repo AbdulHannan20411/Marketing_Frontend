@@ -14,6 +14,8 @@ import { BadgeComponent, type BadgeTone } from '@shared/ui/badge/badge.component
 import { ButtonDirective } from '@shared/ui/button/button.directive';
 import { CardComponent } from '@shared/ui/card/card.component';
 import { IconComponent } from '@shared/ui/icon/icon.component';
+import { clientPager } from '@shared/ui/pagination/client-pager';
+import { PaginationComponent } from '@shared/ui/pagination/pagination.component';
 import { PageHeaderComponent } from '@shared/ui/page-header/page-header.component';
 import { SkeletonComponent } from '@shared/ui/skeleton/skeleton.component';
 import { EmptyStateComponent } from '@shared/ui/state/empty-state.component';
@@ -44,6 +46,7 @@ const PLAN_TONE: Readonly<Record<TenantPlan, BadgeTone>> = {
   selector: 'app-superadmin-admins',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    PaginationComponent,
     RouterLink,
     TimeAgoPipe,
     PageHeaderComponent,
@@ -118,6 +121,14 @@ export class SuperAdminAdminsComponent {
     });
   });
 
+  /** One page of admin cards. The platform list grows with every customer. */
+  protected readonly pager = clientPager(this.visibleAdmins, 12);
+
+  protected setStatusFilter(value: TenantStatus | 'all'): void {
+    this.statusFilter.set(value);
+    this.pager.first();
+  }
+
   protected readonly totals = computed(() => {
     const all = this.admins();
     return {
@@ -145,6 +156,8 @@ export class SuperAdminAdminsComponent {
 
   protected onSearch(event: Event): void {
     this.search.set((event.target as HTMLInputElement).value);
+    // A narrower list can be shorter than the page the user is on.
+    this.pager.first();
   }
 
   /** Enter this Admin's context and continue to the requested page. */

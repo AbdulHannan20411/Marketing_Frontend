@@ -22,7 +22,7 @@ import { AppTitleStrategy } from '@core/config/title.strategy';
 import { recoverFromStaleChunk } from '@core/config/stale-chunk-recovery';
 import { authTokenInterceptor } from '@core/interceptors/auth-token.interceptor';
 import { errorInterceptor } from '@core/interceptors/error.interceptor';
-import { mockBackendInterceptor } from '@core/mock/mock-backend.interceptor';
+import { lazyMockBackendInterceptor } from '@core/mock/mock-backend.lazy';
 import { timeoutInterceptor } from '@core/interceptors/timeout.interceptor';
 import { scopeInterceptor } from '@core/scope/scope.interceptor';
 import { routes } from './app.routes';
@@ -32,7 +32,7 @@ import { routes } from './app.routes';
  * build never ships the seeded dataset.
  */
 const interceptors = environment.useMockApi
-  ? [errorInterceptor, authTokenInterceptor, scopeInterceptor, mockBackendInterceptor]
+  ? [errorInterceptor, authTokenInterceptor, scopeInterceptor, lazyMockBackendInterceptor]
   : [errorInterceptor, timeoutInterceptor, authTokenInterceptor, scopeInterceptor];
 
 export const appConfig: ApplicationConfig = {

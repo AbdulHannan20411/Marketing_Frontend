@@ -43,7 +43,7 @@
   </app-card>
 } @else {
   <div class="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-    @for (group of groups(); track group.id) {
+    @for (group of pager.items(); track group.id) {
       <app-card [interactive]="true">
         <div class="flex items-start justify-between gap-3">
           <span class="grid h-10 w-10 place-items-center rounded-xl bg-brand-50 text-brand-600">
@@ -136,5 +136,17 @@
         </button>
       </div>
     </div>
+  </div>
+}
+
+@if (pager.hasPages()) {
+  <div class="mt-5">
+    <app-pagination
+      [page]="pager.page()"
+      [pageSize]="pager.pageSize()"
+      [totalItems]="pager.total()"
+      (pageChange)="pager.setPage($event)"
+      (pageSizeChange)="pager.setPageSize($event)"
+    />
   </div>
 }

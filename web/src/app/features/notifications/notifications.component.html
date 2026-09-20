@@ -41,7 +41,7 @@
           ? 'bg-brand-600 text-white shadow-xs'
           : 'bg-surface text-ink-soft ring-1 ring-line hover:bg-surface-muted hover:ring-brand-300'
       "
-      (click)="readFilter.set(option.value)"
+      (click)="setReadFilter(option.value)"
     >
       {{ option.label }}
     </button>
@@ -53,7 +53,7 @@
   <select
     id="priority-filter"
     [value]="priorityFilter()"
-    (change)="priorityFilter.set($any($event.target).value)"
+    (change)="setPriorityFilter($any($event.target).value)"
     class="h-9 rounded-lg border-0 bg-surface px-3 text-sm text-ink-soft ring-1 ring-line ring-inset transition-all focus:ring-2 focus:ring-brand-500 focus:outline-none"
   >
     @for (option of priorityFilters; track option.value) {
@@ -83,7 +83,7 @@
 } @else {
   <app-card class="mt-5 block" [padded]="false">
     <ul class="divide-y divide-line">
-      @for (notification of visible(); track notification.id) {
+      @for (notification of pager.items(); track notification.id) {
         <li>
           <div
             role="button"
@@ -153,4 +153,16 @@
       }
     </ul>
   </app-card>
+
+  @if (pager.hasPages()) {
+    <div class="mt-5">
+      <app-pagination
+        [page]="pager.page()"
+        [pageSize]="pager.pageSize()"
+        [totalItems]="pager.total()"
+        (pageChange)="pager.setPage($event)"
+        (pageSizeChange)="pager.setPageSize($event)"
+      />
+    </div>
+  }
 }

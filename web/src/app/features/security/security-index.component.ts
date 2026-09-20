@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { catchError, from, map, mergeMap, of } from 'rxjs';
 
@@ -11,12 +11,17 @@ import { ButtonDirective } from '@shared/ui/button/button.directive';
 import { CardComponent } from '@shared/ui/card/card.component';
 import { IconComponent } from '@shared/ui/icon/icon.component';
 import { PageHeaderComponent } from '@shared/ui/page-header/page-header.component';
+import { clientPager } from '@shared/ui/pagination/client-pager';
+import { PaginationComponent } from '@shared/ui/pagination/pagination.component';
 import { SkeletonComponent } from '@shared/ui/skeleton/skeleton.component';
 import { EmptyStateComponent } from '@shared/ui/state/empty-state.component';
 import { ErrorStateComponent } from '@shared/ui/state/error-state.component';
 
 /** How many workspaces are fetched at once — gentle on the admin rate limit. */
 const CONCURRENCY = 4;
+
+/** Workspaces per page. Each one on screen costs a request, so the page is small. */
+const PAGE_SIZE = 10;
 
 interface TenantSummary {
   readonly state: 'loading' | 'ready' | 'error';
@@ -47,10 +52,11 @@ function summarise(overview: SecurityOverview): TenantSummary {
 /**
  * Every workspace's security at a glance, for platform staff.
  *
- * Built from the admin list plus each workspace's own overview, fetched a few
- * at a time, because the API has no platform-wide summary yet. The riskiest
- * workspaces rise to the top as their numbers arrive; opening one shows every
- * person, their devices, sessions and risk reasons.
+ * Built from the admin list plus each workspace's own overview, because the API
+ * has no platform-wide summary yet. **Only the workspaces on the current page
+ * are fetched**, a few at a time: a platform with 200 customers would otherwise
+ * fire 200 requests to draw one screen. Within a page the riskiest come first,
+ * and opening one shows every person, their devices, sessions and risk reasons.
  */
 @Component({
   selector: 'app-security-index',
@@ -61,6 +67,7 @@ function summarise(overview: SecurityOverview): TenantSummary {
     CardComponent,
     ButtonDirective,
     IconComponent,
+    PaginationComponent,
     SkeletonComponent,
     EmptyStateComponent,
     ErrorStateComponent,
@@ -106,19 +113,19 @@ function summarise(overview: SecurityOverview): TenantSummary {
           @if (totals(); as total) {
             <section class="grid gap-4 sm:grid-cols-3" aria-label="Platform security summary">
               <app-card>
-                <p class="text-xs font-medium text-ink-muted">High risk people</p>
+                <p class="text-xs font-medium text-ink-muted">High risk people <span class="text-ink-muted/70">· this page</span></p>
                 <p class="mt-1 text-2xl font-semibold tabular-nums" [class]="total.high > 0 ? 'text-red-700' : 'text-ink'">
                   {{ total.high }}
                 </p>
               </app-card>
               <app-card>
-                <p class="text-xs font-medium text-ink-muted">Worth a look</p>
+                <p class="text-xs font-medium text-ink-muted">Worth a look <span class="text-ink-muted/70">· this page</span></p>
                 <p class="mt-1 text-2xl font-semibold tabular-nums" [class]="total.attention > 0 ? 'text-amber-700' : 'text-ink'">
                   {{ total.attention }}
                 </p>
               </app-card>
               <app-card>
-                <p class="text-xs font-medium text-ink-muted">Signed in now</p>
+                <p class="text-xs font-medium text-ink-muted">Signed in now <span class="text-ink-muted/70">· this page</span></p>
                 <p class="mt-1 text-2xl font-semibold tabular-nums text-ink">{{ total.signedIn }}</p>
               </app-card>
             </section>
@@ -194,6 +201,16 @@ function summarise(overview: SecurityOverview): TenantSummary {
               </table>
             </div>
           </app-card>
+
+          @if (pager.hasPages()) {
+            <app-pagination
+              [page]="pager.page()"
+              [pageSize]="pager.pageSize()"
+              [totalItems]="pager.total()"
+              (pageChange)="pager.setPage($event)"
+              (pageSizeChange)="pager.setPageSize($event)"
+            />
+          }
         }
       }
     </div>
@@ -213,20 +230,30 @@ export class SecurityIndexComponent {
   private readonly admins = signal<readonly AdminAccount[]>([]);
   private readonly summaries = signal<ReadonlyMap<string, TenantSummary>>(new Map());
 
-  /** Riskiest first, once their numbers are in; still-loading rows keep their place below. */
-  protected readonly rows = computed<readonly Row[]>(() => {
+  /** In the API's order, so a row does not jump pages as its numbers arrive. */
+  private readonly allRows = computed<readonly Row[]>(() => {
     const summaries = this.summaries();
-    const rows = this.admins().map((admin) => ({
+    return this.admins().map((admin) => ({
       admin,
       summary: admin.tenantId ? (summaries.get(admin.tenantId) ?? null) : null,
     }));
-    const weight = (row: Row): number =>
-      row.summary?.state === 'ready' ? row.summary.high * 100 + row.summary.medium * 10 + row.summary.attention : -1;
-    return [...rows].sort((left, right) => weight(right) - weight(left));
   });
 
+  protected readonly pager = clientPager(this.allRows, PAGE_SIZE);
+
+  /** Riskiest first within the page; still-loading rows keep their place below. */
+  protected readonly rows = computed<readonly Row[]>(() => {
+    const weight = (row: Row): number =>
+      row.summary?.state === 'ready' ? row.summary.high * 100 + row.summary.medium * 10 + row.summary.attention : -1;
+    return [...this.pager.items()].sort((left, right) => weight(right) - weight(left));
+  });
+
+  /** Across this page only — the other pages have not been fetched. */
   protected readonly totals = computed(() => {
-    const ready = [...this.summaries().values()].filter((summary) => summary.state === 'ready');
+    const ready = this.pager
+      .items()
+      .map((row) => row.summary)
+      .filter((summary): summary is TenantSummary => summary?.state === 'ready');
     return {
       high: ready.reduce((sum, summary) => sum + summary.high, 0),
       attention: ready.reduce((sum, summary) => sum + summary.attention, 0),
@@ -236,28 +263,50 @@ export class SecurityIndexComponent {
 
   constructor() {
     this.load();
+
+    // Fetch as the page changes, and once the admin list arrives.
+    effect(() => {
+      const tenantIds = this.pager
+        .items()
+        .map((row) => row.admin.tenantId)
+        .filter((id): id is string => !!id);
+      untracked(() => this.loadSummaries(tenantIds));
+    });
   }
 
   protected load(): void {
     this.state.set('loading');
+    // Cleared so Refresh really refetches the page's workspaces.
     this.summaries.set(new Map());
 
     this.platform.listAdmins().subscribe({
       next: (admins) => {
         this.admins.set(admins);
         this.state.set(admins.length === 0 ? 'empty' : 'ready');
-        this.loadSummaries(admins);
+        // The effect in the constructor fetches whichever page is on screen.
       },
       error: () => this.state.set('error'),
     });
   }
 
-  private loadSummaries(admins: readonly AdminAccount[]): void {
-    const tenantIds = [...new Set(admins.map((admin) => admin.tenantId).filter((id): id is string => !!id))];
-    const loading: TenantSummary = { state: 'loading', people: 0, signedIn: 0, high: 0, medium: 0, attention: 0 };
-    this.summaries.set(new Map(tenantIds.map((id) => [id, loading])));
+  /** Fetches the workspaces on screen that have not been fetched already. */
+  private loadSummaries(tenantIds: readonly string[]): void {
+    const known = this.summaries();
+    const wanted = [...new Set(tenantIds)].filter((id) => !known.has(id));
+    if (wanted.length === 0) {
+      return;
+    }
 
-    from(tenantIds)
+    const loading: TenantSummary = { state: 'loading', people: 0, signedIn: 0, high: 0, medium: 0, attention: 0 };
+    this.summaries.update((current) => {
+      const next = new Map(current);
+      for (const id of wanted) {
+        next.set(id, loading);
+      }
+      return next;
+    });
+
+    from(wanted)
       .pipe(
         mergeMap(
           (tenantId) =>

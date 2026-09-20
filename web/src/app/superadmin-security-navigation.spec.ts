@@ -72,6 +72,9 @@ describe('Super Admin navigation to Security', () => {
   for (const target of ['/superadmin/security', '/superadmin/tenants/tnt_001/security', '/account/security']) {
     it(`reaches ${target}`, async () => {
       await signInAsSuperAdmin();
+      // Let the profile and entitlement calls that sign-in kicks off settle, so
+      // a late one cannot cancel the navigation under test.
+      await new Promise((resolve) => setTimeout(resolve, 50));
       const failures = trackFailures();
       const harness = await RouterTestingHarness.create();
 

@@ -84,7 +84,7 @@
   @if (tab() === 'team') {
     <app-card class="mt-5 block" [padded]="false">
       <ul class="divide-y divide-line">
-        @for (employee of employees(); track employee.id) {
+        @for (employee of pager.items(); track employee.id) {
           <li
             class="flex flex-wrap items-center gap-4 px-5 py-4 transition-colors hover:bg-surface-muted"
           >
@@ -226,6 +226,18 @@
         }
       </ul>
     </app-card>
+
+    @if (pager.hasPages()) {
+      <div class="mt-5">
+        <app-pagination
+          [page]="pager.page()"
+          [pageSize]="pager.pageSize()"
+          [totalItems]="pager.total()"
+          (pageChange)="pager.setPage($event)"
+          (pageSizeChange)="pager.setPageSize($event)"
+        />
+      </div>
+    }
   }
 
   <!-- Permission matrix -->

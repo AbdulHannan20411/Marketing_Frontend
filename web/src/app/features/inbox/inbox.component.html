@@ -280,6 +280,24 @@
                 />
               }
               @default {
+                @if (hasEarlier()) {
+                  <div class="flex justify-center pb-1">
+                    <button
+                      appButton
+                      variant="outline"
+                      size="sm"
+                      [disabled]="loadingEarlier()"
+                      (click)="loadEarlier()"
+                    >
+                      @if (loadingEarlier()) {
+                        <app-icon name="refresh" [size]="14" class="animate-spin" />
+                        Loading…
+                      } @else {
+                        Load earlier messages
+                      }
+                    </button>
+                  </div>
+                }
                 @for (message of messages(); track message.id) {
                   @if (message.kind === 'system') {
                     <!-- A location, sticker or contact card: nothing to draw as a

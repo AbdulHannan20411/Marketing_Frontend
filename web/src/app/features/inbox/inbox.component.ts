@@ -197,6 +197,16 @@ export class InboxComponent {
   protected readonly selectedId = signal<string | null>(null);
   protected readonly messages = signal<readonly ConversationMessage[]>([]);
   protected readonly threadState = signal<LoadState>('idle');
+  /**
+   * Thread paging. The API returns a conversation **oldest first**, so page 1
+   * is the *start* of the history — a long thread opened on page 1 showed
+   * messages from weeks ago and hid today's. The newest page is loaded instead,
+   * and "Load earlier" walks backwards from there.
+   */
+  private readonly threadPage = signal(1);
+  private readonly threadTotal = signal(0);
+  protected readonly loadingEarlier = signal(false);
+  protected readonly hasEarlier = computed(() => this.threadPage() > 1);
 
   protected readonly draft = signal('');
   protected readonly attachment = signal<MediaAsset | null>(null);
@@ -492,9 +502,34 @@ export class InboxComponent {
 
     this.whatsapp.listMessages(conversationId, 1, PAGE_SIZE).subscribe({
       next: (result) => {
-        this.messages.set(result.items);
-        this.threadState.set(result.totalItems === 0 ? 'empty' : 'ready');
-        this.scrollToLatest();
+        this.threadTotal.set(result.totalItems);
+        const lastPage = Math.max(1, Math.ceil(result.totalItems / PAGE_SIZE));
+
+        if (lastPage === 1) {
+          this.threadPage.set(1);
+          this.messages.set(result.items);
+          this.threadState.set(result.totalItems === 0 ? 'empty' : 'ready');
+          this.scrollToLatest();
+          return;
+        }
+
+        // Page 1 told us how long the thread is; the newest messages are on the
+        // last page, which is what someone opening a conversation wants to see.
+        this.whatsapp.listMessages(conversationId, lastPage, PAGE_SIZE).subscribe({
+          next: (latest) => {
+            this.threadPage.set(lastPage);
+            this.messages.set(latest.items);
+            this.threadState.set('ready');
+            this.scrollToLatest();
+          },
+          error: () => {
+            // Fall back to what we have rather than an error screen.
+            this.threadPage.set(1);
+            this.messages.set(result.items);
+            this.threadState.set('ready');
+            this.scrollToLatest();
+          },
+        });
       },
       error: () => {
         if (!silent) {
@@ -508,6 +543,44 @@ export class InboxComponent {
     this.conversations.update((current) =>
       current.map((entry) => (entry.id === updated.id ? updated : entry)),
     );
+  }
+
+  /**
+   * Fetches the page before the oldest one on screen and puts it above, keeping
+   * the message the user is looking at exactly where it is.
+   */
+  protected loadEarlier(): void {
+    const conversationId = this.selectedId();
+    const previous = this.threadPage() - 1;
+    if (conversationId === null || previous < 1 || this.loadingEarlier()) {
+      return;
+    }
+    this.loadingEarlier.set(true);
+    const element = this.thread()?.nativeElement;
+    const heightBefore = element?.scrollHeight ?? 0;
+    const offsetBefore = element?.scrollTop ?? 0;
+
+    this.whatsapp.listMessages(conversationId, previous, PAGE_SIZE).subscribe({
+      next: (result) => {
+        this.loadingEarlier.set(false);
+        this.threadPage.set(previous);
+        this.messages.update((current) => {
+          const known = new Set(current.map((message) => message.id));
+          return [...result.items.filter((message) => !known.has(message.id)), ...current];
+        });
+        // Keep the reading position: the list just grew above the viewport.
+        setTimeout(() => {
+          const view = this.thread()?.nativeElement;
+          if (view !== undefined) {
+            view.scrollTop = offsetBefore + (view.scrollHeight - heightBefore);
+          }
+        });
+      },
+      error: () => {
+        this.loadingEarlier.set(false);
+        this.toast.error('Could not load earlier messages', 'Please try again.');
+      },
+    });
   }
 
   /** Runs after render so the newest message is in view, not just loaded. */
@@ -586,6 +659,7 @@ export class InboxComponent {
           this.draft.set('');
           this.attachment.set(null);
           this.messages.update((current) => [...current, message]);
+          this.threadTotal.update((total) => total + 1);
           this.scrollToLatest();
         },
         error: (error: ApiError) => {

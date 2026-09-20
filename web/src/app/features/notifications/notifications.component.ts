@@ -8,6 +8,8 @@ import { BadgeComponent, type BadgeTone } from '@shared/ui/badge/badge.component
 import { ButtonDirective } from '@shared/ui/button/button.directive';
 import { CardComponent } from '@shared/ui/card/card.component';
 import { IconComponent } from '@shared/ui/icon/icon.component';
+import { clientPager } from '@shared/ui/pagination/client-pager';
+import { PaginationComponent } from '@shared/ui/pagination/pagination.component';
 import { PageHeaderComponent } from '@shared/ui/page-header/page-header.component';
 import { SkeletonComponent } from '@shared/ui/skeleton/skeleton.component';
 import { EmptyStateComponent } from '@shared/ui/state/empty-state.component';
@@ -26,6 +28,7 @@ const PRIORITY_TONE: Readonly<Record<NotificationPriority, BadgeTone>> = {
   selector: 'app-notifications',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    PaginationComponent,
     TimeAgoPipe,
     PageHeaderComponent,
     CardComponent,
@@ -80,6 +83,19 @@ export class NotificationsComponent {
       return matchesRead && matchesPriority;
     });
   });
+
+  /** One page of notifications; the list grows without bound over time. */
+  protected readonly pager = clientPager(this.visible, 20);
+
+  protected setReadFilter(value: ReadFilter): void {
+    this.readFilter.set(value);
+    this.pager.first();
+  }
+
+  protected setPriorityFilter(value: PriorityFilter): void {
+    this.priorityFilter.set(value);
+    this.pager.first();
+  }
 
   protected readonly criticalCount = computed(
     () => this.sorted().filter((n) => n.priority === 'critical' && !n.read).length,

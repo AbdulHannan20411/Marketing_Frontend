@@ -1,10 +1,4 @@
 import { Injectable, inject, signal } from '@angular/core';
-import {
-  HttpTransportType,
-  HubConnectionBuilder,
-  HubConnectionState,
-  LogLevel,
-} from '@microsoft/signalr';
 import type { HubConnection } from '@microsoft/signalr';
 import { Subject, type Observable } from 'rxjs';
 
@@ -37,6 +31,8 @@ export class RealtimeService {
   private readonly auth = inject(AuthService);
 
   private connection: HubConnection | null = null;
+  /** True while the client is being fetched, so a second call does not start a second one. */
+  private connecting = false;
 
   private readonly campaignProgress = new Subject<Campaign>();
   private readonly importProgress = new Subject<ImportProgressEvent>();
@@ -65,13 +61,29 @@ export class RealtimeService {
   readonly resynced$: Observable<void> = this.resynced.asObservable();
 
   connect(): void {
+    if (this.connection !== null || this.connecting || !this.auth.isAuthenticated()) {
+      return;
+    }
+    this.connecting = true;
+    this.state.set('connecting');
+    void this.open();
+  }
+
+  /**
+   * The SignalR client is 60 KB and nothing on screen waits for it, so it is
+   * fetched after the shell renders rather than bundled into it.
+   */
+  private async open(): Promise<void> {
+    const signalR = await import('@microsoft/signalr');
+    this.connecting = false;
+
+    // Signed out, or disconnect() ran, while the client was loading.
     if (this.connection !== null || !this.auth.isAuthenticated()) {
+      this.state.set('disconnected');
       return;
     }
 
-    this.state.set('connecting');
-
-    const connection = new HubConnectionBuilder()
+    const connection = new signalR.HubConnectionBuilder()
       .withUrl(environment.realtimeUrl, {
         accessTokenFactory: () => this.auth.accessToken ?? '',
         // Connect straight over WebSockets and skip the negotiate request.
@@ -84,11 +96,11 @@ export class RealtimeService {
         //
         // Remove this once the API adds X-Requested-With to its allowed headers,
         // which would also restore the long-polling fallback.
-        transport: HttpTransportType.WebSockets,
+        transport: signalR.HttpTransportType.WebSockets,
         skipNegotiation: true,
       })
       .withAutomaticReconnect()
-      .configureLogging(environment.production ? LogLevel.Error : LogLevel.Warning)
+      .configureLogging(environment.production ? signalR.LogLevel.Error : signalR.LogLevel.Warning)
       .build();
 
     connection.on('campaignProgress', (campaign: Campaign) => this.campaignProgress.next(campaign));
@@ -135,7 +147,9 @@ export class RealtimeService {
     this.connection = null;
     this.state.set('disconnected');
 
-    if (connection !== null && connection.state !== HubConnectionState.Disconnected) {
+    // The literal rather than HubConnectionState: importing the enum as a value
+    // would pull the whole client back into this bundle.
+    if (connection !== null && connection.state !== 'Disconnected') {
       void connection.stop();
     }
   }
