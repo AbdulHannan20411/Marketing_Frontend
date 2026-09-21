@@ -8,8 +8,8 @@ import { BadgeComponent, type BadgeTone } from '@shared/ui/badge/badge.component
 import { ButtonDirective } from '@shared/ui/button/button.directive';
 import { CardComponent } from '@shared/ui/card/card.component';
 import { IconComponent } from '@shared/ui/icon/icon.component';
-import { clientPager } from '@shared/ui/pagination/client-pager';
-import { PaginationComponent } from '@shared/ui/pagination/pagination.component';
+import { clientPager } from '@shared/ui/pagination/pager';
+import { PaginatorComponent } from '@shared/ui/pagination/paginator.component';
 import { PageHeaderComponent } from '@shared/ui/page-header/page-header.component';
 import { SkeletonComponent } from '@shared/ui/skeleton/skeleton.component';
 import { EmptyStateComponent } from '@shared/ui/state/empty-state.component';
@@ -28,7 +28,7 @@ const PRIORITY_TONE: Readonly<Record<NotificationPriority, BadgeTone>> = {
   selector: 'app-notifications',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    PaginationComponent,
+    PaginatorComponent,
     TimeAgoPipe,
     PageHeaderComponent,
     CardComponent,
@@ -85,16 +85,16 @@ export class NotificationsComponent {
   });
 
   /** One page of notifications; the list grows without bound over time. */
-  protected readonly pager = clientPager(this.visible, 20);
+  protected readonly pager = clientPager(this.visible);
 
   protected setReadFilter(value: ReadFilter): void {
     this.readFilter.set(value);
-    this.pager.first();
+    this.pager.reset();
   }
 
   protected setPriorityFilter(value: PriorityFilter): void {
     this.priorityFilter.set(value);
-    this.pager.first();
+    this.pager.reset();
   }
 
   protected readonly criticalCount = computed(

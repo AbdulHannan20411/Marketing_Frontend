@@ -16,6 +16,7 @@ import {
   DEFAULT_PAGE_SIZE,
   PaginationComponent,
 } from '@shared/ui/pagination/pagination.component';
+import type { Pager } from '@shared/ui/pagination/pager';
 import { TableRowDirective } from './table-row.directive';
 
 export interface TableColumn {
@@ -50,6 +51,12 @@ export class DataTableComponent<TRow> {
   readonly columns = input.required<readonly TableColumn[]>();
   readonly rows = input.required<readonly TRow[]>();
   readonly state = input<LoadState>('ready');
+  /**
+   * The table's pagination, as one object — see `pager.ts`. Preferred over the
+   * three inputs below, which remain for callers that own the numbers
+   * themselves.
+   */
+  readonly pager = input<Pager | null>(null);
   readonly page = input(1);
   readonly pageSize = input(DEFAULT_PAGE_SIZE);
   readonly totalItems = input(0);
@@ -60,6 +67,30 @@ export class DataTableComponent<TRow> {
   readonly pageChange = output<number>();
   readonly pageSizeChange = output<number>();
   readonly retry = output<void>();
+
+  /** Drives the pager when there is one; otherwise the host hears about it. */
+  protected onPageChange(page: number): void {
+    const pager = this.pager();
+    if (pager === null) {
+      this.pageChange.emit(page);
+      return;
+    }
+    pager.setPage(page);
+  }
+
+  protected onPageSizeChange(size: number): void {
+    const pager = this.pager();
+    if (pager === null) {
+      this.pageSizeChange.emit(size);
+      return;
+    }
+    pager.setPageSize(size);
+  }
+
+  /** The pager's numbers when there is one, the plain inputs otherwise. */
+  protected readonly activePage = computed(() => this.pager()?.page() ?? this.page());
+  protected readonly activePageSize = computed(() => this.pager()?.pageSize() ?? this.pageSize());
+  protected readonly activeTotal = computed(() => this.pager()?.total() ?? this.totalItems());
 
   private readonly rowDirective = contentChild.required(TableRowDirective);
   protected readonly rowTemplate = computed(() => this.rowDirective().template);

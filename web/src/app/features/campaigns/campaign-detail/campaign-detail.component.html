@@ -270,17 +270,7 @@
                     </table>
                   </div>
 
-                  @if (runsTotal() > runsPageSize()) {
-                    <div class="mt-4">
-                      <app-pagination
-                        [page]="runsPage()"
-                        [pageSize]="runsPageSize()"
-                        [totalItems]="runsTotal()"
-                        (pageChange)="changeRunsPage($event)"
-                        (pageSizeChange)="changeRunsPageSize($event)"
-                      />
-                    </div>
-                  }
+                  <app-paginator class="mt-4" [pager]="runsPager" />
                 }
               }
             }

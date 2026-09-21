@@ -15,7 +15,7 @@ import { areaTrendChart, funnelChart } from '@shared/ui/chart/chart.presets';
 import { DataTableComponent, type TableColumn } from '@shared/ui/data-table/data-table.component';
 import { TableRowDirective } from '@shared/ui/data-table/table-row.directive';
 import { IconComponent } from '@shared/ui/icon/icon.component';
-import { DEFAULT_PAGE_SIZE } from '@shared/ui/pagination/pagination.component';
+import { serverPager } from '@shared/ui/pagination/pager';
 import { PageHeaderComponent } from '@shared/ui/page-header/page-header.component';
 import { SkeletonComponent } from '@shared/ui/skeleton/skeleton.component';
 import { StatCardComponent } from '@shared/ui/stat-card/stat-card.component';
@@ -48,10 +48,13 @@ export class ReportsComponent {
   protected readonly snapshot = signal<DashboardSnapshot | null>(null);
   protected readonly failures = signal<readonly DeliveryFailure[]>([]);
   protected readonly failureTotal = signal(0);
-  protected readonly failurePage = signal(1);
   protected readonly failureState = signal<LoadState>('loading');
 
-  protected readonly pageSize = signal(DEFAULT_PAGE_SIZE);
+  /** The API pages delivery failures; `loadFailures()` reads from here. */
+  protected readonly failurePager = serverPager({
+    total: this.failureTotal,
+    load: () => this.loadFailures(),
+  });
 
   protected readonly columns: readonly TableColumn[] = [
     { key: 'contact', header: 'Recipient' },
@@ -129,7 +132,7 @@ export class ReportsComponent {
 
     forkJoin({
       snapshot: this.dashboardService.getSnapshot(),
-      failures: this.dashboardService.getFailures(this.failurePage(), this.pageSize()),
+      failures: this.dashboardService.getFailures(this.failurePager.page(), this.failurePager.pageSize()),
     }).subscribe({
       next: ({ snapshot, failures }) => {
         this.snapshot.set(snapshot);
@@ -145,17 +148,10 @@ export class ReportsComponent {
     });
   }
 
-  protected onFailurePageSizeChange(size: number): void {
-    this.pageSize.set(size);
-    this.failurePage.set(1);
-    this.onFailurePageChange(1);
-  }
-
-  protected onFailurePageChange(page: number): void {
-    this.failurePage.set(page);
+  private loadFailures(): void {
     this.failureState.set('loading');
 
-    this.dashboardService.getFailures(page, this.pageSize()).subscribe({
+    this.dashboardService.getFailures(this.failurePager.page(), this.failurePager.pageSize()).subscribe({
       next: (result) => {
         this.failures.set(result.items);
         this.failureTotal.set(result.totalItems);

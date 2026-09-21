@@ -11,8 +11,8 @@ import { ButtonDirective } from '@shared/ui/button/button.directive';
 import { CardComponent } from '@shared/ui/card/card.component';
 import { IconComponent } from '@shared/ui/icon/icon.component';
 import { PageHeaderComponent } from '@shared/ui/page-header/page-header.component';
-import { clientPager } from '@shared/ui/pagination/client-pager';
-import { PaginationComponent } from '@shared/ui/pagination/pagination.component';
+import { clientPager } from '@shared/ui/pagination/pager';
+import { PaginatorComponent } from '@shared/ui/pagination/paginator.component';
 import { SkeletonComponent } from '@shared/ui/skeleton/skeleton.component';
 import { EmptyStateComponent } from '@shared/ui/state/empty-state.component';
 import { ErrorStateComponent } from '@shared/ui/state/error-state.component';
@@ -22,7 +22,7 @@ import { TagEditorComponent } from './tag-editor.component';
   selector: 'app-tags',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    PaginationComponent,
+    PaginatorComponent,
     DecimalPipe,
     PageHeaderComponent,
     CardComponent,
@@ -44,7 +44,7 @@ export class TagsComponent {
   protected readonly state = signal<LoadState>('loading');
   protected readonly tags = signal<readonly ContactTag[]>([]);
   /** The API returns every tag; only one page of cards is rendered. */
-  protected readonly pager = clientPager(this.tags, 16);
+  protected readonly pager = clientPager(this.tags);
   protected readonly skeletons = [1, 2, 3, 4, 5, 6, 7, 8];
 
   protected readonly editing = signal<ContactTag | 'new' | null>(null);

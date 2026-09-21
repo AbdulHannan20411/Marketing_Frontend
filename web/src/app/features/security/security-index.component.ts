@@ -11,8 +11,8 @@ import { ButtonDirective } from '@shared/ui/button/button.directive';
 import { CardComponent } from '@shared/ui/card/card.component';
 import { IconComponent } from '@shared/ui/icon/icon.component';
 import { PageHeaderComponent } from '@shared/ui/page-header/page-header.component';
-import { clientPager } from '@shared/ui/pagination/client-pager';
-import { PaginationComponent } from '@shared/ui/pagination/pagination.component';
+import { clientPager } from '@shared/ui/pagination/pager';
+import { PaginatorComponent } from '@shared/ui/pagination/paginator.component';
 import { SkeletonComponent } from '@shared/ui/skeleton/skeleton.component';
 import { EmptyStateComponent } from '@shared/ui/state/empty-state.component';
 import { ErrorStateComponent } from '@shared/ui/state/error-state.component';
@@ -67,7 +67,7 @@ function summarise(overview: SecurityOverview): TenantSummary {
     CardComponent,
     ButtonDirective,
     IconComponent,
-    PaginationComponent,
+    PaginatorComponent,
     SkeletonComponent,
     EmptyStateComponent,
     ErrorStateComponent,
@@ -202,15 +202,7 @@ function summarise(overview: SecurityOverview): TenantSummary {
             </div>
           </app-card>
 
-          @if (pager.hasPages()) {
-            <app-pagination
-              [page]="pager.page()"
-              [pageSize]="pager.pageSize()"
-              [totalItems]="pager.total()"
-              (pageChange)="pager.setPage($event)"
-              (pageSizeChange)="pager.setPageSize($event)"
-            />
-          }
+          <app-paginator [pager]="pager" />
         }
       }
     </div>

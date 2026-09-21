@@ -457,13 +457,7 @@
               </div>
 
               <div class="border-t border-line px-5 py-3">
-                <app-pagination
-                  [page]="rowPage()"
-                  [pageSize]="rowPageSize()"
-                  [totalItems]="rowTotal()"
-                  (pageChange)="onRowPageChange($event)"
-                  (pageSizeChange)="onRowPageSizeChange($event)"
-                />
+                <app-paginator [pager]="rowPager" />
               </div>
             }
           }

@@ -9,7 +9,8 @@ import { BadgeComponent, type BadgeTone } from '@shared/ui/badge/badge.component
 import { ButtonDirective } from '@shared/ui/button/button.directive';
 import { CardComponent } from '@shared/ui/card/card.component';
 import { IconComponent } from '@shared/ui/icon/icon.component';
-import { DEFAULT_PAGE_SIZE, PaginationComponent } from '@shared/ui/pagination/pagination.component';
+import { serverPager } from '@shared/ui/pagination/pager';
+import { PaginatorComponent } from '@shared/ui/pagination/paginator.component';
 import { PageHeaderComponent } from '@shared/ui/page-header/page-header.component';
 import { SkeletonComponent } from '@shared/ui/skeleton/skeleton.component';
 import { EmptyStateComponent } from '@shared/ui/state/empty-state.component';
@@ -36,7 +37,7 @@ type SeverityFilter = AuditSeverity | 'all';
     ButtonDirective,
     IconComponent,
     SkeletonComponent,
-    PaginationComponent,
+    PaginatorComponent,
     EmptyStateComponent,
     ErrorStateComponent,
   ],
@@ -48,7 +49,6 @@ export class AuditComponent {
   protected readonly state = signal<LoadState>('loading');
   protected readonly entries = signal<readonly AuditLogEntry[]>([]);
   protected readonly totalItems = signal(0);
-  protected readonly page = signal(1);
   protected readonly severity = signal<SeverityFilter>('all');
   protected readonly skeletons = [1, 2, 3, 4, 5, 6, 7, 8];
 
@@ -67,7 +67,11 @@ export class AuditComponent {
     return filter === 'all' ? all : all.filter((entry) => entry.severity === filter);
   });
 
-  protected readonly pageSize = signal(DEFAULT_PAGE_SIZE);
+  /** The API pages this list; `load()` reads the page and size from here. */
+  protected readonly pager = serverPager({
+    total: this.totalItems,
+    load: () => this.load(),
+  });
 
   constructor() {
     this.load();
@@ -75,7 +79,7 @@ export class AuditComponent {
 
   protected load(): void {
     this.state.set('loading');
-    this.platform.listAuditLogs(this.page(), this.pageSize()).subscribe({
+    this.platform.listAuditLogs(this.pager.page(), this.pager.pageSize()).subscribe({
       next: (result) => {
         this.entries.set(result.items);
         this.totalItems.set(result.totalItems);
@@ -85,14 +89,4 @@ export class AuditComponent {
     });
   }
 
-  protected goToPage(page: number): void {
-    this.page.set(page);
-    this.load();
-  }
-
-  protected onPageSizeChange(size: number): void {
-    this.pageSize.set(size);
-    this.page.set(1);
-    this.load();
-  }
 }

@@ -17,7 +17,8 @@ import { ButtonDirective } from '@shared/ui/button/button.directive';
 import { CardComponent } from '@shared/ui/card/card.component';
 import { IconComponent } from '@shared/ui/icon/icon.component';
 import { PageHeaderComponent } from '@shared/ui/page-header/page-header.component';
-import { DEFAULT_PAGE_SIZE, PaginationComponent } from '@shared/ui/pagination/pagination.component';
+import { serverPager } from '@shared/ui/pagination/pager';
+import { PaginatorComponent } from '@shared/ui/pagination/paginator.component';
 import { SkeletonComponent } from '@shared/ui/skeleton/skeleton.component';
 import { EmptyStateComponent } from '@shared/ui/state/empty-state.component';
 import { ErrorStateComponent } from '@shared/ui/state/error-state.component';
@@ -57,7 +58,7 @@ const FILTERS: readonly { value: PaymentStatusFilter; label: string }[] = [
     BadgeComponent,
     ButtonDirective,
     IconComponent,
-    PaginationComponent,
+    PaginatorComponent,
     SkeletonComponent,
     EmptyStateComponent,
     ErrorStateComponent,
@@ -87,9 +88,13 @@ export class SuperAdminPaymentsComponent {
   protected readonly requests = signal<readonly PaymentRequest[]>([]);
   protected readonly filter = signal<PaymentStatusFilter>('pending');
   protected readonly search = signal('');
-  protected readonly page = signal(1);
-  protected readonly pageSize = signal(DEFAULT_PAGE_SIZE);
   protected readonly totalItems = signal(0);
+  /** The API pages this list; `load()` reads the page and size from here. */
+  protected readonly pager = serverPager({
+    total: this.totalItems,
+    load: () => this.load(),
+  });
+
 
   /** The request open in the review panel, if any. */
   protected readonly reviewing = signal<PaymentRequest | null>(null);
@@ -112,7 +117,7 @@ export class SuperAdminPaymentsComponent {
     }
 
     this.payments
-      .listForReview(this.filter(), this.page(), this.pageSize(), this.search().trim())
+      .listForReview(this.filter(), this.pager.page(), this.pager.pageSize(), this.search().trim())
       .subscribe({
         next: (result) => {
           this.requests.set(result.items);
@@ -130,26 +135,16 @@ export class SuperAdminPaymentsComponent {
 
   protected setFilter(value: PaymentStatusFilter): void {
     this.filter.set(value);
-    this.page.set(1);
+    this.pager.reset();
     this.load();
   }
 
   protected onSearch(value: string): void {
     this.search.set(value);
-    this.page.set(1);
+    this.pager.reset();
     this.load();
   }
 
-  protected onPageChange(page: number): void {
-    this.page.set(page);
-    this.load();
-  }
-
-  protected onPageSizeChange(size: number): void {
-    this.pageSize.set(size);
-    this.page.set(1);
-    this.load();
-  }
 
   protected open(request: PaymentRequest): void {
     this.reviewing.set(request);

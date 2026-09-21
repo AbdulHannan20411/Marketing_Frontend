@@ -91,12 +91,6 @@
       }
     </ol>
 
-    <app-pagination
-      [page]="page()"
-      [pageSize]="pageSize()"
-      [totalItems]="totalItems()"
-      (pageChange)="goToPage($event)"
-      (pageSizeChange)="onPageSizeChange($event)"
-    />
+    <app-paginator [pager]="pager" />
   </app-card>
 }

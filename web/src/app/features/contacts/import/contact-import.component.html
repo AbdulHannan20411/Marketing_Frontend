@@ -239,13 +239,7 @@
             </div>
 
             <div class="border-t border-line px-5 py-3">
-              <app-pagination
-                [page]="page()"
-                [pageSize]="pageSize()"
-                [totalItems]="totalItems()"
-                (pageChange)="onPageChange($event)"
-                (pageSizeChange)="onPageSizeChange($event)"
-              />
+              <app-paginator [pager]="pager" />
             </div>
           }
         }

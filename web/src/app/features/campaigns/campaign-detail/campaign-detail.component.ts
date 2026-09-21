@@ -26,7 +26,8 @@ import { CardComponent } from '@shared/ui/card/card.component';
 import { IconComponent } from '@shared/ui/icon/icon.component';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
 import { PageHeaderComponent } from '@shared/ui/page-header/page-header.component';
-import { PaginationComponent } from '@shared/ui/pagination/pagination.component';
+import { serverPager } from '@shared/ui/pagination/pager';
+import { PaginatorComponent } from '@shared/ui/pagination/paginator.component';
 import { SkeletonComponent } from '@shared/ui/skeleton/skeleton.component';
 import { EmptyStateComponent } from '@shared/ui/state/empty-state.component';
 import { ErrorStateComponent } from '@shared/ui/state/error-state.component';
@@ -64,7 +65,7 @@ const LOOKUP_PAGE_SIZE = 500;
     ButtonDirective,
     IconComponent,
     ModalComponent,
-    PaginationComponent,
+    PaginatorComponent,
     SkeletonComponent,
     EmptyStateComponent,
     ErrorStateComponent,
@@ -92,9 +93,13 @@ export class CampaignDetailComponent {
 
   protected readonly runs = signal<readonly CampaignRun[]>([]);
   protected readonly runsState = signal<LoadState>('loading');
-  protected readonly runsPage = signal(1);
-  protected readonly runsPageSize = signal(RUNS_PAGE_SIZE);
   protected readonly runsTotal = signal(0);
+  /** The API pages a campaign's runs; `loadRuns()` reads from here. */
+  protected readonly runsPager = serverPager({
+    total: this.runsTotal,
+    pageSize: RUNS_PAGE_SIZE,
+    load: () => this.loadRuns(this.campaignId()),
+  });
   /**
    * True once `GET /{id}/runs` has answered with anything other than a 404.
    *
@@ -268,7 +273,7 @@ export class CampaignDetailComponent {
     effect(() => {
       const id = this.campaignId();
       untracked(() => {
-        this.runsPage.set(1);
+        this.runsPager.reset();
         this.load(id);
       });
     });
@@ -324,7 +329,7 @@ export class CampaignDetailComponent {
   protected loadRuns(id: string): void {
     this.runsState.set('loading');
 
-    this.campaigns.listRuns(id, this.runsPage(), this.runsPageSize()).subscribe({
+    this.campaigns.listRuns(id, this.runsPager.page(), this.runsPager.pageSize()).subscribe({
       next: (page) => {
         this.runsAvailable.set(true);
         this.runs.set(page.items);
@@ -345,16 +350,6 @@ export class CampaignDetailComponent {
     });
   }
 
-  protected changeRunsPage(page: number): void {
-    this.runsPage.set(page);
-    this.loadRuns(this.campaignId());
-  }
-
-  protected changeRunsPageSize(size: number): void {
-    this.runsPageSize.set(size);
-    this.runsPage.set(1);
-    this.loadRuns(this.campaignId());
-  }
 
   /** `scheduledFor` in the campaign's zone, not the reader's. */
   protected runWhen(run: CampaignRun): string {

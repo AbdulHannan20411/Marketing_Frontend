@@ -19,7 +19,8 @@ import { ButtonDirective } from '@shared/ui/button/button.directive';
 import { CardComponent } from '@shared/ui/card/card.component';
 import { IconComponent } from '@shared/ui/icon/icon.component';
 import { PageHeaderComponent } from '@shared/ui/page-header/page-header.component';
-import { DEFAULT_PAGE_SIZE, PaginationComponent } from '@shared/ui/pagination/pagination.component';
+import { serverPager } from '@shared/ui/pagination/pager';
+import { PaginatorComponent } from '@shared/ui/pagination/paginator.component';
 import { SkeletonComponent } from '@shared/ui/skeleton/skeleton.component';
 import { EmptyStateComponent } from '@shared/ui/state/empty-state.component';
 import { ErrorStateComponent } from '@shared/ui/state/error-state.component';
@@ -45,7 +46,7 @@ import { UploadDropzoneComponent } from './upload-dropzone/upload-dropzone.compo
     CardComponent,
     IconComponent,
     PageHeaderComponent,
-    PaginationComponent,
+    PaginatorComponent,
     SkeletonComponent,
     EmptyStateComponent,
     ErrorStateComponent,
@@ -94,9 +95,13 @@ export class ContactImportComponent {
 
   protected readonly state = signal<LoadState>('loading');
   protected readonly batches = signal<readonly ImportBatchSummary[]>([]);
-  protected readonly page = signal(1);
-  protected readonly pageSize = signal(DEFAULT_PAGE_SIZE);
   protected readonly totalItems = signal(0);
+  /** The API pages this list; `load()` reads the page and size from here. */
+  protected readonly pager = serverPager({
+    total: this.totalItems,
+    load: () => this.load(),
+  });
+
   protected readonly skeletons = [1, 2, 3, 4, 5];
 
   protected readonly uploading = signal(false);
@@ -127,7 +132,7 @@ export class ContactImportComponent {
       this.state.set('loading');
     }
 
-    this.imports.getImports(this.page(), this.pageSize()).subscribe({
+    this.imports.getImports(this.pager.page(), this.pager.pageSize()).subscribe({
       next: (result) => {
         this.batches.set(result.items);
         this.totalItems.set(result.totalItems);
@@ -142,16 +147,6 @@ export class ContactImportComponent {
     });
   }
 
-  protected onPageChange(page: number): void {
-    this.page.set(page);
-    this.load();
-  }
-
-  protected onPageSizeChange(size: number): void {
-    this.pageSize.set(size);
-    this.page.set(1);
-    this.load();
-  }
 
   protected downloadTemplate(): void {
     if (this.downloadingTemplate()) {
@@ -180,7 +175,7 @@ export class ContactImportComponent {
           `${accepted.fileName} is being processed in the background.`,
         );
         // Show it in the table straight away; the worker takes it from here.
-        this.page.set(1);
+        this.pager.reset();
         this.load(true);
       },
       error: (error: ApiError) => {

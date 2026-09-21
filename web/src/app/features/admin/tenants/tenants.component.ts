@@ -10,7 +10,7 @@ import { ButtonDirective } from '@shared/ui/button/button.directive';
 import { DataTableComponent, type TableColumn } from '@shared/ui/data-table/data-table.component';
 import { TableRowDirective } from '@shared/ui/data-table/table-row.directive';
 import { IconComponent } from '@shared/ui/icon/icon.component';
-import { DEFAULT_PAGE_SIZE } from '@shared/ui/pagination/pagination.component';
+import { serverPager } from '@shared/ui/pagination/pager';
 import { PageHeaderComponent } from '@shared/ui/page-header/page-header.component';
 import { StatCardComponent } from '@shared/ui/stat-card/stat-card.component';
 
@@ -51,9 +51,12 @@ export class TenantsComponent {
   protected readonly state = signal<LoadState>('loading');
   protected readonly tenants = signal<readonly Tenant[]>([]);
   protected readonly totalItems = signal(0);
-  protected readonly page = signal(1);
 
-  protected readonly pageSize = signal(DEFAULT_PAGE_SIZE);
+  /** The API pages tenants; `load()` reads the page and size from here. */
+  protected readonly pager = serverPager({
+    total: this.totalItems,
+    load: () => this.load(),
+  });
   protected readonly statusTone = STATUS_TONE;
   protected readonly planTone = PLAN_TONE;
 
@@ -83,7 +86,7 @@ export class TenantsComponent {
 
   protected load(): void {
     this.state.set('loading');
-    this.platform.listTenants(this.page(), this.pageSize()).subscribe({
+    this.platform.listTenants(this.pager.page(), this.pager.pageSize()).subscribe({
       next: (result) => {
         this.tenants.set(result.items);
         this.totalItems.set(result.totalItems);
@@ -91,17 +94,6 @@ export class TenantsComponent {
       },
       error: () => this.state.set('error'),
     });
-  }
-
-  protected onPageSizeChange(size: number): void {
-    this.pageSize.set(size);
-    this.page.set(1);
-    this.load();
-  }
-
-  protected onPageChange(page: number): void {
-    this.page.set(page);
-    this.load();
   }
 
   protected quotaPercent(tenant: Tenant): number {

@@ -16,7 +16,7 @@ import { ButtonDirective } from '@shared/ui/button/button.directive';
 import { DataTableComponent, type TableColumn } from '@shared/ui/data-table/data-table.component';
 import { TableRowDirective } from '@shared/ui/data-table/table-row.directive';
 import { IconComponent } from '@shared/ui/icon/icon.component';
-import { DEFAULT_PAGE_SIZE } from '@shared/ui/pagination/pagination.component';
+import { serverPager } from '@shared/ui/pagination/pager';
 import { PageHeaderComponent } from '@shared/ui/page-header/page-header.component';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
 import { StatCardComponent } from '@shared/ui/stat-card/stat-card.component';
@@ -60,9 +60,8 @@ export class CampaignsComponent {
   protected readonly campaigns = signal<readonly Campaign[]>([]);
   protected readonly statusFilter = signal<StatusFilter>('all');
   protected readonly search = signal('');
-  protected readonly page = signal(1);
 
-  protected readonly pageSize = signal(DEFAULT_PAGE_SIZE);
+
   protected readonly statusTone = CAMPAIGN_STATUS_TONE;
   protected readonly statusLabel = CAMPAIGN_STATUS_LABEL;
 
@@ -95,6 +94,11 @@ export class CampaignsComponent {
   protected readonly visibleCampaigns = this.campaigns;
 
   protected readonly totalItems = signal(0);
+  /** The API pages campaigns; `load()` reads the page and size from here. */
+  protected readonly pager = serverPager({
+    total: this.totalItems,
+    load: () => this.load(),
+  });
 
   /**
    * Whether the API is doing the paging.
@@ -150,7 +154,7 @@ export class CampaignsComponent {
       .pipe(debounceTime(SEARCH_DEBOUNCE_MS), distinctUntilChanged(), takeUntilDestroyed())
       .subscribe((term) => {
         this.search.set(term);
-        this.page.set(1);
+        this.pager.reset();
         this.load();
       });
 
@@ -259,8 +263,8 @@ export class CampaignsComponent {
 
     this.campaignsService
       .list({
-        page: this.page(),
-        pageSize: this.pageSize(),
+        page: this.pager.page(),
+        pageSize: this.pager.pageSize(),
         search: this.search().trim(),
         status: this.statusFilter(),
       })
@@ -392,20 +396,9 @@ export class CampaignsComponent {
     );
   }
 
-  protected onPageChange(page: number): void {
-    this.page.set(page);
-    this.load();
-  }
-
-  protected onPageSizeChange(size: number): void {
-    this.pageSize.set(size);
-    this.page.set(1);
-    this.load();
-  }
-
   protected setStatus(value: StatusFilter): void {
     this.statusFilter.set(value);
-    this.page.set(1);
+    this.pager.reset();
     this.load();
   }
 

@@ -11,8 +11,8 @@ import { ButtonDirective } from '@shared/ui/button/button.directive';
 import { CardComponent } from '@shared/ui/card/card.component';
 import { IconComponent } from '@shared/ui/icon/icon.component';
 import { PageHeaderComponent } from '@shared/ui/page-header/page-header.component';
-import { clientPager } from '@shared/ui/pagination/client-pager';
-import { PaginationComponent } from '@shared/ui/pagination/pagination.component';
+import { clientPager } from '@shared/ui/pagination/pager';
+import { PaginatorComponent } from '@shared/ui/pagination/paginator.component';
 import { SkeletonComponent } from '@shared/ui/skeleton/skeleton.component';
 import { EmptyStateComponent } from '@shared/ui/state/empty-state.component';
 import { ErrorStateComponent } from '@shared/ui/state/error-state.component';
@@ -22,7 +22,7 @@ import { GroupEditorComponent } from './group-editor.component';
   selector: 'app-groups',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    PaginationComponent,
+    PaginatorComponent,
     DecimalPipe,
     TimeAgoPipe,
     PageHeaderComponent,
@@ -44,7 +44,7 @@ export class GroupsComponent {
   protected readonly state = signal<LoadState>('loading');
   protected readonly groups = signal<readonly ContactGroup[]>([]);
   /** The API returns every group; only one page of cards is rendered. */
-  protected readonly pager = clientPager(this.groups, 12);
+  protected readonly pager = clientPager(this.groups);
   protected readonly skeletons = [1, 2, 3, 4, 5, 6];
 
   /** `null` = closed, `'new'` = create, otherwise the group being renamed. */

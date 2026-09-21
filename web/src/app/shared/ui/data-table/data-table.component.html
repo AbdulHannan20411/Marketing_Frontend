@@ -73,14 +73,14 @@
     </div>
 
     <!-- Pagination -->
-    @if (totalItems() > 0) {
+    @if (activeTotal() > 0) {
       <app-pagination
-        [page]="page()"
-        [pageSize]="pageSize()"
-        [totalItems]="totalItems()"
+        [page]="activePage()"
+        [pageSize]="activePageSize()"
+        [totalItems]="activeTotal()"
         [showPageSize]="showPageSize()"
-        (pageChange)="pageChange.emit($event)"
-        (pageSizeChange)="pageSizeChange.emit($event)"
+        (pageChange)="onPageChange($event)"
+        (pageSizeChange)="onPageSizeChange($event)"
       />
     }
   }

@@ -132,15 +132,4 @@
     </div>
   </div>
 }
-
-@if (pager.hasPages()) {
-  <div class="mt-5">
-    <app-pagination
-      [page]="pager.page()"
-      [pageSize]="pager.pageSize()"
-      [totalItems]="pager.total()"
-      (pageChange)="pager.setPage($event)"
-      (pageSizeChange)="pager.setPageSize($event)"
-    />
-  </div>
-}
+<app-paginator class="mt-5" [pager]="pager" />

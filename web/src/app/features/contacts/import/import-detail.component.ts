@@ -40,7 +40,8 @@ import { ButtonDirective } from '@shared/ui/button/button.directive';
 import { CardComponent } from '@shared/ui/card/card.component';
 import { IconComponent } from '@shared/ui/icon/icon.component';
 import { PageHeaderComponent } from '@shared/ui/page-header/page-header.component';
-import { DEFAULT_PAGE_SIZE, PaginationComponent } from '@shared/ui/pagination/pagination.component';
+import { serverPager } from '@shared/ui/pagination/pager';
+import { PaginatorComponent } from '@shared/ui/pagination/paginator.component';
 import { SkeletonComponent } from '@shared/ui/skeleton/skeleton.component';
 import { EmptyStateComponent } from '@shared/ui/state/empty-state.component';
 import { ErrorStateComponent } from '@shared/ui/state/error-state.component';
@@ -65,7 +66,7 @@ import { ImportStatusBadgeComponent } from './import-status-badge.component';
     CardComponent,
     IconComponent,
     PageHeaderComponent,
-    PaginationComponent,
+    PaginatorComponent,
     SkeletonComponent,
     EmptyStateComponent,
     ErrorStateComponent,
@@ -138,9 +139,12 @@ export class ImportDetailComponent {
     return count === 1 ? '1 number is' : `${count} numbers are`;
   }
   protected readonly rowsState = signal<LoadState>('idle');
-  protected readonly rowPage = signal(1);
-  protected readonly rowPageSize = signal(DEFAULT_PAGE_SIZE);
   protected readonly rowTotal = signal(0);
+  /** The API pages the rows of an import; `loadRows()` reads from here. */
+  protected readonly rowPager = serverPager({
+    total: this.rowTotal,
+    load: () => this.loadRows(),
+  });
   protected readonly rowFilter = signal<ImportRowFilter>('all');
 
   protected readonly savingMapping = signal(false);
@@ -212,7 +216,7 @@ export class ImportDetailComponent {
     this.state.set('loading');
     this.batch.set(null);
     this.rows.set([]);
-    this.rowPage.set(1);
+    this.rowPager.reset();
     this.rowFilter.set('all');
   }
 
@@ -252,7 +256,7 @@ export class ImportDetailComponent {
     this.rowsState.set('loading');
 
     this.imports
-      .getImportRows(this.batchId(), this.rowPage(), this.rowPageSize(), this.rowFilter())
+      .getImportRows(this.batchId(), this.rowPager.page(), this.rowPager.pageSize(), this.rowFilter())
       .subscribe({
         next: (result) => {
           this.rows.set(result.items);
@@ -265,20 +269,10 @@ export class ImportDetailComponent {
 
   protected setRowFilter(filter: ImportRowFilter): void {
     this.rowFilter.set(filter);
-    this.rowPage.set(1);
+    this.rowPager.reset();
     this.loadRows();
   }
 
-  protected onRowPageChange(page: number): void {
-    this.rowPage.set(page);
-    this.loadRows();
-  }
-
-  protected onRowPageSizeChange(size: number): void {
-    this.rowPageSize.set(size);
-    this.rowPage.set(1);
-    this.loadRows();
-  }
 
   /* ------------------------------ mapping ------------------------------ */
 

@@ -20,8 +20,8 @@ import { ButtonDirective } from '@shared/ui/button/button.directive';
 import { CardComponent } from '@shared/ui/card/card.component';
 import { IconComponent } from '@shared/ui/icon/icon.component';
 import { PageHeaderComponent } from '@shared/ui/page-header/page-header.component';
-import { clientPager } from '@shared/ui/pagination/client-pager';
-import { PaginationComponent } from '@shared/ui/pagination/pagination.component';
+import { clientPager } from '@shared/ui/pagination/pager';
+import { PaginatorComponent } from '@shared/ui/pagination/paginator.component';
 import { SkeletonComponent } from '@shared/ui/skeleton/skeleton.component';
 import { ErrorStateComponent } from '@shared/ui/state/error-state.component';
 import { ToggleComponent } from '@shared/ui/toggle/toggle.component';
@@ -57,7 +57,7 @@ const PERMISSION_FLOOR: readonly Permission[] = ['dashboard.view'];
   selector: 'app-employees',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    PaginationComponent,
+    PaginatorComponent,
     EmployeeWhatsAppAccessComponent,
     TimeAgoPipe,
     PageHeaderComponent,
@@ -85,7 +85,7 @@ export class EmployeesComponent {
   protected readonly state = signal<LoadState>('loading');
   protected readonly employees = signal<readonly Employee[]>([]);
   /** The API returns the whole team; the table renders one page of it. */
-  protected readonly pager = clientPager(this.employees, 10);
+  protected readonly pager = clientPager(this.employees);
   protected readonly permissionSets = signal<readonly PermissionSet[]>([]);
   protected readonly tab = signal<EmployeeTab>('team');
   protected readonly selectedId = signal<string | null>(null);

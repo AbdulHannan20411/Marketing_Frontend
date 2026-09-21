@@ -44,7 +44,7 @@ import {
 } from '@shared/ui/data-table/data-table.component';
 import { TableRowDirective } from '@shared/ui/data-table/table-row.directive';
 import { IconComponent } from '@shared/ui/icon/icon.component';
-import { DEFAULT_PAGE_SIZE } from '@shared/ui/pagination/pagination.component';
+import { serverPager } from '@shared/ui/pagination/pager';
 import { PageHeaderComponent } from '@shared/ui/page-header/page-header.component';
 import { ContactEditorComponent } from './contact-editor.component';
 
@@ -96,7 +96,6 @@ export class ContactsComponent {
   protected readonly groups = signal<readonly ContactGroup[]>([]);
   protected readonly tags = signal<readonly ContactTag[]>([]);
   protected readonly totalItems = signal(0);
-  protected readonly page = signal(1);
   protected readonly search = signal('');
   protected readonly status = signal<ContactStatus | 'all'>('all');
   protected readonly groupId = signal<string | 'all'>('all');
@@ -143,7 +142,11 @@ export class ContactsComponent {
     this.auth.hasPermission('contacts.create'),
   );
 
-  protected readonly pageSize = signal(DEFAULT_PAGE_SIZE);
+  /** The API pages contacts; `load()` reads the page and size from here. */
+  protected readonly pager = serverPager({
+    total: this.totalItems,
+    load: () => this.load(),
+  });
   protected readonly statusTone = STATUS_TONE;
 
   protected readonly columns: readonly TableColumn[] = [
@@ -233,7 +236,7 @@ export class ContactsComponent {
       .pipe(debounceTime(300), distinctUntilChanged(), takeUntilDestroyed())
       .subscribe((term) => {
         this.search.set(term);
-        this.page.set(1);
+        this.pager.reset();
         this.load();
       });
 
@@ -251,8 +254,8 @@ export class ContactsComponent {
 
     this.contactsService
       .list({
-        page: this.page(),
-        pageSize: this.pageSize(),
+        page: this.pager.page(),
+        pageSize: this.pager.pageSize(),
         search: this.search(),
         status: this.status(),
         groupId: this.groupId(),
@@ -276,31 +279,19 @@ export class ContactsComponent {
     this.status.set(
       (event.target as HTMLSelectElement).value as ContactStatus | 'all',
     );
-    this.page.set(1);
+    this.pager.reset();
     this.load();
   }
 
   protected onGroupChange(event: Event): void {
     this.groupId.set((event.target as HTMLSelectElement).value);
-    this.page.set(1);
-    this.load();
-  }
-
-  /** A different page size makes the old page number meaningless. */
-  protected onPageSizeChange(size: number): void {
-    this.pageSize.set(size);
-    this.page.set(1);
-    this.load();
-  }
-
-  protected onPageChange(page: number): void {
-    this.page.set(page);
+    this.pager.reset();
     this.load();
   }
 
   protected onTagChange(event: Event): void {
     this.tagId.set((event.target as HTMLSelectElement).value);
-    this.page.set(1);
+    this.pager.reset();
     this.load();
   }
 
@@ -309,7 +300,7 @@ export class ContactsComponent {
     this.status.set('all');
     this.groupId.set('all');
     this.tagId.set('all');
-    this.page.set(1);
+    this.pager.reset();
     this.load();
   }
 
@@ -559,7 +550,7 @@ export class ContactsComponent {
           `${contact.fullName} is now in your audience.`,
         );
         // Show the newcomer rather than leaving the user on a stale page.
-        this.page.set(1);
+        this.pager.reset();
         this.load();
       },
       error: (error: ApiError) => {

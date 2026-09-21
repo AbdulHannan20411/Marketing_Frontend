@@ -26,7 +26,8 @@ import { ButtonDirective } from '@shared/ui/button/button.directive';
 import { CardComponent } from '@shared/ui/card/card.component';
 import { IconComponent } from '@shared/ui/icon/icon.component';
 import { PageHeaderComponent } from '@shared/ui/page-header/page-header.component';
-import { DEFAULT_PAGE_SIZE, PaginationComponent } from '@shared/ui/pagination/pagination.component';
+import { serverPager } from '@shared/ui/pagination/pager';
+import { PaginatorComponent } from '@shared/ui/pagination/paginator.component';
 import { SkeletonComponent } from '@shared/ui/skeleton/skeleton.component';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
 import { EmptyStateComponent } from '@shared/ui/state/empty-state.component';
@@ -48,7 +49,7 @@ const STATUS_ORDER: readonly TemplateStatus[] = ['approved', 'pending', 'rejecte
     TimeAgoPipe,
     TemplateSegmentsPipe,
     PageHeaderComponent,
-    PaginationComponent,
+    PaginatorComponent,
     CardComponent,
     BadgeComponent,
     ButtonDirective,
@@ -75,9 +76,13 @@ export class TemplatesComponent {
   protected readonly search = signal('');
   protected readonly status = signal<TemplateStatusFilter>('all');
   protected readonly category = signal<TemplateCategoryFilter>('all');
-  protected readonly page = signal(1);
-  protected readonly pageSize = signal(DEFAULT_PAGE_SIZE);
   protected readonly totalItems = signal(0);
+  /** The API pages this list; `load()` reads the page and size from here. */
+  protected readonly pager = serverPager({
+    total: this.totalItems,
+    load: () => this.load(),
+  });
+
 
   /** Counts across the whole collection, not just this page. */
   protected readonly counts = signal<TemplateStatusCounts | null>(null);
@@ -139,7 +144,7 @@ export class TemplatesComponent {
       .pipe(debounceTime(300), distinctUntilChanged(), takeUntilDestroyed())
       .subscribe((term) => {
         this.search.set(term);
-        this.page.set(1);
+        this.pager.reset();
         // Searching narrows what the counts describe, so they move with it.
         this.refresh();
       });
@@ -153,8 +158,8 @@ export class TemplatesComponent {
 
     this.whatsapp
       .listTemplates({
-        page: this.page(),
-        pageSize: this.pageSize(),
+        page: this.pager.page(),
+        pageSize: this.pager.pageSize(),
         search: this.search(),
         status: this.status(),
         category: this.category(),
@@ -236,13 +241,13 @@ export class TemplatesComponent {
 
   protected setCategory(value: TemplateCategoryFilter): void {
     this.category.set(value);
-    this.page.set(1);
+    this.pager.reset();
     this.refresh();
   }
 
   protected setStatus(value: TemplateStatusFilter): void {
     this.status.set(value);
-    this.page.set(1);
+    this.pager.reset();
     this.load();
   }
 
@@ -250,23 +255,13 @@ export class TemplatesComponent {
     this.searchInput.next((event.target as HTMLInputElement).value);
   }
 
-  protected onPageChange(page: number): void {
-    this.page.set(page);
-    this.load();
-  }
-
-  protected onPageSizeChange(size: number): void {
-    this.pageSize.set(size);
-    this.page.set(1);
-    this.load();
-  }
 
   /** Back to the unfiltered list, from the empty state. */
   protected clearFilters(): void {
     this.search.set('');
     this.status.set('all');
     this.category.set('all');
-    this.page.set(1);
+    this.pager.reset();
     this.refresh();
   }
 
@@ -346,8 +341,8 @@ export class TemplatesComponent {
         this.deleting.set(null);
         // Deleting the last card on a page would strand the operator on an
         // empty page, so step back when this was the only one left.
-        if (this.templates().length === 1 && this.page() > 1) {
-          this.page.update((current) => current - 1);
+        if (this.templates().length === 1 && this.pager.page() > 1) {
+          this.pager.stepBack();
         }
         this.refresh();
         this.toast.success('Template deleted', `${template.name} was removed from Meta.`);

@@ -230,17 +230,7 @@
     }
   </div>
 
-  @if (totalItems() > pageSize()) {
-    <div class="mt-5">
-      <app-pagination
-        [page]="page()"
-        [pageSize]="pageSize()"
-        [totalItems]="totalItems()"
-        (pageChange)="onPageChange($event)"
-        (pageSizeChange)="onPageSizeChange($event)"
-      />
-    </div>
-  }
+  <app-paginator class="mt-5" [pager]="pager" />
 }
 
 @if (editing() !== null) {
