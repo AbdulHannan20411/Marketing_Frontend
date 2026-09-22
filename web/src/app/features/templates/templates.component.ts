@@ -27,6 +27,7 @@ import { CardComponent } from '@shared/ui/card/card.component';
 import { IconComponent } from '@shared/ui/icon/icon.component';
 import { PageHeaderComponent } from '@shared/ui/page-header/page-header.component';
 import { serverPager } from '@shared/ui/pagination/pager';
+import { HistoryButtonComponent } from '@shared/audit/history-button.component';
 import { PaginatorComponent } from '@shared/ui/pagination/paginator.component';
 import { SkeletonComponent } from '@shared/ui/skeleton/skeleton.component';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
@@ -46,6 +47,7 @@ const STATUS_ORDER: readonly TemplateStatus[] = ['approved', 'pending', 'rejecte
   selector: 'app-templates',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    HistoryButtonComponent,
     TimeAgoPipe,
     TemplateSegmentsPipe,
     PageHeaderComponent,

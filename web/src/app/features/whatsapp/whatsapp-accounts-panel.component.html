@@ -187,6 +187,13 @@
 
             @if (canManage()) {
               @if (!account.isDefault && account.status === 'connected') {
+                <!-- Hidden until the API registers this record type for history. -->
+                <app-history-button
+                  entityName="WhatsAppAccount"
+                  [entityId]="account.id"
+                  [recordName]="account.label"
+                  [showLabel]="false"
+                />
                 <button appButton variant="ghost" size="sm" [disabled]="busyId() === account.id" (click)="makeDefault(account)">
                   Make default
                 </button>

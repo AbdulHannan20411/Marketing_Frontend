@@ -1,9 +1,11 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
+import { categoryOfNotification } from '@core/models/notification-category.model';
 import type { AppNotification, AppNotificationDto } from '@core/models/notification.model';
 import { toNotification } from '@core/models/notification.model';
 import { ApiService } from './api.service';
+import { NotificationPreferencesService } from './notification-preferences.service';
 import { RealtimeService } from './realtime.service';
 
 /**
@@ -14,19 +16,34 @@ import { RealtimeService } from './realtime.service';
 export class NotificationsService {
   private readonly api = inject(ApiService);
   private readonly realtime = inject(RealtimeService);
+  private readonly prefs = inject(NotificationPreferencesService);
 
+  /** Everything the server has sent, before the user's switches are applied. */
   private readonly items = signal<readonly AppNotification[]>([]);
   private readonly loading = signal(false);
 
-  readonly notifications = this.items.asReadonly();
+  /**
+   * What the user asked to see.
+   *
+   * Filtered here rather than at load, so switching a category off in Settings
+   * empties it from the bell and the list at once — and switching it back on
+   * brings back what arrived meanwhile without a refetch. The server should
+   * not send a silenced notification at all; this covers an API that predates
+   * preferences, and a push that raced a change.
+   */
+  readonly notifications = computed(() =>
+    this.items().filter((notification) => this.prefs.isEnabled(categoryOfNotification(notification))),
+  );
   readonly isLoading = this.loading.asReadonly();
 
   readonly unreadCount = computed(
-    () => this.items().filter((notification) => !notification.read).length,
+    () => this.notifications().filter((notification) => !notification.read).length,
   );
 
   readonly hasCritical = computed(() =>
-    this.items().some((notification) => !notification.read && notification.priority === 'critical'),
+    this.notifications().some(
+      (notification) => !notification.read && notification.priority === 'critical',
+    ),
   );
 
   load(): void {

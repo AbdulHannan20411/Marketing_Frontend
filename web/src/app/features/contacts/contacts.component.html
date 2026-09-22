@@ -360,6 +360,15 @@
     >
       {{ contact.lastMessagedAt | timeAgo }}
     </td>
+
+    <td class="px-4 py-3 text-right">
+      <app-history-button
+        entityName="Contact"
+        [entityId]="contact.id"
+        [recordName]="contact.fullName"
+        [showLabel]="false"
+      />
+    </td>
   </ng-template>
 </app-data-table>
 

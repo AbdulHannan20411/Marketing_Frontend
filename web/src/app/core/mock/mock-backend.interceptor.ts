@@ -112,6 +112,7 @@ import {
 } from './mock-inbox-data';
 import { campaignStore, handleCampaigns } from './mock-campaign-handler';
 import { handleEmailTemplates } from './mock-email-templates';
+import { handleAuditHistory } from './mock-audit-history';
 import { handleSessionSecurity, isMockAccountSuspended } from './mock-session-security';
 import {
   accountLabel,
@@ -760,7 +761,34 @@ function handlePlans(
   }
   return null;
 }
-function handleNotifications(path: string, method: string): Observable<HttpEvent<unknown>> | null {
+/** Everything on to start, as a new account would be. */
+let notificationPreferences: Record<string, boolean> = {
+  messages: true,
+  campaigns: true,
+  team: true,
+  billing: true,
+  security: true,
+  system: true,
+};
+
+function handleNotifications(
+  path: string,
+  method: string,
+  body: unknown,
+): Observable<HttpEvent<unknown>> | null {
+  if (method === 'PUT' && path === '/notifications/preferences') {
+    const requested = (body ?? {}) as Record<string, unknown>;
+    notificationPreferences = {
+      messages: requested['messages'] !== false,
+      campaigns: requested['campaigns'] !== false,
+      team: requested['team'] !== false,
+      billing: requested['billing'] !== false,
+      // Always on, whatever a client sends.
+      security: true,
+      system: true,
+    };
+    return ok(notificationPreferences, 'Notification settings saved.');
+  }
   if (method !== 'POST') {
     return null;
   }
@@ -1699,6 +1727,10 @@ export const mockBackendInterceptor: HttpInterceptorFn = (request, next) => {
   if (securityResponse !== null) {
     return securityResponse;
   }
+  const auditResponse = handleAuditHistory(path, method, params, { ok, fail });
+  if (auditResponse !== null) {
+    return auditResponse;
+  }
   const authResponse = handleAuth(path, method, request.body, request);
   if (authResponse !== null) {
     return authResponse;
@@ -1828,6 +1860,8 @@ export const mockBackendInterceptor: HttpInterceptorFn = (request, next) => {
         return ok(PERMISSION_SETS);
       case '/notifications':
         return ok([...notificationStore]);
+      case '/notifications/preferences':
+        return ok(notificationPreferences);
       case '/search':
         return ok(searchEverything(params.get('q') ?? ''));
       default:
@@ -2081,7 +2115,7 @@ export const mockBackendInterceptor: HttpInterceptorFn = (request, next) => {
   if (planResponse !== null) {
     return planResponse;
   }
-  const notificationResponse = handleNotifications(path, method);
+  const notificationResponse = handleNotifications(path, method, request.body);
   if (notificationResponse !== null) {
     return notificationResponse;
   }

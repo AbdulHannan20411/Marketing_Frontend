@@ -1,6 +1,7 @@
 import type { Employee, PermissionSet } from '@core/models/employee.model';
 import type { AppNotificationDto } from '@core/models/notification.model';
 import type { FeatureModule, Permission } from '@core/models/permission.model';
+import { categoryOf } from '@core/models/notification-category.model';
 import { PERMISSIONS } from '@core/models/permission.model';
 import type {
   BillingHistory,
@@ -721,6 +722,9 @@ export const NOTIFICATIONS: readonly AppNotificationDto[] = NOTIFICATION_SEEDS.m
   return {
     id: `ntf_${(index + 1).toString().padStart(3, '0')}`,
     kind: seed.kind,
+    // The API decides the category when it raises the notification; the seed
+    // derives it the same way so the mock and the real payload agree.
+    category: categoryOf(seed.kind),
     title: seed.title,
     body: seed.body,
     priority: seed.priority,

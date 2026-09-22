@@ -72,11 +72,18 @@
               <app-icon name="pencil" [size]="14" />
               Edit
             </button>
+            <app-history-button
+              class="ml-auto"
+              entityName="Group"
+              [entityId]="group.id"
+              [recordName]="group.name"
+              [showLabel]="false"
+            />
             <button
               appButton
               variant="ghost"
               size="sm"
-              class="ml-auto text-danger"
+              class="text-danger"
               (click)="askDelete(group)"
             >
               <app-icon name="trash" [size]="14" />

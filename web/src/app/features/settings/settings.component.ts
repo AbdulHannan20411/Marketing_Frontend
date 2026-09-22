@@ -12,6 +12,11 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { toSignal } from '@angular/core/rxjs-interop';
 
 import { AuthService } from '@core/auth/auth.service';
+import {
+  NOTIFICATION_CATEGORY_COPY,
+  SWITCHABLE_CATEGORIES,
+  type NotificationCategory,
+} from '@core/models/notification-category.model';
 import type { ApiError } from '@core/models/api.model';
 import { USER_ROLE_LABEL } from '@core/models/auth.model';
 import { meetsPasswordPolicy, passwordRules, passwordStrength } from '@core/models/password-policy';
@@ -24,6 +29,7 @@ import { OnboardingService } from '@core/services/onboarding.service';
 import { RealtimeService } from '@core/services/realtime.service';
 import { WorkspaceService } from '@core/services/workspace.service';
 import { ThemeService, type ThemePreference } from '@core/services/theme.service';
+import { NotificationPreferencesService } from '@core/services/notification-preferences.service';
 import { ToastService } from '@core/services/toast.service';
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
 import { BadgeComponent } from '@shared/ui/badge/badge.component';
@@ -33,6 +39,8 @@ import { IconComponent } from '@shared/ui/icon/icon.component';
 import type { IconName } from '@shared/ui/icon/icon.registry';
 import { PageHeaderComponent } from '@shared/ui/page-header/page-header.component';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
+import { HistoryButtonComponent } from '@shared/audit/history-button.component';
+import { ToggleComponent } from '@shared/ui/toggle/toggle.component';
 import { EmptyStateComponent } from '@shared/ui/state/empty-state.component';
 import { FAQ_ENTRIES, FAQ_TOPIC_LABEL, type FaqEntry, type FaqTopic } from './help-content';
 
@@ -75,6 +83,7 @@ const THEME_OPTIONS: readonly ThemeOption[] = [
   selector: 'app-settings',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    HistoryButtonComponent,
     RouterLink,
     ReactiveFormsModule,
     PageHeaderComponent,
@@ -85,6 +94,7 @@ const THEME_OPTIONS: readonly ThemeOption[] = [
     IconComponent,
     EmptyStateComponent,
     ModalComponent,
+    ToggleComponent,
   ],
   templateUrl: './settings.component.html',
 })
@@ -96,6 +106,7 @@ export class SettingsComponent {
   private readonly onboarding = inject(OnboardingService);
   private readonly workspace = inject(WorkspaceService);
   private readonly realtime = inject(RealtimeService);
+  private readonly notificationPrefs = inject(NotificationPreferencesService);
 
   protected readonly themeOptions = THEME_OPTIONS;
   protected readonly preference = this.theme.preference;
@@ -136,7 +147,35 @@ export class SettingsComponent {
 
   private readonly route = inject(ActivatedRoute);
 
+  /* ------------------------- notification switches ------------------------- */
+
+  protected readonly notificationCategories = SWITCHABLE_CATEGORIES;
+  protected readonly notificationCopy = NOTIFICATION_CATEGORY_COPY;
+  protected readonly notificationsSaving = this.notificationPrefs.isSaving;
+  protected readonly notificationsUnsupported = this.notificationPrefs.isUnsupported;
+
+  protected notificationEnabled(category: NotificationCategory): boolean {
+    return this.notificationPrefs.isEnabled(category);
+  }
+
+  protected setNotificationEnabled(category: NotificationCategory, enabled: boolean): void {
+    this.notificationPrefs.set(category, enabled).subscribe({
+      next: () => {
+        const label = NOTIFICATION_CATEGORY_COPY[category].label.toLowerCase();
+        this.toast.success(
+          enabled ? `${NOTIFICATION_CATEGORY_COPY[category].label} notifications on` : `${NOTIFICATION_CATEGORY_COPY[category].label} notifications off`,
+          enabled ? `You will be notified about ${label} again.` : `Nothing about ${label} will reach you.`,
+        );
+      },
+      // The service puts the switch back where it was; this says why.
+      error: () => this.toast.error('Could not save that', 'The switch is back as it was. Please try again.'),
+    });
+  }
+
   /** Team sessions are an admin's view, and only in a workspace. */
+  /** The workspace record is behind the same permission as its profile. */
+  protected readonly canSeeWorkspaceHistory = computed(() => this.auth.hasPermission('settings.company'));
+
   protected readonly canSeeTeamSecurity = computed(
     () => !this.auth.isSuperAdmin() && this.auth.hasPermission('settings.employees'),
   );

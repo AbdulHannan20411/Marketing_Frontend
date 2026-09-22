@@ -31,6 +31,7 @@ import { ToastService } from '@core/services/toast.service';
 import { TimeAgoPipe } from '@shared/pipes/time-ago.pipe';
 import { BadgeComponent } from '@shared/ui/badge/badge.component';
 import { ButtonDirective } from '@shared/ui/button/button.directive';
+import { HistoryButtonComponent } from '@shared/audit/history-button.component';
 import { CardComponent } from '@shared/ui/card/card.component';
 import { IconComponent } from '@shared/ui/icon/icon.component';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
@@ -62,6 +63,7 @@ const LAYOUT_PREVIEW_BODY: EmailTemplateDraft = {
   selector: 'app-email-templates',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    HistoryButtonComponent,
     TimeAgoPipe,
     PageHeaderComponent,
     CardComponent,

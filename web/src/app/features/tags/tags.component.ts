@@ -8,6 +8,7 @@ import { ContactsService } from '@core/services/contacts.service';
 import { ToastService } from '@core/services/toast.service';
 import { BadgeComponent } from '@shared/ui/badge/badge.component';
 import { ButtonDirective } from '@shared/ui/button/button.directive';
+import { HistoryButtonComponent } from '@shared/audit/history-button.component';
 import { CardComponent } from '@shared/ui/card/card.component';
 import { IconComponent } from '@shared/ui/icon/icon.component';
 import { PageHeaderComponent } from '@shared/ui/page-header/page-header.component';
@@ -22,6 +23,7 @@ import { TagEditorComponent } from './tag-editor.component';
   selector: 'app-tags',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    HistoryButtonComponent,
     PaginatorComponent,
     DecimalPipe,
     PageHeaderComponent,

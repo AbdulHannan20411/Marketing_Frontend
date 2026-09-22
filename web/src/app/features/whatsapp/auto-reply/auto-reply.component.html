@@ -4,7 +4,16 @@
     description="Let the assistant answer customers on the occasions you choose, inside WhatsApp's 24-hour window."
     [breadcrumbs]="breadcrumbs()"
     [attr.data-tour-ready]="state() === 'loading' ? null : ''"
-  />
+  >
+    <!-- Hidden until the API registers this record type for history. -->
+    <app-history-button
+      entityName="AutoReplySettings"
+      entityId="current"
+      recordName="Auto-reply settings"
+      variant="outline"
+      size="md"
+    />
+  </app-page-header>
 
   @switch (state()) {
     @case ('loading') {

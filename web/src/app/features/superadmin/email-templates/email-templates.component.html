@@ -139,6 +139,12 @@
                   </div>
 
                   <div class="flex flex-wrap items-center gap-2">
+                    <!-- Hidden until the API registers this record type for history. -->
+                    <app-history-button
+                      entityName="EmailTemplate"
+                      [entityId]="current.key"
+                      [recordName]="current.name"
+                    />
                     @if (current.isCustomised) {
                       <button appButton variant="ghost" size="sm" (click)="confirmingReset.set(true)">
                         <app-icon name="refresh" [size]="14" />

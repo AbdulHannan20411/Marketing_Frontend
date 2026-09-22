@@ -19,6 +19,7 @@ import { IconComponent } from '@shared/ui/icon/icon.component';
 import { serverPager } from '@shared/ui/pagination/pager';
 import { PageHeaderComponent } from '@shared/ui/page-header/page-header.component';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
+import { HistoryButtonComponent } from '@shared/audit/history-button.component';
 import { StatCardComponent } from '@shared/ui/stat-card/stat-card.component';
 
 type StatusFilter = CampaignStatus | 'all';
@@ -32,6 +33,7 @@ const SEARCH_DEBOUNCE_MS = 300;
   selector: 'app-campaigns',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    HistoryButtonComponent,
     TimeAgoPipe,
     PageHeaderComponent,
     DataTableComponent,

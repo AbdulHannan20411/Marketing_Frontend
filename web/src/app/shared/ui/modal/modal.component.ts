@@ -1,4 +1,14 @@
-import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  ElementRef,
+  afterNextRender,
+  computed,
+  inject,
+  input,
+  output,
+  type OnDestroy,
+} from '@angular/core';
 
 import { IconComponent } from '@shared/ui/icon/icon.component';
 
@@ -14,6 +24,14 @@ const SIZE_CLASS: Readonly<Record<ModalSize, string>> = {
 /**
  * Centred dialog with a scrim. Escape and scrim clicks both close it; the host
  * page owns the open state so the modal stays a pure presentational component.
+ *
+ * **Its element is moved to `<body>` once rendered.** `position: fixed` is
+ * positioned against the nearest ancestor with a transform, filter or
+ * containment — and interactive cards lift on hover (`hover:-translate-y-0.5`).
+ * A dialog opened from inside one was therefore confined to that card: narrow,
+ * off-centre, and jumping every time the pointer crossed the card and the
+ * transform toggled. Moving the element out makes the viewport its frame again,
+ * wherever the markup happens to live.
  */
 @Component({
   selector: 'app-modal',
@@ -64,7 +82,26 @@ const SIZE_CLASS: Readonly<Record<ModalSize, string>> = {
     </div>
   `,
 })
-export class ModalComponent {
+export class ModalComponent implements OnDestroy {
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+
+  constructor() {
+    // After render, so the dialog exists before it is re-parented.
+    afterNextRender(() => document.body.appendChild(this.host.nativeElement));
+  }
+
+  /**
+   * Takes the element with it.
+   *
+   * Angular removes a view's nodes through the parent it created them in, so
+   * once this one has been moved it is nobody's child as far as the framework
+   * is concerned — closing the dialog would leave a full-screen scrim over a
+   * page that could no longer be clicked.
+   */
+  ngOnDestroy(): void {
+    this.host.nativeElement.remove();
+  }
+
   readonly title = input.required<string>();
   readonly subtitle = input<string | null>(null);
   readonly size = input<ModalSize>('md');

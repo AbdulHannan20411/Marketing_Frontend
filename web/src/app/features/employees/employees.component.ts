@@ -18,6 +18,7 @@ import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
 import { BadgeComponent, type BadgeTone } from '@shared/ui/badge/badge.component';
 import { ButtonDirective } from '@shared/ui/button/button.directive';
 import { CardComponent } from '@shared/ui/card/card.component';
+import { HistoryButtonComponent } from '@shared/audit/history-button.component';
 import { IconComponent } from '@shared/ui/icon/icon.component';
 import { PageHeaderComponent } from '@shared/ui/page-header/page-header.component';
 import { clientPager } from '@shared/ui/pagination/pager';
@@ -57,6 +58,7 @@ const PERMISSION_FLOOR: readonly Permission[] = ['dashboard.view'];
   selector: 'app-employees',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    HistoryButtonComponent,
     PaginatorComponent,
     EmployeeWhatsAppAccessComponent,
     TimeAgoPipe,

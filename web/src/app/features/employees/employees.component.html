@@ -202,6 +202,13 @@
                 }
               }
 
+              <app-history-button
+                entityName="Employee"
+                [entityId]="employee.id"
+                [recordName]="employee.name"
+                [showLabel]="false"
+              />
+
               @if (isSelf(employee)) {
                 <span class="px-2 text-xs text-ink-muted">That's you</span>
               } @else {

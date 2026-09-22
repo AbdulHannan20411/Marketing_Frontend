@@ -18,6 +18,7 @@ import {
 import { AutoReplyService } from '@core/services/auto-reply.service';
 import { ToastService } from '@core/services/toast.service';
 import { ButtonDirective } from '@shared/ui/button/button.directive';
+import { HistoryButtonComponent } from '@shared/audit/history-button.component';
 import { CardComponent } from '@shared/ui/card/card.component';
 import { IconComponent } from '@shared/ui/icon/icon.component';
 import { PageHeaderComponent } from '@shared/ui/page-header/page-header.component';
@@ -37,6 +38,7 @@ import { AutoReplyKnowledgeComponent } from './auto-reply-knowledge.component';
   selector: 'app-auto-reply',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    HistoryButtonComponent,
     DatePipe,
     RouterLink,
     PageHeaderComponent,

@@ -43,6 +43,7 @@ import {
   type TableColumn,
 } from '@shared/ui/data-table/data-table.component';
 import { TableRowDirective } from '@shared/ui/data-table/table-row.directive';
+import { HistoryButtonComponent } from '@shared/audit/history-button.component';
 import { IconComponent } from '@shared/ui/icon/icon.component';
 import { serverPager } from '@shared/ui/pagination/pager';
 import { PageHeaderComponent } from '@shared/ui/page-header/page-header.component';
@@ -58,6 +59,7 @@ const STATUS_TONE: Readonly<Record<ContactStatus, BadgeTone>> = {
   selector: 'app-contacts',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    HistoryButtonComponent,
     DecimalPipe,
     RouterLink,
     TimeAgoPipe,
@@ -162,6 +164,8 @@ export class ContactsComponent {
       align: 'right',
       hideOnMobile: true,
     },
+    // The History button. Headerless: the icon says what it is.
+    { key: 'history', header: '', align: 'right', widthClass: 'w-12' },
   ];
 
   protected readonly selectedCount = computed(() => this.selected().size);

@@ -8,6 +8,7 @@ import { ContactsService } from '@core/services/contacts.service';
 import { ToastService } from '@core/services/toast.service';
 import { TimeAgoPipe } from '@shared/pipes/time-ago.pipe';
 import { ButtonDirective } from '@shared/ui/button/button.directive';
+import { HistoryButtonComponent } from '@shared/audit/history-button.component';
 import { CardComponent } from '@shared/ui/card/card.component';
 import { IconComponent } from '@shared/ui/icon/icon.component';
 import { PageHeaderComponent } from '@shared/ui/page-header/page-header.component';
@@ -22,6 +23,7 @@ import { GroupEditorComponent } from './group-editor.component';
   selector: 'app-groups',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    HistoryButtonComponent,
     PaginatorComponent,
     DecimalPipe,
     TimeAgoPipe,

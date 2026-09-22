@@ -2,7 +2,19 @@
   title="Settings"
   description="How this workspace looks and behaves for you."
   [breadcrumbs]="[{ label: 'Home', route: '/dashboard' }, { label: 'Settings', route: null }]"
-/>
+>
+  @if (canSeeWorkspaceHistory()) {
+    <!-- The workspace's own record: profile, timezone, settings. -->
+    <app-history-button
+      entityName="Workspace"
+      entityId="current"
+      recordName="This workspace"
+      label="Workspace history"
+      variant="outline"
+      size="md"
+    />
+  }
+</app-page-header>
 
 <div class="mt-6 grid gap-4 lg:grid-cols-3">
   <!-- Appearance -->
@@ -120,6 +132,51 @@
 </div>
 
 <!-- Sessions and devices: yours for everyone, the team's for admins. -->
+<!-- What reaches you. Security and system stay on: the warnings you least
+     expect are the ones a switch set months ago should not silence. -->
+<app-card
+  class="mt-4 block"
+  title="Notifications"
+  subtitle="Choose what you are told about, in the bell and on this device."
+>
+  @if (notificationsUnsupported()) {
+    <p class="mb-3 flex items-start gap-2 rounded-lg bg-amber-50 p-3 text-xs text-amber-800 ring-1 ring-amber-200 ring-inset" role="status">
+      <app-icon name="info" [size]="15" class="mt-px shrink-0" />
+      These switches turn on once the server is updated. Until then everything is sent.
+    </p>
+  }
+
+  <ul class="divide-y divide-line">
+    @for (category of notificationCategories; track category) {
+      <li class="flex items-start justify-between gap-4 py-3 first:pt-0 last:pb-0">
+        <div class="flex min-w-0 items-start gap-3">
+          <span class="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-surface-sunken text-ink-soft ring-1 ring-line ring-inset">
+            <app-icon [name]="notificationCopy[category].icon" [size]="16" />
+          </span>
+          <div class="min-w-0">
+            <p class="text-sm font-medium text-ink">{{ notificationCopy[category].label }}</p>
+            <p class="mt-0.5 text-xs leading-relaxed text-ink-muted">
+              {{ notificationCopy[category].description }}
+            </p>
+          </div>
+        </div>
+        <app-toggle
+          class="mt-1 shrink-0"
+          [checked]="notificationEnabled(category)"
+          [disabled]="notificationsSaving() || notificationsUnsupported()"
+          [label]="notificationCopy[category].label + ' notifications'"
+          (checkedChange)="setNotificationEnabled(category, $event)"
+        />
+      </li>
+    }
+  </ul>
+
+  <p class="mt-3 border-t border-line pt-3 text-xs leading-relaxed text-ink-muted">
+    Security and system notifications are always sent — a stolen sign-in or a broken WhatsApp
+    connection needs to reach you whatever else is switched off.
+  </p>
+</app-card>
+
 <app-card class="mt-4 block" title="Security" subtitle="Where you and your team are signed in.">
   <div class="flex flex-wrap gap-2">
     <a appButton variant="outline" size="sm" routerLink="/account/security">

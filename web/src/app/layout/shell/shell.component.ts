@@ -13,6 +13,7 @@ import { AuthService } from '@core/auth/auth.service';
 import { UNLOCKED_ROUTES } from '@core/guards/subscription.guard';
 import { EntitlementService } from '@core/services/entitlement.service';
 import { LayoutService } from '@core/services/layout.service';
+import { NotificationPreferencesService } from '@core/services/notification-preferences.service';
 import { NotificationsService } from '@core/services/notifications.service';
 import { OnboardingService } from '@core/services/onboarding.service';
 import { RealtimeService } from '@core/services/realtime.service';
@@ -67,6 +68,7 @@ export class ShellComponent {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly notifications = inject(NotificationsService);
+  private readonly notificationPrefs = inject(NotificationPreferencesService);
   private readonly realtime = inject(RealtimeService);
   private readonly onboarding = inject(OnboardingService);
   private readonly whatsAppContext = inject(WhatsAppContextService);
@@ -82,6 +84,8 @@ export class ShellComponent {
     // Entitlements gate the sidebar and route guards, so they load once here
     // rather than per-page.
     this.entitlements.load();
+    // Before the list, so a silenced category is never briefly shown.
+    this.notificationPrefs.load();
     this.notifications.load();
 
     /*

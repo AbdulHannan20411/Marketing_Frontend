@@ -144,6 +144,13 @@
       <div class="flex flex-wrap items-center justify-end gap-1">
         <button appButton variant="ghost" size="sm" (click)="open(campaign)">View</button>
 
+        <app-history-button
+          entityName="Campaign"
+          [entityId]="campaign.id"
+          [recordName]="campaign.name"
+          [showLabel]="false"
+        />
+
         @if (canEdit(campaign)) {
           <button appButton variant="ghost" size="sm" (click)="edit(campaign)">Edit</button>
         }

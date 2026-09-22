@@ -152,6 +152,8 @@
 
         <!-- Actions -->
         <div class="mt-4 flex flex-wrap items-center gap-1.5 border-t border-line pt-4">
+          <!-- Hidden until the API registers this record type for history. -->
+          <app-history-button entityName="Plan" [entityId]="plan.id" [recordName]="plan.name" [showLabel]="false" />
           <button appButton variant="outline" size="sm" (click)="openEdit(plan)">
             <app-icon name="pencil" [size]="14" />
             Edit

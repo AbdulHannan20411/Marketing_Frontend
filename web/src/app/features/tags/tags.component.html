@@ -66,11 +66,18 @@
               <app-icon name="pencil" [size]="14" />
               Edit
             </button>
+            <app-history-button
+              class="ml-auto"
+              entityName="Tag"
+              [entityId]="tag.id"
+              [recordName]="tag.name"
+              [showLabel]="false"
+            />
             <button
               appButton
               variant="ghost"
               size="sm"
-              class="ml-auto text-danger"
+              class="text-danger"
               (click)="askDelete(tag)"
             >
               <app-icon name="trash" [size]="14" />

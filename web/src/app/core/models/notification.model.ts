@@ -1,3 +1,4 @@
+import { toCategory, type NotificationCategory } from '@core/models/notification-category.model';
 import { ICON_PATHS, type IconName } from '@shared/ui/icon/icon.registry';
 
 export type NotificationPriority = 'critical' | 'warning' | 'info' | 'success';
@@ -44,6 +45,13 @@ export interface AppNotification {
   readonly id: string;
   /** Widened to `string`: see {@link NotificationKind}. */
   readonly kind: NotificationKind | string;
+  /**
+   * Which group it belongs to, as the server decided when it was raised.
+   *
+   * `null` from an API that predates the field, in which case the client works
+   * it out from the kind's prefix — see `categoryOfNotification`.
+   */
+  readonly category: NotificationCategory | null;
   readonly title: string;
   readonly body: string;
   readonly priority: NotificationPriority;
@@ -65,9 +73,11 @@ export interface AppNotification {
  * is a claim about the wire, not a guarantee. The server picks these strings,
  * and this build has no say in what it picks.
  */
-export interface AppNotificationDto extends Omit<AppNotification, 'icon' | 'priority'> {
+export interface AppNotificationDto extends Omit<AppNotification, 'icon' | 'priority' | 'category'> {
   readonly icon: string;
   readonly priority: string;
+  /** Absent from an API that predates categories. */
+  readonly category?: string;
 }
 
 /** Shown when the server names an icon this build does not have. */
@@ -126,5 +136,8 @@ export function toNotification(dto: AppNotificationDto): AppNotification {
     ...dto,
     icon: resolveIcon(dto.icon),
     priority: resolvePriority(dto.priority),
+    // An unknown name is dropped rather than kept: the fallback then reads the
+    // kind, which is the same rule the server applies.
+    category: toCategory(dto.category),
   };
 }

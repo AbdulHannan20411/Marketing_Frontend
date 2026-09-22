@@ -29,8 +29,40 @@
   </div>
 </div>
 
+<!-- What it is about. Counts are across everything, so a tab says what
+     choosing it would show. -->
+<div class="mt-5 flex flex-wrap items-center gap-1.5" role="tablist" aria-label="Notification type">
+  @for (tab of categoryTabs(); track tab.value) {
+    <button
+      type="button"
+      role="tab"
+      [attr.aria-selected]="categoryFilter() === tab.value"
+      class="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-all duration-150"
+      [class]="
+        categoryFilter() === tab.value
+          ? 'bg-brand-50 text-brand-700 ring-1 ring-brand-300'
+          : 'bg-surface text-ink-soft ring-1 ring-line hover:bg-surface-muted hover:ring-brand-200'
+      "
+      (click)="setCategoryFilter(tab.value)"
+    >
+      {{ tab.label }}
+      <span class="text-xs tabular-nums opacity-70">{{ tab.count }}</span>
+    </button>
+  }
+
+  @if (silencedCount() > 0) {
+    <a
+      routerLink="/settings"
+      class="ml-auto flex items-center gap-1.5 text-xs text-ink-muted hover:text-ink hover:underline"
+    >
+      <app-icon name="bell" [size]="13" />
+      {{ silencedCount() }} {{ silencedCount() === 1 ? 'type is' : 'types are' }} switched off
+    </a>
+  }
+</div>
+
 <!-- Filters -->
-<div class="mt-5 flex flex-wrap items-center gap-2">
+<div class="mt-3 flex flex-wrap items-center gap-2">
   @for (option of readFilters; track option.value) {
     <button
       type="button"
@@ -81,9 +113,29 @@
     </app-empty-state>
   </app-card>
 } @else {
-  <app-card class="mt-5 block" [padded]="false">
+  @for (section of sections(); track section.category) {
+    <app-card class="mt-5 block" [padded]="false">
+      <!-- The heading describes exactly the rows beneath it, because sections
+           are built from the page rather than the whole list. -->
+      <header class="flex flex-wrap items-center justify-between gap-2 border-b border-line px-5 py-3">
+        <div class="flex items-center gap-2.5">
+          <span class="grid h-7 w-7 place-items-center rounded-lg bg-surface-sunken text-ink-soft ring-1 ring-line ring-inset">
+            <app-icon [name]="categoryCopy[section.category].icon" [size]="15" />
+          </span>
+          <div>
+            <h2 class="text-sm font-semibold text-ink">{{ section.label }}</h2>
+            <p class="text-xs text-ink-muted">{{ section.description }}</p>
+          </div>
+        </div>
+        <span class="text-xs text-ink-muted tabular-nums">
+          {{ section.items.length }} {{ section.items.length === 1 ? 'item' : 'items' }}
+          @if (section.unread > 0) {
+            · <span class="font-medium text-brand-700">{{ section.unread }} unread</span>
+          }
+        </span>
+      </header>
     <ul class="divide-y divide-line">
-      @for (notification of pager.items(); track notification.id) {
+      @for (notification of section.items; track notification.id) {
         <li>
           <div
             role="button"
@@ -152,6 +204,7 @@
         </li>
       }
     </ul>
-  </app-card>
+    </app-card>
+  }
   <app-paginator class="mt-5" [pager]="pager" />
 }
