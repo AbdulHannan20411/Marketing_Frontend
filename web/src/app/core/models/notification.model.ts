@@ -41,6 +41,19 @@ export type NotificationKind =
   /** To workspace admins when platform staff suspend one of their people. Action: /settings/security. */
   | 'security.account_suspended';
 
+/**
+ * Which notifications a bulk delete should take.
+ *
+ * `read` is the safe one and the one people reach for: clearing what you have
+ * already dealt with, without touching anything still waiting on you.
+ */
+export type NotificationClearScope = 'all' | 'read';
+
+/** What a delete returns. Used for the confirmation wording, not for state. */
+export interface NotificationDeleteResult {
+  readonly deleted: number;
+}
+
 export interface AppNotification {
   readonly id: string;
   /** Widened to `string`: see {@link NotificationKind}. */

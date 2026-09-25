@@ -18,6 +18,18 @@ export class DashboardService {
     return this.api.get<DashboardSnapshot>('/dashboard');
   }
 
+  /**
+   * The reporting overview.
+   *
+   * The same shape as the dashboard, and today the same numbers — but gated on
+   * `reports.view`, which is the permission the Reports page is guarded by.
+   * Reading the dashboard's copy here meant the page's data came through a
+   * permission the page itself does not require.
+   */
+  getReportsOverview(): Observable<DashboardSnapshot> {
+    return this.api.get<DashboardSnapshot>('/reports/overview');
+  }
+
   getCampaigns(): Observable<readonly Campaign[]> {
     return this.api.get<readonly Campaign[]>('/campaigns');
   }

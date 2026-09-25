@@ -11,7 +11,7 @@ import { SkeletonComponent } from '@shared/ui/skeleton/skeleton.component';
   imports: [DecimalPipe, IconComponent, SkeletonComponent],
   host: {
     class:
-      'block rounded-xl bg-surface p-5 ring-1 ring-line shadow-card transition-all duration-200 hover:shadow-card-hover hover:-translate-y-0.5',
+      'hover-lift block rounded-xl bg-surface p-5 ring-1 ring-line shadow-card transition-all duration-200 hover:shadow-card-hover',
   },
   template: `
     <div class="flex items-start justify-between gap-3">
@@ -20,6 +20,10 @@ import { SkeletonComponent } from '@shared/ui/skeleton/skeleton.component';
 
         @if (loading()) {
           <div class="mt-2.5"><app-skeleton width="6rem" height="1.75rem" /></div>
+        } @else if (unavailable()) {
+          <!-- A dash, not a zero. "0.0%" is a measurement; this is the absence
+               of one, and the two must not look the same. -->
+          <p class="mt-1.5 text-2xl font-semibold tracking-tight text-ink-muted tabular-nums">—</p>
         } @else {
           <p class="mt-1.5 text-2xl font-semibold tracking-tight text-ink tabular-nums">
             {{ value() | number: format() }}{{ suffix() }}
@@ -32,7 +36,11 @@ import { SkeletonComponent } from '@shared/ui/skeleton/skeleton.component';
       </span>
     </div>
 
-    @if (!loading() && delta() !== null) {
+    @if (!loading() && unavailable() && note() !== null) {
+      <p class="mt-3 text-xs leading-relaxed text-ink-muted">{{ note() }}</p>
+    }
+
+    @if (!loading() && !unavailable() && delta() !== null) {
       <div class="mt-3 flex items-center gap-1.5">
         <span
           class="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-xs font-semibold"
@@ -53,6 +61,15 @@ export class StatCardComponent {
   readonly suffix = input('');
   readonly format = input('1.0-0');
   readonly loading = input(false);
+  /**
+   * The number is not known — as opposed to being zero.
+   *
+   * A rate with nothing to divide by is not 0%, and printing one invites the
+   * reader to act on a measurement nobody took.
+   */
+  readonly unavailable = input(false);
+  /** Why it is unavailable, shown where the delta would be. */
+  readonly note = input<string | null>(null);
   /** Set for metrics where a rise is bad (failures), so colour matches meaning. */
   readonly inverted = input(false);
 

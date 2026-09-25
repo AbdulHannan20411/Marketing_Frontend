@@ -9,6 +9,12 @@
       Mark all read
     </button>
   }
+  @if (totalCount() > 0) {
+    <button appButton variant="ghost" size="md" class="text-danger" (click)="askClear()">
+      <app-icon name="trash" [size]="16" />
+      Clear all
+    </button>
+  }
 </app-page-header>
 
 <!-- Summary strip -->
@@ -60,6 +66,36 @@
     </a>
   }
 </div>
+
+<!-- What is ticked, and what can be done with it. Appears only when
+     something is selected, so the page is quiet until it is needed. -->
+@if (selectedCount() > 0) {
+  <div
+    class="mt-3 flex flex-wrap items-center gap-3 rounded-xl bg-brand-50 px-4 py-3 ring-1 ring-brand-200 animate-rise"
+    role="region"
+    aria-label="Selected notifications"
+  >
+    <p class="text-sm font-medium text-brand-800">
+      {{ selectedCount() }} selected
+    </p>
+    @if (!allSelected()) {
+      <button
+        type="button"
+        class="text-xs font-medium text-brand-700 underline-offset-2 hover:underline"
+        (click)="toggleAll()"
+      >
+        Select all {{ visible().length }}
+      </button>
+    }
+    <div class="ml-auto flex flex-wrap items-center gap-2">
+      <button appButton variant="ghost" size="sm" (click)="clearSelection()">Clear selection</button>
+      <button appButton variant="danger" size="sm" (click)="askDeleteSelected()">
+        <app-icon name="trash" [size]="15" />
+        Delete selected
+      </button>
+    </div>
+  </div>
+}
 
 <!-- Filters -->
 <div class="mt-3 flex flex-wrap items-center gap-2">
@@ -119,6 +155,13 @@
            are built from the page rather than the whole list. -->
       <header class="flex flex-wrap items-center justify-between gap-2 border-b border-line px-5 py-3">
         <div class="flex items-center gap-2.5">
+          <input
+            type="checkbox"
+            class="h-4 w-4 rounded border-line-strong text-brand-600 focus:ring-2 focus:ring-brand-500"
+            [checked]="sectionSelected(section)"
+            [attr.aria-label]="'Select every ' + section.label + ' notification on this page'"
+            (change)="toggleSection(section)"
+          />
           <span class="grid h-7 w-7 place-items-center rounded-lg bg-surface-sunken text-ink-soft ring-1 ring-line ring-inset">
             <app-icon [name]="categoryCopy[section.category].icon" [size]="15" />
           </span>
@@ -146,6 +189,15 @@
             (keydown.enter)="open(notification)"
             (keydown.space)="open(notification)"
           >
+            <input
+              type="checkbox"
+              class="mt-3 h-4 w-4 shrink-0 rounded border-line-strong text-brand-600 focus:ring-2 focus:ring-brand-500"
+              [checked]="isSelected(notification.id)"
+              [attr.aria-label]="'Select: ' + notification.title"
+              (click)="toggleRow($event, notification)"
+              (keydown)="$event.stopPropagation()"
+            />
+
             <span
               class="mt-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-xl"
               [class]="
@@ -190,16 +242,29 @@
               </div>
             </div>
 
-            @if (!notification.read) {
+            <!-- Space and Enter activate the buttons in here. Without this they
+                 also reach the row, which opens the notification and navigates
+                 away from the thing that was just clicked. -->
+            <div class="flex shrink-0 items-center gap-0.5" (keydown)="$event.stopPropagation()">
+              @if (!notification.read) {
+                <button
+                  type="button"
+                  class="rounded-lg p-1.5 text-ink-muted transition-colors hover:bg-surface hover:text-ink"
+                  aria-label="Mark as read"
+                  (click)="markRead($event, notification)"
+                >
+                  <app-icon name="checkCircle" [size]="17" />
+                </button>
+              }
               <button
                 type="button"
-                class="shrink-0 rounded-lg p-1.5 text-ink-muted transition-colors hover:bg-surface hover:text-ink"
-                aria-label="Mark as read"
-                (click)="markRead($event, notification)"
+                class="rounded-lg p-1.5 text-ink-muted transition-colors hover:bg-red-50 hover:text-danger"
+                [attr.aria-label]="'Delete: ' + notification.title"
+                (click)="deleteOne($event, notification)"
               >
-                <app-icon name="checkCircle" [size]="17" />
+                <app-icon name="trash" [size]="17" />
               </button>
-            }
+            </div>
           </div>
         </li>
       }
@@ -207,4 +272,53 @@
     </app-card>
   }
   <app-paginator class="mt-5" [pager]="pager" />
+}
+
+@if (confirming() === 'selected') {
+  <app-modal
+    title="Delete the selected notifications?"
+    [subtitle]="
+      selectedCount() === 1 ? '1 notification' : selectedCount() + ' notifications'
+    "
+    size="sm"
+    (closed)="cancelDelete()"
+  >
+    <p class="text-sm leading-relaxed text-ink-soft">
+      They leave your list for good. Nothing they are about changes — the campaign, payment or
+      conversation each one points at is untouched, and still on its own page.
+    </p>
+    <ng-container modalFooter>
+      <button appButton variant="ghost" size="md" (click)="cancelDelete()">Cancel</button>
+      <button appButton variant="danger" size="md" (click)="deleteSelected()">
+        Delete {{ selectedCount() }}
+      </button>
+    </ng-container>
+  </app-modal>
+}
+
+@if (confirming() === 'clear') {
+  <app-modal title="Clear your notifications?" size="sm" (closed)="cancelDelete()">
+    <p class="text-sm leading-relaxed text-ink-soft">
+      This clears <span class="font-medium text-ink">your own</span> list only — everyone else keeps
+      theirs. Nothing a notification is about changes.
+    </p>
+    @if (unreadCount() > 0) {
+      <p class="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-warning ring-1 ring-amber-200">
+        {{ unreadCount() }} {{ unreadCount() === 1 ? 'is' : 'are' }} still unread. Deleting read ones
+        only will leave {{ unreadCount() === 1 ? 'it' : 'them' }} where
+        {{ unreadCount() === 1 ? 'it is' : 'they are' }}.
+      </p>
+    }
+    <ng-container modalFooter>
+      <button appButton variant="ghost" size="md" (click)="cancelDelete()">Cancel</button>
+      @if (readCount() > 0) {
+        <button appButton variant="outline" size="md" (click)="clear('read')">
+          Delete read ({{ readCount() }})
+        </button>
+      }
+      <button appButton variant="danger" size="md" (click)="clear('all')">
+        Delete all ({{ totalCount() }})
+      </button>
+    </ng-container>
+  </app-modal>
 }

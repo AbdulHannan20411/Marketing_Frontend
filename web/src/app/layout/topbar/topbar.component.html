@@ -93,12 +93,14 @@
 
         <div class="app-scrollbar max-h-96 overflow-y-auto">
           @for (notification of recent(); track notification.id) {
-            <button
-              type="button"
+            <div
               role="menuitem"
-              class="flex w-full items-start gap-3 border-b border-line/70 px-4 py-3 text-left transition-colors last:border-b-0 hover:bg-surface-muted"
+              tabindex="0"
+              class="group flex w-full cursor-pointer items-start gap-3 border-b border-line/70 px-4 py-3 text-left transition-colors last:border-b-0 hover:bg-surface-muted focus-visible:bg-surface-muted focus-visible:outline-none"
               [class]="notification.read ? '' : 'bg-brand-50/40'"
               (click)="openNotification(notification)"
+              (keydown.enter)="openNotification(notification)"
+              (keydown.space)="openNotification(notification)"
             >
               <span
                 class="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg"
@@ -134,7 +136,19 @@
                   {{ notification.occurredAt | timeAgo }}
                 </span>
               </span>
-            </button>
+
+              <!-- Kept out of the way until the row is under the pointer or
+                   the keyboard focus: this list is for reading, not managing. -->
+              <button
+                type="button"
+                class="-mr-1 shrink-0 rounded-lg p-1 text-ink-muted opacity-0 transition hover:bg-red-50 hover:text-danger focus-visible:opacity-100 group-hover:opacity-100"
+                [attr.aria-label]="'Delete: ' + notification.title"
+                (click)="deleteNotification($event, notification)"
+                (keydown)="$event.stopPropagation()"
+              >
+                <app-icon name="trash" [size]="15" />
+              </button>
+            </div>
           } @empty {
             <div class="px-4 py-10 text-center">
               <p class="text-sm text-ink-muted">You're all caught up.</p>

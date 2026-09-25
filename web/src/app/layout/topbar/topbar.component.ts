@@ -141,6 +141,12 @@ export class TopbarComponent {
     this.notificationsService.markAllRead();
   }
 
+  protected deleteNotification(event: Event, notification: AppNotification): void {
+    // Without this the row's own handler opens the notification we just deleted.
+    event.stopPropagation();
+    this.notificationsService.remove(notification.id);
+  }
+
   protected closeMenus(): void {
     this.profileOpen.set(false);
     this.notificationsOpen.set(false);

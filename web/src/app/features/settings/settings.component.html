@@ -134,10 +134,11 @@
 <!-- Sessions and devices: yours for everyone, the team's for admins. -->
 <!-- What reaches you. Security and system stay on: the warnings you least
      expect are the ones a switch set months ago should not silence. -->
-<app-card
+<app-accordion-section
   class="mt-4 block"
   title="Notifications"
   subtitle="Choose what you are told about, in the bell and on this device."
+  icon="bell"
 >
   @if (notificationsUnsupported()) {
     <p class="mb-3 flex items-start gap-2 rounded-lg bg-amber-50 p-3 text-xs text-amber-800 ring-1 ring-amber-200 ring-inset" role="status">
@@ -175,9 +176,14 @@
     Security and system notifications are always sent — a stolen sign-in or a broken WhatsApp
     connection needs to reach you whatever else is switched off.
   </p>
-</app-card>
+</app-accordion-section>
 
-<app-card class="mt-4 block" title="Security" subtitle="Where you and your team are signed in.">
+<app-accordion-section
+  class="mt-4 block"
+  title="Security"
+  subtitle="Where you and your team are signed in."
+  icon="lock"
+>
   <div class="flex flex-wrap gap-2">
     <a appButton variant="outline" size="sm" routerLink="/account/security">
       <app-icon name="computer" [size]="14" />
@@ -190,7 +196,7 @@
       </a>
     }
   </div>
-</app-card>
+</app-accordion-section>
 
 <!-- Profile editing. Name, email and password in one form: someone correcting
      their own details should not have to find three screens to do it. -->
@@ -371,7 +377,12 @@
 <!-- Guiding tours. Placed directly above Help & FAQ because they answer the
      same question — "how do I use this" — and a walkthrough is the thing to
      reach for before reading a list of answers. -->
-<app-card class="mt-4 block" title="Guiding tours" subtitle="Walkthroughs of the product">
+<app-accordion-section
+  class="mt-4 block"
+  title="Guiding tours"
+  subtitle="Walkthroughs of the product"
+  icon="rocket"
+>
   <!-- General tour -->
   <div
     class="flex flex-wrap items-center gap-3 rounded-xl bg-surface-sunken px-4 py-3.5 ring-1 ring-line"
@@ -427,37 +438,17 @@
       }
     </ul>
   }
-</app-card>
+</app-accordion-section>
 
 <!-- Help & FAQ. Collapsed on arrival: Settings is opened to change a setting,
      and seventeen questions is a lot of page for the exception. -->
-<app-card class="mt-4 block" [padded]="false">
-  <button
-    type="button"
-    class="flex w-full items-center gap-3 px-5 py-4 text-left transition-colors hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-inset"
-    [attr.aria-expanded]="helpOpen()"
-    aria-controls="help-panel"
-    (click)="toggleHelp()"
-  >
-    <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-700">
-      <app-icon name="info" [size]="18" />
-    </span>
-    <span class="min-w-0 flex-1">
-      <span class="block text-sm font-semibold text-ink">Help &amp; FAQ</span>
-      <span class="mt-0.5 block text-xs text-ink-muted">
-        Answers to the questions this product raises most often, and a way to reach support.
-      </span>
-    </span>
-    <app-icon
-      name="chevronDown"
-      [size]="18"
-      class="shrink-0 text-ink-muted transition-transform duration-200"
-      [class.rotate-180]="helpOpen()"
-    />
-  </button>
-
-  @if (helpOpen()) {
-  <div id="help-panel" class="animate-fade-in border-t border-line px-5 pt-4 pb-5">
+<app-accordion-section
+  class="mt-4 block"
+  title="Help &amp; FAQ"
+  subtitle="Answers to the questions this product raises most often, and a way to reach support."
+  icon="info"
+  [(open)]="helpOpen"
+>
   <div class="flex flex-wrap items-center gap-2.5">
     <div class="relative min-w-0 flex-1 sm:max-w-xs">
       <label for="faq-search" class="sr-only">Search help</label>
@@ -563,9 +554,7 @@
       Contact support
     </a>
   </div>
-  </div>
-  }
-</app-card>
+</app-accordion-section>
 
 <!-- Deactivate workspace. Owner only, and last on the page: destructive
      actions belong where nobody reaches them by accident. -->
@@ -589,10 +578,11 @@
 }
 
 <!-- Sections the API does not expose yet -->
-<app-card
+<app-accordion-section
   class="mt-4 block"
   title="Coming next"
   subtitle="These need endpoints that do not exist yet"
+  icon="clock"
 >
   <ul class="grid gap-2.5 sm:grid-cols-3">
     <li class="flex items-center gap-2.5 rounded-lg bg-surface-sunken px-3 py-2.5 ring-1 ring-line">
@@ -608,7 +598,7 @@
       <span class="text-sm text-ink-muted">Integrations</span>
     </li>
   </ul>
-</app-card>
+</app-accordion-section>
 
 <!-- Stage 1 — why -->
 @if (deactivateStage() === 'reason') {

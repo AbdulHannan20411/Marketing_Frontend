@@ -7,12 +7,32 @@ import {
   inject,
   input,
   output,
+  viewChild,
   type OnDestroy,
 } from '@angular/core';
 
 import { IconComponent } from '@shared/ui/icon/icon.component';
 
 export type ModalSize = 'sm' | 'md' | 'lg' | 'xl';
+
+/**
+ * Everything a keyboard can reach, in DOM order.
+ *
+ * `:not([disabled])` matters: a submit button disabled while saving must not
+ * be a trap stop, or Tab lands on something that cannot be used.
+ */
+const FOCUSABLE =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), ' +
+  'textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+/**
+ * How many dialogs are open.
+ *
+ * Counted rather than set, because a dialog can open on top of another — a
+ * confirmation over an editor. The page must not get its scrollbar back until
+ * the last one closes.
+ */
+let openModals = 0;
 
 const SIZE_CLASS: Readonly<Record<ModalSize, string>> = {
   sm: 'max-w-md',
@@ -40,6 +60,8 @@ const SIZE_CLASS: Readonly<Record<ModalSize, string>> = {
   host: {
     class: 'fixed inset-0 z-100 grid place-items-center p-4 sm:p-6',
     '(document:keydown.escape)': 'dismiss()',
+    '(keydown.tab)': 'trap($event)',
+    '(keydown.shift.tab)': 'trap($event)',
   },
   template: `
     <div
@@ -49,10 +71,12 @@ const SIZE_CLASS: Readonly<Record<ModalSize, string>> = {
     ></div>
 
     <div
+      #dialog
       role="dialog"
       aria-modal="true"
+      tabindex="-1"
       [attr.aria-label]="title()"
-      class="relative flex max-h-[calc(100dvh-3rem)] w-full flex-col overflow-hidden rounded-2xl bg-surface shadow-2xl ring-1 ring-line animate-rise"
+      class="relative flex max-h-[calc(100dvh-3rem)] w-full flex-col overflow-hidden rounded-2xl bg-surface shadow-2xl ring-1 ring-line animate-rise focus:outline-none"
       [class]="sizeClass()"
     >
       <header class="flex items-start justify-between gap-4 border-b border-line px-6 py-4">
@@ -84,10 +108,65 @@ const SIZE_CLASS: Readonly<Record<ModalSize, string>> = {
 })
 export class ModalComponent implements OnDestroy {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly dialog = viewChild.required<ElementRef<HTMLElement>>('dialog');
+
+  /** Whatever had focus before this opened, to give it back on close. */
+  private readonly opener = document.activeElement as HTMLElement | null;
 
   constructor() {
-    // After render, so the dialog exists before it is re-parented.
-    afterNextRender(() => document.body.appendChild(this.host.nativeElement));
+    afterNextRender(() => {
+      // After render, so the dialog exists before it is re-parented.
+      document.body.appendChild(this.host.nativeElement);
+
+      /*
+       * Move focus into the dialog.
+       *
+       * Without this the keyboard stays wherever it was on the page behind —
+       * so Tab walks the page under the scrim, Escape is the only way out,
+       * and a screen reader never announces that a dialog opened at all.
+       *
+       * The dialog element itself, not its first control: the first focusable
+       * is the close button, and landing there says nothing about what has
+       * opened. Focusing the container announces the dialog and its label,
+       * and the first Tab then reaches the close button anyway. This is what
+       * `tabindex="-1"` on it is for.
+       */
+      this.dialog().nativeElement.focus({ preventScroll: true });
+
+      // The page behind must not scroll under the scrim.
+      openModals += 1;
+      document.body.style.overflow = 'hidden';
+    });
+  }
+
+  /**
+   * Keeps Tab inside the dialog.
+   *
+   * A modal that lets the keyboard walk out onto the page behind it is modal
+   * in appearance only: the user ends up typing into controls they cannot see,
+   * with no way of knowing they have left.
+   */
+  protected trap(event: KeyboardEvent): void {
+    const stops = [...this.dialog().nativeElement.querySelectorAll<HTMLElement>(FOCUSABLE)].filter(
+      (element) => element.offsetParent !== null,
+    );
+    if (stops.length === 0) {
+      return;
+    }
+
+    const first = stops[0];
+    const last = stops[stops.length - 1];
+    const active = document.activeElement;
+
+    if (event.shiftKey && (active === first || active === this.dialog().nativeElement)) {
+      event.preventDefault();
+      last.focus();
+      return;
+    }
+    if (!event.shiftKey && active === last) {
+      event.preventDefault();
+      first.focus();
+    }
   }
 
   /**
@@ -100,6 +179,16 @@ export class ModalComponent implements OnDestroy {
    */
   ngOnDestroy(): void {
     this.host.nativeElement.remove();
+
+    // Only the last dialog to close gives the page its scrollbar back.
+    openModals = Math.max(0, openModals - 1);
+    if (openModals === 0) {
+      document.body.style.overflow = '';
+    }
+
+    // Back where the user was. Without this, focus falls to the top of the
+    // document and the next Tab starts from the beginning of the page.
+    this.opener?.focus?.({ preventScroll: true });
   }
 
   readonly title = input.required<string>();

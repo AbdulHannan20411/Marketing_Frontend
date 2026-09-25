@@ -41,7 +41,25 @@ export const appConfig: ApplicationConfig = {
     provideRouter(
       routes,
       withComponentInputBinding(),
-      withViewTransitions(),
+      withViewTransitions({
+        /*
+         * Swallow the rejection an interrupted transition produces.
+         *
+         * `document.startViewTransition` rejects `finished`, `ready` and
+         * `updateCallbackDone` when a transition is abandoned — which happens
+         * on any navigation that starts before the previous one has finished,
+         * i.e. ordinary clicking around. Nothing awaits those promises, so
+         * every interrupted navigation logged an uncaught
+         * "Transition was aborted because of invalid state" to the console.
+         * Not an error anyone can act on, and it buries the ones that are.
+         */
+        onViewTransitionCreated: ({ transition }) => {
+          const ignore = (): void => undefined;
+          void transition.finished.catch(ignore);
+          void transition.ready.catch(ignore);
+          void transition.updateCallbackDone.catch(ignore);
+        },
+      }),
       withInMemoryScrolling({ scrollPositionRestoration: 'top', anchorScrolling: 'enabled' }),
       // A tab left open across a rebuild or deploy asks for page files that no
       // longer exist; reload to the page instead of silently doing nothing.

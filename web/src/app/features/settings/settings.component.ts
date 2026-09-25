@@ -40,6 +40,7 @@ import type { IconName } from '@shared/ui/icon/icon.registry';
 import { PageHeaderComponent } from '@shared/ui/page-header/page-header.component';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
 import { HistoryButtonComponent } from '@shared/audit/history-button.component';
+import { AccordionSectionComponent } from '@shared/ui/accordion/accordion-section.component';
 import { ToggleComponent } from '@shared/ui/toggle/toggle.component';
 import { EmptyStateComponent } from '@shared/ui/state/empty-state.component';
 import { FAQ_ENTRIES, FAQ_TOPIC_LABEL, type FaqEntry, type FaqTopic } from './help-content';
@@ -83,6 +84,7 @@ const THEME_OPTIONS: readonly ThemeOption[] = [
   selector: 'app-settings',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    AccordionSectionComponent,
     HistoryButtonComponent,
     RouterLink,
     ReactiveFormsModule,
@@ -457,10 +459,6 @@ export class SettingsComponent {
   protected readonly isFaqFiltered = computed(
     () => this.faqSearch().trim() !== '' || this.faqTopic() !== 'all',
   );
-
-  protected toggleHelp(): void {
-    this.helpOpen.update((open) => !open);
-  }
 
   /* ---------------------------- product tour ---------------------------- */
 

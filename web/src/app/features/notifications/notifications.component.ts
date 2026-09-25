@@ -7,7 +7,11 @@ import {
   categoryOfNotification,
   type NotificationCategory,
 } from '@core/models/notification-category.model';
-import type { AppNotification, NotificationPriority } from '@core/models/notification.model';
+import type {
+  AppNotification,
+  NotificationClearScope,
+  NotificationPriority,
+} from '@core/models/notification.model';
 import { NotificationPreferencesService } from '@core/services/notification-preferences.service';
 import { NotificationsService } from '@core/services/notifications.service';
 import { TimeAgoPipe } from '@shared/pipes/time-ago.pipe';
@@ -15,6 +19,7 @@ import { BadgeComponent, type BadgeTone } from '@shared/ui/badge/badge.component
 import { ButtonDirective } from '@shared/ui/button/button.directive';
 import { CardComponent } from '@shared/ui/card/card.component';
 import { IconComponent } from '@shared/ui/icon/icon.component';
+import { ModalComponent } from '@shared/ui/modal/modal.component';
 import { clientPager } from '@shared/ui/pagination/pager';
 import { PaginatorComponent } from '@shared/ui/pagination/paginator.component';
 import { PageHeaderComponent } from '@shared/ui/page-header/page-header.component';
@@ -53,6 +58,7 @@ const PRIORITY_TONE: Readonly<Record<NotificationPriority, BadgeTone>> = {
     BadgeComponent,
     ButtonDirective,
     IconComponent,
+    ModalComponent,
     SkeletonComponent,
     EmptyStateComponent,
   ],
@@ -74,6 +80,18 @@ export class NotificationsComponent {
   protected readonly priorityTone = PRIORITY_TONE;
   protected readonly isLoading = this.notificationsService.isLoading;
   protected readonly unreadCount = this.notificationsService.unreadCount;
+
+  /**
+   * Ticked rows, by id.
+   *
+   * Ids rather than whole rows, so a row that changes underneath — a push
+   * marking it read — stays ticked, and one that is deleted drops out of
+   * {@link selectedIds} on its own.
+   */
+  private readonly ticked = signal<ReadonlySet<string>>(new Set<string>());
+
+  /** Which delete is waiting on a confirmation, if any. */
+  protected readonly confirming = signal<'selected' | 'clear' | null>(null);
 
   protected readonly readFilters: readonly { value: ReadFilter; label: string }[] = [
     { value: 'all', label: 'All' },
@@ -144,8 +162,116 @@ export class NotificationsComponent {
     return [{ value: 'all' as CategoryFilter, label: 'Everything', count: all.length }, ...tabs];
   });
 
+  /**
+   * The ticked rows that are still on screen.
+   *
+   * Intersected with the filtered list, not the whole one, so a delete can
+   * only ever take rows the user can actually see — ticking twenty, then
+   * filtering down to three, deletes those three. It also means a deleted or
+   * silenced row leaves the selection without anything having to prune it.
+   */
+  protected readonly selectedIds = computed(() => {
+    const ticked = this.ticked();
+    return this.visible()
+      .filter((notification) => ticked.has(notification.id))
+      .map((notification) => notification.id);
+  });
+
+  protected readonly selectedCount = computed(() => this.selectedIds().length);
+
+  protected readonly allSelected = computed(() => {
+    const rows = this.visible();
+    return rows.length > 0 && this.selectedCount() === rows.length;
+  });
+
+  /** For the clear dialog, which deletes by scope rather than by what is on screen. */
+  protected readonly readCount = this.notificationsService.readCount;
+  protected readonly totalCount = this.notificationsService.count;
+
   /** One page of notifications; the list grows without bound over time. */
   protected readonly pager = clientPager(this.visible);
+
+  /** Every row of the current page ticked, for the section header's box. */
+  protected sectionSelected(section: NotificationSection): boolean {
+    const ticked = this.ticked();
+    return section.items.every((notification) => ticked.has(notification.id));
+  }
+
+  protected isSelected(id: string): boolean {
+    return this.ticked().has(id);
+  }
+
+  protected toggleRow(event: Event, notification: AppNotification): void {
+    // The row itself opens the notification; ticking it must not.
+    event.stopPropagation();
+    this.ticked.update((current) => {
+      const next = new Set(current);
+      if (!next.delete(notification.id)) {
+        next.add(notification.id);
+      }
+      return next;
+    });
+  }
+
+  protected toggleSection(section: NotificationSection): void {
+    const select = !this.sectionSelected(section);
+    this.ticked.update((current) => {
+      const next = new Set(current);
+      for (const notification of section.items) {
+        if (select) {
+          next.add(notification.id);
+        } else {
+          next.delete(notification.id);
+        }
+      }
+      return next;
+    });
+  }
+
+  /** Ticks everything the filters allow, across pages — not just this one. */
+  protected toggleAll(): void {
+    if (this.allSelected()) {
+      this.clearSelection();
+      return;
+    }
+    this.ticked.set(new Set(this.visible().map((notification) => notification.id)));
+  }
+
+  protected clearSelection(): void {
+    this.ticked.set(new Set<string>());
+  }
+
+  protected askDeleteSelected(): void {
+    this.confirming.set('selected');
+  }
+
+  protected askClear(): void {
+    this.confirming.set('clear');
+  }
+
+  protected cancelDelete(): void {
+    this.confirming.set(null);
+  }
+
+  protected deleteOne(event: Event, notification: AppNotification): void {
+    // Deleting one row is undoable in the sense that matters: nothing else
+    // changes, and the row said what it said. A dialog for it would be a
+    // click in the way of the clean-up people do most often.
+    event.stopPropagation();
+    this.notificationsService.remove(notification.id);
+  }
+
+  protected deleteSelected(): void {
+    this.notificationsService.removeMany(this.selectedIds());
+    this.clearSelection();
+    this.confirming.set(null);
+  }
+
+  protected clear(scope: NotificationClearScope): void {
+    this.notificationsService.clear(scope);
+    this.clearSelection();
+    this.confirming.set(null);
+  }
 
   protected setReadFilter(value: ReadFilter): void {
     this.readFilter.set(value);

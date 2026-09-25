@@ -43,6 +43,8 @@
   --animate-fade-in: fade-in 0.24s ease-out both;
   --animate-rise: rise 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
   --animate-shimmer: shimmer 1.6s ease-in-out infinite;
+  /* A toast leaving: the reverse of `rise`, faster, because nobody waits for it. */
+  --animate-fall: fall 0.18s ease-in both;
 }
 
 /* ------------------------------------------------------------------ *
@@ -184,6 +186,19 @@
   }
 }
 
+@keyframes fall {
+  to {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 @keyframes shimmer {
   0%,
   100% {
@@ -248,6 +263,71 @@
 }
 
 @layer components {
+  /*
+   * A card or button that lifts on hover, without the flicker.
+   *
+   * `translateY(-2px)` moves the element out from under the pointer. With the
+   * pointer near the bottom edge, the strip the element vacates ends the
+   * hover, which drops the transform, which puts the element back under the
+   * pointer, which starts it again — so the card blinks for as long as the
+   * pointer rests there, and flickers whenever it crosses a row of cards.
+   *
+   * The pseudo-element keeps the hit area where it was, four pixels past the
+   * bottom edge, so `:hover` never flips. It has no background and sits behind
+   * the element's own content, so it is invisible and takes no clicks.
+   */
+  /*
+   * The spinner a button grows while it is working.
+   *
+   * A pseudo-element rather than markup, so `[loading]` on the button
+   * directive is the whole call site — no wrapper, no conditional icon, and
+   * nothing for a screen to forget. `aria-busy` carries the same fact to
+   * assistive technology.
+   */
+  .btn-spinner::before {
+    content: '';
+    width: 0.9em;
+    height: 0.9em;
+    flex-shrink: 0;
+    border-radius: 9999px;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    animation: spin 0.6s linear infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    /*
+     * The one animation that has to keep going. Reduced motion stops
+     * animations after a single iteration, which would leave a frozen ring
+     * claiming the request is still running. Slowed right down instead.
+     */
+    .btn-spinner::before {
+      animation-duration: 1.4s !important;
+      animation-iteration-count: infinite !important;
+    }
+  }
+
+  .hover-lift,
+  .hover-lift-sm {
+    position: relative;
+  }
+
+  .hover-lift::after,
+  .hover-lift-sm::after {
+    content: '';
+    position: absolute;
+    inset: 0 0 -4px 0;
+    z-index: -1;
+  }
+
+  .hover-lift:hover {
+    transform: translateY(-2px);
+  }
+
+  .hover-lift-sm:hover {
+    transform: translateY(-1px);
+  }
+
   .app-scrollbar {
     scrollbar-width: thin;
     scrollbar-color: var(--color-line-strong) transparent;

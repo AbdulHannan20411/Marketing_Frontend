@@ -18,6 +18,7 @@ import { IconComponent } from '@shared/ui/icon/icon.component';
 import { serverPager } from '@shared/ui/pagination/pager';
 import { PageHeaderComponent } from '@shared/ui/page-header/page-header.component';
 import { SkeletonComponent } from '@shared/ui/skeleton/skeleton.component';
+import { EmptyStateComponent } from '@shared/ui/state/empty-state.component';
 import { StatCardComponent } from '@shared/ui/stat-card/stat-card.component';
 
 
@@ -37,6 +38,7 @@ import { StatCardComponent } from '@shared/ui/stat-card/stat-card.component';
     ButtonDirective,
     IconComponent,
     SkeletonComponent,
+    EmptyStateComponent,
   ],
   templateUrl: './reports.component.html',
 })
@@ -65,6 +67,35 @@ export class ReportsComponent {
   ];
 
   protected readonly kpis = computed(() => this.snapshot()?.kpis ?? null);
+
+  /**
+   * Whether there is anything to calculate a rate from.
+   *
+   * Every headline here is a ratio of the counters in `kpis`. With no sends
+   * counted there is no denominator, and "0.0%" would be a claim rather than a
+   * reading.
+   */
+  protected readonly hasVolume = computed(() => (this.kpis()?.messagesSent ?? 0) > 0);
+
+  /**
+   * The counters say nothing was sent, and the failure log disagrees.
+   *
+   * Both come from the same API, so one of them is wrong — and the failure log
+   * is the one with evidence in it. Saying so beats showing a 0.00% failure
+   * rate above a list of failures, which is what this page did.
+   */
+  protected readonly metricsMissing = computed(
+    () => this.state() === 'ready' && !this.hasVolume() && this.failureTotal() > 0,
+  );
+
+  /** Something other than a flat line at zero. */
+  protected readonly hasTrend = computed(() =>
+    (this.snapshot()?.trend ?? []).some((point) => point.sent + point.delivered + point.read > 0),
+  );
+
+  protected readonly hasFunnel = computed(() =>
+    (this.snapshot()?.funnel ?? []).some((stage) => stage.value > 0),
+  );
 
   protected readonly deliveryRate = computed(() => {
     const kpis = this.kpis();
@@ -131,7 +162,7 @@ export class ReportsComponent {
     this.failureState.set('loading');
 
     forkJoin({
-      snapshot: this.dashboardService.getSnapshot(),
+      snapshot: this.dashboardService.getReportsOverview(),
       failures: this.dashboardService.getFailures(this.failurePager.page(), this.failurePager.pageSize()),
     }).subscribe({
       next: ({ snapshot, failures }) => {

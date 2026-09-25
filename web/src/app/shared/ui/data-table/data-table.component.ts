@@ -19,6 +19,16 @@ import {
 import type { Pager } from '@shared/ui/pagination/pager';
 import { TableRowDirective } from './table-row.directive';
 
+/**
+ * What makes a row the same row between two renders.
+ *
+ * Every record in this app carries an `id`; the index is the fallback for a
+ * row that genuinely has no identity of its own.
+ */
+function rowIdentity(row: unknown, index: number): unknown {
+  return (row as { id?: unknown } | null)?.id ?? index;
+}
+
 export interface TableColumn {
   readonly key: string;
   readonly header: string;
@@ -50,6 +60,17 @@ export interface TableColumn {
 export class DataTableComponent<TRow> {
   readonly columns = input.required<readonly TableColumn[]>();
   readonly rows = input.required<readonly TRow[]>();
+  /**
+   * How a row is identified across renders.
+   *
+   * Rows were tracked by index, which is wrong for a table whose contents
+   * move: deleting a row, paging, sorting or filtering shifts everything up
+   * an index, so Angular reuses each `<tr>` for a *different* record. Every
+   * row is then re-rendered rather than moved, and anything living inside one
+   * — focus, an open menu, a half-typed inline edit — stays behind on
+   * whatever record took that position.
+   */
+  readonly trackBy = input<(row: TRow, index: number) => unknown>(rowIdentity);
   readonly state = input<LoadState>('ready');
   /**
    * The table's pagination, as one object — see `pager.ts`. Preferred over the

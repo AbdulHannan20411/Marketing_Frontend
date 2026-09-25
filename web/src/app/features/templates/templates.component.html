@@ -263,7 +263,7 @@
 
     <ng-container modalFooter>
       <button appButton variant="ghost" size="md" (click)="cancelDelete()">Cancel</button>
-      <button appButton variant="danger" size="md" [disabled]="saving()" (click)="remove()">
+      <button appButton variant="danger" size="md" [disabled]="saving()" [loading]="saving()" (click)="remove()">
         {{ saving() ? 'Deleting…' : 'Delete template' }}
       </button>
     </ng-container>

@@ -1,7 +1,7 @@
 <div class="animate-fade-in space-y-6">
   <app-page-header [title]="title()" [breadcrumbs]="breadcrumbs()">
     <button appButton variant="ghost" size="md" (click)="cancel()">Cancel</button>
-    <button appButton variant="outline" size="md" [disabled]="saving()" (click)="saveDraft()">
+    <button appButton variant="outline" size="md" [disabled]="saving()" [loading]="saving()" (click)="saveDraft()">
       {{ saving() ? 'Saving…' : 'Save as draft' }}
     </button>
     <button appButton size="md" [disabled]="activating()" (click)="requestActivate()">

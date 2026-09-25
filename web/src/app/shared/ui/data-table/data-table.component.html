@@ -62,7 +62,7 @@
               </tr>
             }
           } @else {
-            @for (row of rows(); track $index) {
+            @for (row of rows(); track trackBy()(row, $index)) {
               <tr class="transition-colors duration-100 hover:bg-surface-muted">
                 <ng-container [ngTemplateOutlet]="rowTemplate()" [ngTemplateOutletContext]="{ $implicit: row }" />
               </tr>

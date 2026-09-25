@@ -25,13 +25,18 @@ const TONE_ACCENT: Record<ToastTone, string> = {
   host: {
     class:
       'pointer-events-none fixed bottom-4 right-4 z-100 flex w-[calc(100vw-2rem)] max-w-sm flex-col gap-2.5',
+    // Polite for the container, so a success message waits its turn. An error
+    // carries `role="alert"` on the toast itself, which is assertive — the one
+    // case worth interrupting whatever is being read.
     'aria-live': 'polite',
     'aria-atomic': 'false',
   },
   template: `
     @for (toast of toasts(); track toast.id) {
       <div
-        class="pointer-events-auto flex items-start gap-3 rounded-xl bg-surface p-3.5 ring-1 ring-line shadow-pop animate-rise"
+        class="pointer-events-auto flex items-start gap-3 rounded-xl bg-surface p-3.5 ring-1 ring-line shadow-pop"
+        [class]="toast.leaving ? 'animate-fall' : 'animate-rise'"
+        [attr.role]="toast.tone === 'error' ? 'alert' : null"
       >
         <app-icon [name]="icon(toast.tone)" [class]="accent(toast.tone)" [size]="20" />
         <div class="min-w-0 flex-1">

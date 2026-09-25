@@ -17,6 +17,7 @@ import {
   TEMPLATE_STATUS_LABEL,
 } from '@core/models/whatsapp.model';
 import { ToastService } from '@core/services/toast.service';
+import { latestRequest } from '@core/http/latest-request';
 import { WhatsAppService } from '@core/services/whatsapp.service';
 import { TimeAgoPipe } from '@shared/pipes/time-ago.pipe';
 import { TemplateSegmentsPipe } from '@shared/pipes/template-segments.pipe';
@@ -155,6 +156,14 @@ export class TemplatesComponent {
     this.loadCounts();
   }
 
+  /**
+   * The list read, cancelled whenever a newer one starts. Typing in the search
+   * box, paging and filtering all reload; without this a slow earlier response
+   * could land after a newer one and put the wrong rows under the filters on
+   * screen.
+   */
+  private readonly listRequest = latestRequest();
+
   protected load(): void {
     this.state.set('loading');
 
@@ -166,6 +175,7 @@ export class TemplatesComponent {
         status: this.status(),
         category: this.category(),
       })
+      .pipe(this.listRequest.only())
       .subscribe({
         next: (result) => {
           this.templates.set(result.items);

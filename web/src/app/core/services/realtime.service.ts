@@ -1,6 +1,6 @@
 import { Injectable, inject, signal } from '@angular/core';
 import type { HubConnection } from '@microsoft/signalr';
-import { Subject, type Observable } from 'rxjs';
+import { Subject, throttleTime, type Observable } from 'rxjs';
 
 import { environment } from '@env/environment';
 import { AuthService } from '@core/auth/auth.service';
@@ -18,6 +18,31 @@ import type { Conversation, InboundMessageEvent } from '@core/models/whatsapp.mo
 export type RealtimeState = 'disconnected' | 'connecting' | 'connected';
 
 /**
+ * How long a run of reconnects is coalesced into a single "refetch now".
+ *
+ * Every listener answers `resynced$` with a full read — the notification list,
+ * the campaign page, their summaries. A hub that drops and recovers every few
+ * seconds therefore produced a burst of requests every few seconds, and the
+ * screens flashed their skeletons each time. One refetch per window is enough:
+ * the point is to recover missed events, and events missed ten seconds ago are
+ * still missed thirty seconds later.
+ */
+const RESYNC_MIN_GAP_MS = 30_000;
+
+/** A connection that drops again within this was never really back. */
+const FLAP_WINDOW_MS = 20_000;
+
+/** Short-lived connections in a row before push is given up on for this session. */
+const MAX_FLAPS = 3;
+
+/**
+ * Reconnect backoff. Running off the end returns `undefined`, which stops the
+ * client retrying — the default policy gives up after 30 seconds, this one
+ * keeps trying for about a minute.
+ */
+const RECONNECT_DELAYS_MS: readonly number[] = [0, 2_000, 5_000, 15_000, 30_000];
+
+/**
  * SignalR client for campaign progress and notification pushes.
  *
  * The token goes on the query string because a browser cannot set headers on a
@@ -33,6 +58,12 @@ export class RealtimeService {
   private connection: HubConnection | null = null;
   /** True while the client is being fetched, so a second call does not start a second one. */
   private connecting = false;
+  /** When the current connection was established, for spotting a flapping hub. */
+  private connectedAt = 0;
+  /** Short-lived connections in a row. Reset by one that stays up. */
+  private flaps = 0;
+  /** Set once push has been given up on, so nothing reopens it. */
+  private abandoned = false;
 
   private readonly campaignProgress = new Subject<Campaign>();
   private readonly importProgress = new Subject<ImportProgressEvent>();
@@ -58,10 +89,21 @@ export class RealtimeService {
   readonly inboundMessages$: Observable<InboundMessageEvent> = this.inboundMessages.asObservable();
   /** Someone assigned or unassigned a conversation; carries the updated thread. */
   readonly conversationAssignments$: Observable<Conversation> = this.conversationAssignments.asObservable();
-  readonly resynced$: Observable<void> = this.resynced.asObservable();
+  /**
+   * Throttled: see {@link RESYNC_MIN_GAP_MS}. Leading edge, so the first
+   * reconnect refetches at once and the rest of a storm is dropped.
+   */
+  readonly resynced$: Observable<void> = this.resynced.pipe(
+    throttleTime(RESYNC_MIN_GAP_MS, undefined, { leading: true, trailing: false }),
+  );
 
   connect(): void {
-    if (this.connection !== null || this.connecting || !this.auth.isAuthenticated()) {
+    if (
+      this.connection !== null ||
+      this.connecting ||
+      this.abandoned ||
+      !this.auth.isAuthenticated()
+    ) {
       return;
     }
     this.connecting = true;
@@ -99,7 +141,10 @@ export class RealtimeService {
         transport: signalR.HttpTransportType.WebSockets,
         skipNegotiation: true,
       })
-      .withAutomaticReconnect()
+      .withAutomaticReconnect({
+        nextRetryDelayInMilliseconds: (context) =>
+          RECONNECT_DELAYS_MS[context.previousRetryCount] ?? null,
+      })
       .configureLogging(environment.production ? signalR.LogLevel.Error : signalR.LogLevel.Warning)
       .build();
 
@@ -125,8 +170,27 @@ export class RealtimeService {
       this.conversationAssignments.next(conversation),
     );
 
-    connection.onreconnecting(() => this.state.set('connecting'));
+    connection.onreconnecting(() => {
+      this.state.set('connecting');
+
+      /*
+       * Stop chasing a hub that will not stay up.
+       *
+       * Each cycle costs a handshake and — through `resynced$` — a full
+       * refetch on every screen listening. When that repeats every few
+       * seconds it is far more traffic than the updates are worth, and the
+       * screens visibly reload while the user is reading them. Push is an
+       * enhancement; the app is correct without it, so after a few
+       * short-lived connections it is dropped for the rest of the session.
+       */
+      this.flaps = Date.now() - this.connectedAt < FLAP_WINDOW_MS ? this.flaps + 1 : 0;
+      if (this.flaps >= MAX_FLAPS) {
+        this.abandoned = true;
+        this.disconnect();
+      }
+    });
     connection.onreconnected(() => {
+      this.connectedAt = Date.now();
       this.state.set('connected');
       // Tell listeners to refetch — the hub does not replay missed events.
       this.resynced.next();
@@ -137,7 +201,10 @@ export class RealtimeService {
 
     connection
       .start()
-      .then(() => this.state.set('connected'))
+      .then(() => {
+        this.connectedAt = Date.now();
+        this.state.set('connected');
+      })
       // Realtime is an enhancement; the app stays usable on plain HTTP polling-free reads.
       .catch(() => this.state.set('disconnected'));
   }

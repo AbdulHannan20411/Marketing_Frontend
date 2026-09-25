@@ -29,6 +29,7 @@ import {
   NATIONAL_FORMAT_WARNING,
   isStoredNonInternational,
 } from '@core/models/phone.model';
+import { latestRequest } from '@core/http/latest-request';
 import { ContactsService } from '@core/services/contacts.service';
 import { ToastService } from '@core/services/toast.service';
 import { TimeAgoPipe } from '@shared/pipes/time-ago.pipe';
@@ -253,6 +254,14 @@ export class ContactsComponent {
     this.load();
   }
 
+  /**
+   * The list read, cancelled whenever a newer one starts. Typing in the search
+   * box, paging and filtering all reload; without this a slow earlier response
+   * could land after a newer one and put the wrong rows under the filters on
+   * screen.
+   */
+  private readonly listRequest = latestRequest();
+
   protected load(): void {
     this.state.set('loading');
 
@@ -265,6 +274,7 @@ export class ContactsComponent {
         groupId: this.groupId(),
         tagId: this.tagId(),
       })
+      .pipe(this.listRequest.only())
       .subscribe({
         next: (result) => {
           this.contacts.set(result.items);

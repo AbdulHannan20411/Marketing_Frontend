@@ -142,7 +142,7 @@
                   <span class="flex items-center gap-1.5 rounded-lg bg-red-50 px-2 py-1 ring-1 ring-red-200 ring-inset">
                     <span class="text-xs text-red-800">Remove all {{ savedEntries().length }}?</span>
                     <button appButton variant="ghost" size="sm" (click)="confirmingClear.set(false)">Keep</button>
-                    <button appButton variant="danger" size="sm" [disabled]="saving()" (click)="clear()">Remove</button>
+                    <button appButton variant="danger" size="sm" [disabled]="saving()" [loading]="saving()" (click)="clear()">Remove</button>
                   </span>
                 } @else {
                   <button appButton variant="ghost" size="sm" [disabled]="!configured()" (click)="confirmingClear.set(true)">

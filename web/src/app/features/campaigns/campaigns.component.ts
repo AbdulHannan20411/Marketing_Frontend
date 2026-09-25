@@ -6,6 +6,7 @@ import { Subject, debounceTime, distinctUntilChanged, type Observable } from 'rx
 import type { ApiError, LoadState } from '@core/models/api.model';
 import type { Campaign, CampaignStatus } from '@core/models/campaign.model';
 import type { CampaignSummary } from '@core/services/campaigns.service';
+import { latestRequest } from '@core/http/latest-request';
 import { CampaignsService } from '@core/services/campaigns.service';
 import { RealtimeService } from '@core/services/realtime.service';
 import { ToastService } from '@core/services/toast.service';
@@ -260,8 +261,21 @@ export class CampaignsComponent {
       : `${target.campaign.name} starts sending to every recipient right away. Meta charges per conversation started, and a send cannot be recalled.`;
   }
 
+  /**
+   * The list read, cancelled whenever a newer one starts. Typing in the search
+   * box, paging and filtering all reload; without this a slow earlier response
+   * could land after a newer one and put the wrong rows under the filters on
+   * screen.
+   */
+  private readonly listRequest = latestRequest();
+
   protected load(): void {
-    this.state.set('loading');
+    // Skeletons only when there is nothing to keep. A background refetch — a
+    // reconnect, a push — leaves the rows in place rather than flashing the
+    // whole table, which is what reads as the page blinking.
+    if (this.campaigns().length === 0) {
+      this.state.set('loading');
+    }
 
     this.campaignsService
       .list({
@@ -270,6 +284,7 @@ export class CampaignsComponent {
         search: this.search().trim(),
         status: this.statusFilter(),
       })
+      .pipe(this.listRequest.only())
       .subscribe({
         next: (result) => {
           this.campaigns.set(result.items);

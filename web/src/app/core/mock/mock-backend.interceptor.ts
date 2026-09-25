@@ -789,8 +789,58 @@ function handleNotifications(
     };
     return ok(notificationPreferences, 'Notification settings saved.');
   }
+  if (method === 'DELETE') {
+    const single = /^\/notifications\/([^/]+)$/.exec(path);
+    if (single === null) {
+      return null;
+    }
+    const index = notificationStore.findIndex((entry) => entry.id === single[1]);
+    if (index === -1) {
+      // What the API answers: an id that is already gone, belongs to somebody
+      // else, or cannot be read at all is `deleted: 0`, never a 404 or a 403.
+      // Distinguishing them would confirm that another user's id exists.
+      return ok({ deleted: 0 });
+    }
+    notificationStore.splice(index, 1);
+    return ok({ deleted: 1 }, 'Notification deleted.');
+  }
   if (method !== 'POST') {
     return null;
+  }
+  if (path === '/notifications/delete') {
+    const requested = (body ?? {}) as { ids?: unknown; scope?: unknown };
+
+    if (Array.isArray(requested.ids) && requested.ids.length > 500) {
+      return fail(400, 'Too many ids', 'Send at most 500 ids, or a scope.');
+    }
+
+    const before = notificationStore.length;
+
+    if (Array.isArray(requested.ids)) {
+      const doomed = new Set(requested.ids.map(String));
+      for (let index = notificationStore.length - 1; index >= 0; index--) {
+        if (doomed.has(notificationStore[index].id)) {
+          notificationStore.splice(index, 1);
+        }
+      }
+    } else if (requested.scope === 'read') {
+      for (let index = notificationStore.length - 1; index >= 0; index--) {
+        if (notificationStore[index].read) {
+          notificationStore.splice(index, 1);
+        }
+      }
+    } else if (requested.scope === 'all') {
+      notificationStore.length = 0;
+    } else {
+      return fail(400, 'Nothing to delete', 'Send either a list of ids or a scope.');
+    }
+
+
+    const deleted = before - notificationStore.length;
+    return ok(
+      { deleted },
+      deleted === 1 ? '1 notification deleted.' : `${deleted} notifications deleted.`,
+    );
   }
   if (path === '/notifications/read-all') {
     for (let index = 0; index < notificationStore.length; index++) {
@@ -1784,7 +1834,10 @@ export const mockBackendInterceptor: HttpInterceptorFn = (request, next) => {
   }
   if (method === 'GET') {
     switch (path) {
-      case '/dashboard': {
+      // Same payload from both: the reporting overview is the dashboard's
+      // numbers behind the reports permission, which is what the API does.
+      case '/dashboard':
+      case '/reports/overview': {
         const adminId = scopeOf(params);
         return ok(adminId === null ? DASHBOARD : dashboardForAdmin(adminId));
       }

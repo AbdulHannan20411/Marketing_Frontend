@@ -532,7 +532,7 @@
 
       <ng-container modalFooter>
         <button appButton variant="ghost" size="md" (click)="cancelDisconnect()">Cancel</button>
-        <button appButton variant="danger" size="md" [disabled]="busy()" (click)="disconnect()">
+        <button appButton variant="danger" size="md" [disabled]="busy()" [loading]="busy()" (click)="disconnect()">
           {{ busy() ? 'Disconnecting…' : 'Disconnect' }}
         </button>
       </ng-container>

@@ -12,7 +12,7 @@ const BASE =
 const VARIANTS: Record<ButtonVariant, string> = {
   primary:
     'bg-brand-600 text-white shadow-xs hover:bg-brand-700 active:bg-brand-800 ' +
-    'hover:shadow-md hover:-translate-y-px active:translate-y-0 focus-visible:outline-brand-600',
+    'hover-lift-sm hover:shadow-md active:translate-y-0 focus-visible:outline-brand-600',
   secondary:
     'bg-brand-50 text-brand-700 hover:bg-brand-100 active:bg-brand-200 focus-visible:outline-brand-600',
   outline:
@@ -21,7 +21,7 @@ const VARIANTS: Record<ButtonVariant, string> = {
   ghost: 'text-ink-soft hover:bg-surface-sunken hover:text-ink focus-visible:outline-brand-600',
   danger:
     'bg-danger text-white shadow-xs hover:bg-red-700 active:bg-red-800 ' +
-    'hover:shadow-md hover:-translate-y-px active:translate-y-0 focus-visible:outline-danger',
+    'hover-lift-sm hover:shadow-md active:translate-y-0 focus-visible:outline-danger',
 };
 
 const SIZES: Record<ButtonSize, string> = {
@@ -37,14 +37,35 @@ const SIZES: Record<ButtonSize, string> = {
  */
 @Directive({
   selector: 'button[appButton], a[appButton]',
-  host: { '[class]': 'classes()' },
+  host: {
+    '[class]': 'classes()',
+    '[attr.aria-busy]': 'loading() ? "true" : null',
+    '[attr.aria-disabled]': 'loading() ? "true" : null',
+  },
 })
 export class ButtonDirective {
   readonly variant = input<ButtonVariant>('primary');
   readonly size = input<ButtonSize>('md');
   readonly block = input(false);
 
+  /**
+   * The button's own work is in flight: it grows a spinner, says `aria-busy`
+   * and stops taking clicks.
+   *
+   * **Pair it with `[disabled]`** on anything that submits. `aria-disabled`
+   * and `pointer-events: none` stop the mouse, which is what makes a second
+   * click impossible, but only the real `disabled` property stops the
+   * keyboard and a form's implicit submit.
+   */
+  readonly loading = input(false);
+
   protected readonly classes = computed(() =>
-    [BASE, VARIANTS[this.variant()], SIZES[this.size()], this.block() ? 'w-full' : ''].join(' '),
+    [
+      BASE,
+      VARIANTS[this.variant()],
+      SIZES[this.size()],
+      this.block() ? 'w-full' : '',
+      this.loading() ? 'btn-spinner' : '',
+    ].join(' '),
   );
 }

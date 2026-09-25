@@ -54,8 +54,9 @@
 } @else {
   <div class="mt-6 grid items-start gap-5 lg:grid-cols-2 xl:grid-cols-4">
     @for (plan of visiblePlans(); track plan.id) {
+      <div class="hover-lift h-full transition-transform duration-300">
       <div
-        class="group relative flex h-full flex-col overflow-hidden rounded-xl bg-surface transition-all duration-300 hover:-translate-y-1"
+        class="group relative flex h-full flex-col overflow-hidden rounded-xl bg-surface transition-all duration-300"
         [class]="
           plan.isMostPopular
             ? 'ring-2 ring-brand-500 shadow-card-hover'
@@ -175,6 +176,7 @@
             <span class="text-xs text-ink-soft">{{ supportLabel[plan.supportLevel] }}</span>
           </div>
         </div>
+      </div>
       </div>
     }
   </div>

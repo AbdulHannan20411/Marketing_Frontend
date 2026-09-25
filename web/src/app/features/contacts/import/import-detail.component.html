@@ -167,7 +167,7 @@
             @if (stats.failed > 0 && current.hasFailedRecords) {
               <button
                 type="button"
-                class="group rounded-xl bg-surface p-5 text-left shadow-xs ring-1 ring-line transition-all hover:-translate-y-0.5 hover:shadow-md hover:ring-red-300 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none"
+                class="hover-lift group rounded-xl bg-surface p-5 text-left shadow-xs ring-1 ring-line transition-all hover:shadow-md hover:ring-red-300 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none"
                 [disabled]="exporting()"
                 (click)="exportFailed()"
               >

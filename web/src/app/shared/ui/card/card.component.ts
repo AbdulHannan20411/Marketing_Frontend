@@ -31,7 +31,7 @@ export class CardComponent {
   protected readonly classes = computed(() =>
     [
       'block rounded-xl bg-surface ring-1 ring-line shadow-card transition-all duration-200',
-      this.interactive() ? 'hover:shadow-card-hover hover:-translate-y-0.5 hover:ring-brand-200' : '',
+      this.interactive() ? 'hover-lift hover:shadow-card-hover hover:ring-brand-200' : '',
     ].join(' '),
   );
 
