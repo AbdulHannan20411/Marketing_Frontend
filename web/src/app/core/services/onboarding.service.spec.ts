@@ -35,6 +35,9 @@ describe('OnboardingService', () => {
     '/settings',
   ];
 
+  /** Whether the workspace has a usable plan. Almost every test: it does. */
+  let locked = false;
+
   function configure(routes: readonly string[] = ALL_ROUTES): OnboardingService {
     stored = { ...INITIAL_ONBOARDING_STATE };
     setStatus = jasmine.createSpy('setOnboardingStatus').and.returnValue(of(stored));
@@ -73,7 +76,7 @@ describe('OnboardingService', () => {
             closeMobileNav: () => undefined,
           },
         },
-        { provide: EntitlementService, useValue: { isLocked: () => false } },
+        { provide: EntitlementService, useValue: { isLocked: () => locked } },
         {
           provide: Router,
           useValue: router,
@@ -83,6 +86,22 @@ describe('OnboardingService', () => {
 
     return TestBed.inject(OnboardingService);
   }
+
+  beforeEach(() => (locked = false));
+
+  it('runs on a first login even when the workspace has no plan', () => {
+    // Reported: a newly created admin signed in and got no tour. It used to
+    // bail out on a locked workspace, from when a locked sidebar was nearly
+    // empty. Screens are no longer hidden by plan, so the steps are all there
+    // — and somebody deciding whether to buy is exactly who should see them.
+    locked = true;
+    const service = configure();
+
+    service.maybeStartForFirstLogin();
+
+    expect(service.active()).toBeTrue();
+    expect(service.total()).toBeGreaterThan(1);
+  });
 
   it('loads the general tour by default', () => {
     const service = configure();

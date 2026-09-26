@@ -9,6 +9,7 @@ import {
   output,
   signal,
   untracked,
+  afterNextRender,
   viewChild,
 } from '@angular/core';
 import type * as L from 'leaflet';
@@ -120,7 +121,23 @@ export class MapPickerComponent {
       untracked(() => this.applyMarkers(points));
     });
 
+    /*
+     * Leaflet sizes itself once, from the container it was given.
+     *
+     * Change that container — enlarge the map, collapse the sidebar, rotate a
+     * phone — and the tiles keep the old dimensions: grey bands down one side
+     * and clicks landing in the wrong place. `invalidateSize` is the fix, and
+     * watching the element means no caller has to remember to ask.
+     */
+    const observer = new ResizeObserver(() => {
+      // On the next frame: the observer fires mid-layout, and measuring then
+      // reads the size the map is leaving rather than the one it is taking.
+      requestAnimationFrame(() => this.map?.invalidateSize());
+    });
+    afterNextRender(() => observer.observe(this.canvas().nativeElement));
+
     inject(DestroyRef).onDestroy(() => {
+      observer.disconnect();
       this.map?.remove();
       this.map = null;
     });

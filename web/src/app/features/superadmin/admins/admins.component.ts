@@ -1,3 +1,6 @@
+import { Subject, debounceTime, distinctUntilChanged } from 'rxjs';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { RouterLink, ActivatedRoute, Router } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
@@ -6,7 +9,8 @@ import type { ApiError, LoadState } from '@core/models/api.model';
 import type { AdminAccount } from '@core/models/admin-account.model';
 import type { TenantPlan, TenantStatus } from '@core/models/platform.model';
 import { AdminScopeService } from '@core/scope/admin-scope.service';
-import { PlatformService } from '@core/services/platform.service';
+import { latestRequest } from '@core/http/latest-request';
+import { ADMIN_SORT_COLUMNS, PlatformService } from '@core/services/platform.service';
 import { ToastService } from '@core/services/toast.service';
 import { TimeAgoPipe } from '@shared/pipes/time-ago.pipe';
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
@@ -14,9 +18,9 @@ import { BadgeComponent, type BadgeTone } from '@shared/ui/badge/badge.component
 import { ButtonDirective } from '@shared/ui/button/button.directive';
 import { CardComponent } from '@shared/ui/card/card.component';
 import { IconComponent } from '@shared/ui/icon/icon.component';
-import { clientSorter, type SortColumn } from '@shared/ui/data-table/sort';
+import { serverSorter } from '@shared/ui/data-table/sort';
 import { SortMenuComponent } from '@shared/ui/data-table/sort-menu.component';
-import { clientPager } from '@shared/ui/pagination/pager';
+import { serverPager } from '@shared/ui/pagination/pager';
 import { PaginatorComponent } from '@shared/ui/pagination/paginator.component';
 import { PageHeaderComponent } from '@shared/ui/page-header/page-header.component';
 import { SkeletonComponent } from '@shared/ui/skeleton/skeleton.component';
@@ -44,55 +48,6 @@ const PLAN_TONE: Readonly<Record<TenantPlan, BadgeTone>> = {
  * the user was heading for (carried in `?next=`), so the picker doubles as the
  * gate in front of scoped routes.
  */
-/**
- * What an admin card can be ordered by.
- *
- * `AdminAccount` carries `createdAt` and `lastActiveAt`; there is no
- * createdBy/updatedAt pair on the contract, so neither is offered.
- */
-const ADMIN_SORT_COLUMNS: readonly SortColumn<AdminAccount>[] = [
-  { key: 'id', label: 'ID', kind: 'text', value: (admin) => admin.id },
-  { key: 'organisation', label: 'Organisation', kind: 'text', value: (admin) => admin.organisation },
-  { key: 'name', label: 'Admin', kind: 'text', value: (admin) => admin.name },
-  { key: 'plan', label: 'Plan', kind: 'text', value: (admin) => admin.plan },
-  { key: 'status', label: 'Status', kind: 'text', value: (admin) => admin.status },
-  {
-    key: 'messagesThisMonth',
-    label: 'Messages',
-    kind: 'number',
-    value: (admin) => admin.messagesThisMonth,
-    initialDirection: 'desc',
-  },
-  {
-    key: 'employeeCount',
-    label: 'Staff',
-    kind: 'number',
-    value: (admin) => admin.employeeCount,
-    initialDirection: 'desc',
-  },
-  {
-    key: 'contactCount',
-    label: 'Contacts',
-    kind: 'number',
-    value: (admin) => admin.contactCount,
-    initialDirection: 'desc',
-  },
-  {
-    key: 'createdAt',
-    label: 'Created',
-    kind: 'date',
-    value: (admin) => admin.createdAt,
-    initialDirection: 'desc',
-  },
-  {
-    key: 'lastActiveAt',
-    label: 'Last active',
-    kind: 'date',
-    value: (admin) => admin.lastActiveAt,
-    initialDirection: 'desc',
-  },
-];
-
 @Component({
   selector: 'app-superadmin-admins',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -158,34 +113,37 @@ export class SuperAdminAdminsComponent {
     { value: 'suspended', label: 'Suspended' },
   ];
 
-  protected readonly visibleAdmins = computed(() => {
-    const term = this.search().trim().toLowerCase();
-    const status = this.statusFilter();
+  protected readonly totalItems = signal(0);
+  /** False while `/superadmin/admins` still answers with the whole list. */
+  protected readonly pagedByServer = signal(false);
 
-    return this.admins().filter((admin) => {
-      const matchesStatus = status === 'all' || admin.status === status;
-      const matchesSearch =
-        term === '' ||
-        admin.name.toLowerCase().includes(term) ||
-        admin.organisation.toLowerCase().includes(term) ||
-        admin.email.toLowerCase().includes(term);
-      return matchesStatus && matchesSearch;
-    });
-  });
+  /** Keystrokes, before debouncing: one request per pause, not per letter. */
+  private readonly searchInput = new Subject<string>();
+  /** The page read, cancelled whenever a newer one starts. */
+  private readonly listRequest = latestRequest();
 
   /** One page of admin cards. The platform list grows with every customer. */
-  /**
-    * Ordering in the browser: the platform endpoint answers with every admin
-    * account, and `visibleAdmins` has already applied the search and status
-    * filters, so this sorts the filtered set and the pager cuts a page from it.
-    */
-  protected readonly sorter = clientSorter(this.visibleAdmins, ADMIN_SORT_COLUMNS);
+  protected readonly pager = serverPager({
+    total: this.totalItems,
+    load: () => this.load(),
+  });
 
-  protected readonly pager = clientPager(this.sorter.rows);
+  protected readonly sorter = serverSorter({
+    columns: ADMIN_SORT_COLUMNS.map(({ key, label, initialDirection }) => ({
+      key,
+      label,
+      initialDirection,
+    })),
+    load: () => {
+      this.pager.reset();
+      this.load();
+    },
+  });
 
   protected setStatusFilter(value: TenantStatus | 'all'): void {
     this.statusFilter.set(value);
     this.pager.reset();
+    this.load();
   }
 
   protected readonly totals = computed(() => {
@@ -199,24 +157,51 @@ export class SuperAdminAdminsComponent {
   });
 
   constructor() {
+    this.searchInput
+      .pipe(debounceTime(300), distinctUntilChanged(), takeUntilDestroyed())
+      .subscribe((term) => {
+        this.search.set(term);
+        this.pager.reset();
+        this.load();
+      });
+
     this.load();
   }
 
+  /**
+   * One page, from the API.
+   *
+   * The page, the search, the status filter and the order all go to the
+   * server. Where `/superadmin/admins` still answers with the whole list the
+   * service applies them instead, so this screen reads the same either way.
+   */
   protected load(): void {
     this.state.set('loading');
-    this.platform.listAdmins().subscribe({
-      next: (admins) => {
-        this.admins.set(admins);
-        this.state.set(admins.length === 0 ? 'empty' : 'ready');
-      },
-      error: () => this.state.set('error'),
-    });
+
+    this.platform
+      .pageAdmins({
+        page: this.pager.page(),
+        pageSize: this.pager.pageSize(),
+        search: this.search(),
+        status: this.statusFilter(),
+        sortBy: this.sorter.key(),
+        sortDirection: this.sorter.direction(),
+      })
+      .pipe(this.listRequest.only())
+      .subscribe({
+        next: (page) => {
+          this.admins.set(page.items);
+          this.totalItems.set(page.totalItems);
+          this.pagedByServer.set(page.pagedByServer);
+          this.state.set(page.totalItems === 0 ? 'empty' : 'ready');
+        },
+        error: () => this.state.set('error'),
+      });
   }
 
+  /** Debounced, then reloaded: the search is the server's now. */
   protected onSearch(event: Event): void {
-    this.search.set((event.target as HTMLInputElement).value);
-    // A narrower list can be shorter than the page the user is on.
-    this.pager.reset();
+    this.searchInput.next((event.target as HTMLInputElement).value);
   }
 
   /** Enter this Admin's context and continue to the requested page. */

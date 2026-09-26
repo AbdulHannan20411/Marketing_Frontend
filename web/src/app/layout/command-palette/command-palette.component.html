@@ -39,7 +39,7 @@
           <p class="px-4 py-2 text-xs font-semibold tracking-wide text-ink-muted uppercase">
             Jump to
           </p>
-          @for (item of suggestions; track item.route) {
+          @for (item of suggestions(); track item.route) {
             <button
               type="button"
               class="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-surface-muted"
@@ -56,13 +56,30 @@
             <app-icon name="refresh" [size]="16" class="animate-spin" />
             Searching…
           </div>
+        } @else if (failed()) {
+          <!-- A search that could not run is not a search that found nothing. -->
+          <div class="px-4 py-10 text-center">
+            <div class="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-red-50 text-danger">
+              <app-icon name="warning" [size]="22" />
+            </div>
+            <p class="mt-3 text-sm font-medium text-ink">Search is unavailable</p>
+            <p class="mt-1 text-xs text-ink-muted">
+              The request failed. Type to try again, or use the menu.
+            </p>
+          </div>
         } @else if (flatResults().length === 0) {
           <div class="px-4 py-10 text-center">
             <div class="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-surface-sunken text-ink-muted">
               <app-icon name="search" [size]="22" />
             </div>
             <p class="mt-3 text-sm font-medium text-ink">No results for "{{ query() }}"</p>
-            <p class="mt-1 text-xs text-ink-muted">Try a name, phone number or campaign title.</p>
+            <p class="mt-1 text-xs text-ink-muted">
+              {{
+                isPlatformSearch()
+                  ? 'Try an organisation, an admin name or their email.'
+                  : 'Try a name, phone number or campaign title.'
+              }}
+            </p>
           </div>
         } @else {
           @for (group of groups(); track group.kind) {

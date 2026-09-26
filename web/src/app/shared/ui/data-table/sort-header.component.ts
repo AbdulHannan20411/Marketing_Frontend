@@ -1,3 +1,4 @@
+import { NgTemplateOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 
 import { IconComponent } from '@shared/ui/icon/icon.component';
@@ -19,9 +20,20 @@ import type { Sorter } from './sort';
 @Component({
   selector: 'app-sort-header',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [IconComponent],
+  imports: [NgTemplateOutlet, IconComponent],
   host: { class: 'contents' },
   template: `
+    <!--
+      One content slot, stamped by whichever branch renders.
+
+      Two of them - one per branch - is what this component had, and only one
+      of the two receives the projected content: a component's content is
+      projected once, at compile time, not per branch. So every sortable
+      header rendered its button with no text inside it, which is how the
+      contacts table ended up with blank column headings.
+    -->
+    <ng-template #headerText><ng-content /></ng-template>
+
     @if (sortable()) {
       <button
         type="button"
@@ -30,7 +42,7 @@ import type { Sorter } from './sort';
         [attr.aria-label]="label()"
         (click)="sorter()!.toggle(sortKey())"
       >
-        <ng-content />
+        <ng-container [ngTemplateOutlet]="headerText" />
         <app-icon
           [name]="direction() === 'desc' ? 'chevronDown' : 'chevronUp'"
           [size]="12"
@@ -40,7 +52,7 @@ import type { Sorter } from './sort';
         />
       </button>
     } @else {
-      <ng-content />
+      <ng-container [ngTemplateOutlet]="headerText" />
     }
   `,
 })

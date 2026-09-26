@@ -38,6 +38,7 @@ import {
   MetaSignupService,
   describeMetaStep,
 } from '@core/services/meta-signup.service';
+import { PlanGateService } from '@core/services/plan-gate.service';
 import { ToastService } from '@core/services/toast.service';
 import { WhatsAppService } from '@core/services/whatsapp.service';
 import { WhatsAppContextService } from '@core/services/whatsapp-context.service';
@@ -105,6 +106,7 @@ export class WhatsAppComponent {
   private readonly whatsapp = inject(WhatsAppService);
   private readonly signup = inject(MetaSignupService);
   private readonly toast = inject(ToastService);
+  private readonly gate = inject(PlanGateService);
   private readonly auth = inject(AuthService);
   private readonly scope = inject(AdminScopeService);
   private readonly context = inject(WhatsAppContextService);
@@ -282,6 +284,10 @@ export class WhatsAppComponent {
   });
 
   protected openManual(): void {
+    if (!this.gate.allow({ action: 'Connecting a WhatsApp number', module: 'whatsapp' })) {
+      return;
+    }
+
     this.manualForm.reset({ accessToken: '', wabaId: '', phoneNumberId: '' });
     this.manualOpen.set(true);
   }
@@ -367,6 +373,11 @@ export class WhatsAppComponent {
    */
   protected async connect(): Promise<void> {
     if (this.connecting()) {
+      return;
+    }
+    // Before Meta's popup opens: being sent through an OAuth flow and then
+    // told the plan does not cover it would be the worst version of this.
+    if (!this.gate.allow({ action: 'Connecting a WhatsApp number', module: 'whatsapp' })) {
       return;
     }
 

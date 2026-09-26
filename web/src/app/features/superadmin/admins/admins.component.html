@@ -106,7 +106,7 @@
   <app-card class="mt-5 block" [padded]="false">
     <app-error-state (retry)="load()" />
   </app-card>
-} @else if (visibleAdmins().length === 0) {
+} @else if (admins().length === 0) {
   <app-card class="mt-5 block" [padded]="false">
     <app-empty-state
       icon="building"
@@ -116,7 +116,7 @@
   </app-card>
 } @else {
   <div class="mt-5 grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
-    @for (admin of pager.items(); track admin.id) {
+    @for (admin of admins(); track admin.id) {
       <div
         role="button"
         tabindex="0"

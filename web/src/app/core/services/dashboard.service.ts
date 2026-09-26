@@ -67,9 +67,20 @@ export class DashboardService {
    * fallback was unreachable code whose only possible effect was to assemble a
    * partial log that looked complete. Removed rather than kept "just in case".
    */
-  exportFailures(): Observable<Blob> {
+  /**
+   * The failure log as CSV, in the order the screen is showing it.
+   *
+   * The same `sortBy` keys as the paged read, because the API composes both
+   * from one allow-list — a key the list accepts and the export refuses would
+   * be a 422 nobody could explain. `page` and `pageSize` are accepted and
+   * ignored there; the file is always the whole result set.
+   */
+  exportFailures(
+    sortBy: string | null = null,
+    sortDirection: SortDirection = 'asc',
+  ): Observable<Blob> {
     return this.api
-      .download('/reports/failures/export')
+      .download('/reports/failures/export', sortParams(sortBy, sortDirection))
       .pipe(tap((blob) => saveBlob(blob, 'delivery-failures.csv')));
   }
 

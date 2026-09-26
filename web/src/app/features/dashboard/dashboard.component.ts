@@ -65,6 +65,16 @@ export class DashboardComponent {
   protected readonly firstBreach = computed(() => this.breachedMetrics()[0] ?? null);
   protected readonly hasWhatsApp = computed(() => this.entitlements.hasFeature('whatsapp'));
 
+  /**
+   * Nothing has been bought yet, so nothing works yet.
+   *
+   * The dashboard is where a locked workspace lands — every other product
+   * screen sends them to the subscription page — so this is the one screen
+   * that has to explain why the rest of the menu is missing.
+   */
+  protected readonly needsPlan = computed(() => this.entitlements.lockReason() === 'none');
+  protected readonly isLocked = this.entitlements.isLocked;
+
   protected readonly statusTone = CAMPAIGN_STATUS_TONE;
   protected readonly statusLabel = CAMPAIGN_STATUS_LABEL;
 

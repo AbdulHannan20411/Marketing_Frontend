@@ -102,5 +102,11 @@ export function toAuthUser(profile: CurrentUserResponse, claims: JwtClaims | nul
       (isSuperAdmin ? 'Platform' : 'Workspace'),
     avatarUrl: firstNonEmpty(claims?.avatarUrl),
     isSuperAdmin,
+    // Absent means unsupported: a capability is never assumed, because the
+    // client's behaviour differs and claiming the wrong one is a confident
+    // wrong answer rather than a missing feature.
+    capabilities: {
+      viewAsEmployee: profile.capabilities?.['viewAsEmployee'] === true,
+    },
   };
 }

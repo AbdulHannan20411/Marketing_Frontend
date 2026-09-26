@@ -85,6 +85,32 @@ export class SubscriptionComponent {
   protected readonly isLocked = this.entitlements.isLocked;
   protected readonly lockReason = this.entitlements.lockReason;
 
+  protected readonly lockTitle = computed(() => {
+    switch (this.lockReason()) {
+      case 'expired':
+        return 'Your subscription has expired';
+      case 'suspended':
+        return 'This workspace is suspended';
+      case 'cancelled':
+        return 'Your subscription was cancelled';
+      default:
+        return 'Choose a plan to start using the workspace';
+    }
+  });
+
+  protected readonly lockDetail = computed(() => {
+    switch (this.lockReason()) {
+      case 'expired':
+        return 'Contacts, campaigns and reports are unavailable until it is renewed. Nothing has been deleted — choose a plan to pick up where you left off.';
+      case 'suspended':
+        return 'Access to the rest of the workspace is paused. Your data is safe. Settle the outstanding payment, or contact support if you think this is a mistake.';
+      case 'cancelled':
+        return 'Your data is still here. Choosing a plan restores contacts, campaigns and reports exactly as you left them.';
+      default:
+        return 'Contacts, imports, campaigns and reports open as soon as a plan is active. Your account and settings are available now.';
+    }
+  });
+
   protected readonly isLoaded = this.entitlements.isLoaded;
 
   /**

@@ -1,3 +1,6 @@
+import { Subject, debounceTime, distinctUntilChanged } from 'rxjs';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 
@@ -6,7 +9,9 @@ import { RouterLink } from '@angular/router';
 import { AuthService } from '@core/auth/auth.service';
 import type { ApiError, LoadState } from '@core/models/api.model';
 import type { ContactTag, ContactTagDraft } from '@core/models/contact.model';
-import { ContactsService } from '@core/services/contacts.service';
+import { latestRequest } from '@core/http/latest-request';
+import { ContactsService, TAG_SORT_COLUMNS } from '@core/services/contacts.service';
+import { PlanGateService } from '@core/services/plan-gate.service';
 import { ToastService } from '@core/services/toast.service';
 import { BadgeComponent } from '@shared/ui/badge/badge.component';
 import { ButtonDirective } from '@shared/ui/button/button.directive';
@@ -19,42 +24,16 @@ import { ModalComponent } from '@shared/ui/modal/modal.component';
 import { CardComponent } from '@shared/ui/card/card.component';
 import { IconComponent } from '@shared/ui/icon/icon.component';
 import { PageHeaderComponent } from '@shared/ui/page-header/page-header.component';
-import { clientSorter, type SortColumn } from '@shared/ui/data-table/sort';
+import { serverSorter } from '@shared/ui/data-table/sort';
 import { SearchBoxComponent } from '@shared/ui/search-box/search-box.component';
 import { SortMenuComponent } from '@shared/ui/data-table/sort-menu.component';
 import { TimeAgoPipe } from '@shared/pipes/time-ago.pipe';
-import { clientPager } from '@shared/ui/pagination/pager';
+import { serverPager } from '@shared/ui/pagination/pager';
 import { PaginatorComponent } from '@shared/ui/pagination/paginator.component';
 import { SkeletonComponent } from '@shared/ui/skeleton/skeleton.component';
 import { EmptyStateComponent } from '@shared/ui/state/empty-state.component';
 import { ErrorStateComponent } from '@shared/ui/state/error-state.component';
 import { TagEditorComponent } from './tag-editor.component';
-
-/**
- * What a tag can be ordered by.
- *
- * `ContactTag` has `createdAt` and nothing else from the audit set — no
- * updated pair, no "by" fields — so Created is the only audit column here.
- */
-const TAG_SORT_COLUMNS: readonly SortColumn<ContactTag>[] = [
-  { key: 'id', label: 'ID', kind: 'text', value: (tag) => tag.id },
-  { key: 'name', label: 'Name', kind: 'text', value: (tag) => tag.name },
-  { key: 'color', label: 'Colour', kind: 'text', value: (tag) => tag.color },
-  {
-    key: 'contactCount',
-    label: 'Contacts',
-    kind: 'number',
-    value: (tag) => tag.contactCount,
-    initialDirection: 'desc',
-  },
-  {
-    key: 'createdAt',
-    label: 'Created',
-    kind: 'date',
-    value: (tag) => tag.createdAt,
-    initialDirection: 'desc',
-  },
-];
 
 @Component({
   selector: 'app-tags',
@@ -84,28 +63,37 @@ const TAG_SORT_COLUMNS: readonly SortColumn<ContactTag>[] = [
 export class TagsComponent {
   private readonly contactsService = inject(ContactsService);
   private readonly toast = inject(ToastService);
+  private readonly gate = inject(PlanGateService);
   private readonly auth = inject(AuthService);
 
   protected readonly state = signal<LoadState>('loading');
   protected readonly tags = signal<readonly ContactTag[]>([]);
   protected readonly search = signal('');
+  protected readonly totalItems = signal(0);
+  /** False while `/tags` still answers with the whole collection. */
+  protected readonly pagedByServer = signal(false);
 
-  /**
-   * Matched on the name, in the browser: the API returns every tag, and a
-   * workspace with three hundred of them is a lot of cards to read through.
-   */
-  private readonly matching = computed(() => {
-    const term = this.search().trim().toLowerCase();
-    return term === ''
-      ? this.tags()
-      : this.tags().filter((tag) => tag.name.toLowerCase().includes(term));
+  /** Keystrokes, before debouncing: one request per pause, not per letter. */
+  private readonly searchInput = new Subject<string>();
+  /** The page read, cancelled whenever a newer one starts. */
+  private readonly listRequest = latestRequest();
+
+  protected readonly pager = serverPager({
+    total: this.totalItems,
+    load: () => this.load(),
   });
 
-  /** Ordering in the browser: the API returns every tag. */
-  protected readonly sorter = clientSorter(this.matching, TAG_SORT_COLUMNS);
-
-  /** The API returns every tag; only one page of cards is rendered. */
-  protected readonly pager = clientPager(this.sorter.rows);
+  protected readonly sorter = serverSorter({
+    columns: TAG_SORT_COLUMNS.map(({ key, label, initialDirection }) => ({
+      key,
+      label,
+      initialDirection,
+    })),
+    load: () => {
+      this.pager.reset();
+      this.load();
+    },
+  });
   protected readonly skeletons = [1, 2, 3, 4, 5, 6, 7, 8];
 
   protected readonly editing = signal<ContactTag | 'new' | null>(null);
@@ -165,18 +153,46 @@ export class TagsComponent {
   );
 
   constructor() {
+    this.searchInput
+      .pipe(debounceTime(300), distinctUntilChanged(), takeUntilDestroyed())
+      .subscribe((term) => {
+        this.search.set(term);
+        this.pager.reset();
+        this.load();
+      });
+
     this.load();
   }
 
+  /**
+   * One page, from the API.
+   *
+   * Every parameter goes to the server — the page, the search and the order.
+   * Where `/tags` still answers with the whole collection the service applies
+   * them here instead, so this screen reads the same either way and needs no
+   * change when the endpoint starts paging.
+   */
   protected load(): void {
     this.state.set('loading');
-    this.contactsService.listTags().subscribe({
-      next: (tags) => {
-        this.tags.set(tags);
-        this.state.set(tags.length === 0 ? 'empty' : 'ready');
-      },
-      error: () => this.state.set('error'),
-    });
+
+    this.contactsService
+      .pageTags({
+        page: this.pager.page(),
+        pageSize: this.pager.pageSize(),
+        search: this.search(),
+        sortBy: this.sorter.key(),
+        sortDirection: this.sorter.direction(),
+      })
+      .pipe(this.listRequest.only())
+      .subscribe({
+        next: (page) => {
+          this.tags.set(page.items);
+          this.totalItems.set(page.totalItems);
+          this.pagedByServer.set(page.pagedByServer);
+          this.state.set(page.totalItems === 0 ? 'empty' : 'ready');
+        },
+        error: () => this.state.set('error'),
+      });
   }
 
   protected barWidth(tag: ContactTag): string {
@@ -184,13 +200,25 @@ export class TagsComponent {
   }
 
   protected openCreate(): void {
+    // Before the form, not after it: nobody should name a tag, pick a colour
+    // and then be told the plan does not cover it.
+    if (!this.gate.allow({ action: 'Creating a tag', module: 'crm' })) {
+      return;
+    }
     this.nameError.set(null);
     this.editing.set('new');
   }
 
   protected openEdit(tag: ContactTag): void {
+    if (!this.gate.allow({ action: 'Editing a tag', module: 'crm' })) {
+      return;
+    }
     this.nameError.set(null);
     this.editing.set(tag);
+  }
+
+  protected onSearch(term: string): void {
+    this.searchInput.next(term);
   }
 
   protected closeEditor(): void {
@@ -237,6 +265,9 @@ export class TagsComponent {
   }
 
   protected askDelete(tag: ContactTag): void {
+    if (!this.gate.allow({ action: 'Deleting a tag', module: 'crm' })) {
+      return;
+    }
     this.confirmingDelete.set(tag);
   }
 

@@ -34,6 +34,7 @@ import {
 } from '@core/models/phone.model';
 import { latestRequest } from '@core/http/latest-request';
 import { ContactsService } from '@core/services/contacts.service';
+import { PlanGateService } from '@core/services/plan-gate.service';
 import { ToastService } from '@core/services/toast.service';
 import { TimeAgoPipe } from '@shared/pipes/time-ago.pipe';
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
@@ -82,6 +83,7 @@ const STATUS_TONE: Readonly<Record<ContactStatus, BadgeTone>> = {
 export class ContactsComponent {
   private readonly contactsService = inject(ContactsService);
   private readonly toast = inject(ToastService);
+  private readonly gate = inject(PlanGateService);
   private readonly auth = inject(AuthService);
   private readonly searchInput = new Subject<string>();
 
@@ -165,6 +167,8 @@ export class ContactsComponent {
     { key: 'name', header: 'Contact', sortKey: 'fullName' },
     { key: 'phone', header: 'Phone', hideOnMobile: true },
     { key: 'country', header: 'Country', hideOnMobile: true, sortKey: 'country' },
+    // Group membership lives in a join table, so the API does not sort by it.
+    { key: 'groups', header: 'Groups', hideOnMobile: true },
     { key: 'tags', header: 'Tags', hideOnMobile: true },
     { key: 'status', header: 'Status', sortKey: 'status' },
     {
@@ -268,6 +272,14 @@ export class ContactsComponent {
       this.groupId() !== 'all' ||
       this.tagId() !== 'all',
   );
+
+  private readonly groupNameById = computed(() => {
+    const lookup = new Map<string, ContactGroup>();
+    for (const group of this.groups()) {
+      lookup.set(group.id, group);
+    }
+    return lookup;
+  });
 
   private readonly tagNameById = computed(() => {
     const lookup = new Map<string, ContactTag>();
@@ -471,6 +483,14 @@ export class ContactsComponent {
     return this.tagNameById().get(tagId);
   }
 
+  /** The names of the groups a contact belongs to, for its Groups cell. */
+  protected groupNames(contact: Contact): readonly string[] {
+    const lookup = this.groupNameById();
+    return contact.groupIds
+      .map((groupId) => lookup.get(groupId)?.name)
+      .filter((name): name is string => name !== undefined);
+  }
+
   /**
    * Every tag on a contact, for the overflow tooltip.
    *
@@ -514,6 +534,9 @@ export class ContactsComponent {
   }
 
   protected bulkDelete(): void {
+    if (!this.gate.allow({ action: 'Deleting contacts', module: 'crm' })) {
+      return;
+    }
     const ids = [...this.selected().keys()];
     if (ids.length === 0 || this.busy()) {
       return;
@@ -531,6 +554,9 @@ export class ContactsComponent {
    * not carry is a no-op server-side, so the whole selection can be sent.
    */
   protected bulkApplyTag(tagId: string): void {
+    if (!this.gate.allow({ action: 'Tagging contacts', module: 'crm' })) {
+      return;
+    }
     const ids = [...this.selected().keys()];
     if (tagId === '' || ids.length === 0 || this.busy()) {
       return;
@@ -550,6 +576,9 @@ export class ContactsComponent {
   }
 
   protected bulkApplyGroup(groupId: string): void {
+    if (!this.gate.allow({ action: 'Changing group membership', module: 'crm' })) {
+      return;
+    }
     const ids = [...this.selected().keys()];
     if (groupId === '' || ids.length === 0 || this.busy()) {
       return;
@@ -611,6 +640,9 @@ export class ContactsComponent {
   /* ------------------------------ create ------------------------------ */
 
   protected openCreate(): void {
+    if (!this.gate.allow({ action: 'Adding a contact', module: 'crm' })) {
+      return;
+    }
     this.createFieldErrors.set({});
     this.creating.set(true);
   }
@@ -656,6 +688,9 @@ export class ContactsComponent {
   /* ------------------------------ edit ------------------------------ */
 
   protected openEdit(): void {
+    if (!this.gate.allow({ action: 'Editing a contact', module: 'crm' })) {
+      return;
+    }
     const contacts = this.selectedList();
 
     if (contacts.length !== 1 || this.saving()) {

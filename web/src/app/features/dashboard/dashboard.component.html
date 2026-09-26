@@ -9,6 +9,34 @@
   </a>
 </app-page-header>
 
+<!-- The first thing a new workspace sees, and the only screen it can open, so
+     it has to say what to do next rather than leaving an empty product. -->
+@if (needsPlan()) {
+  <div
+    class="animate-rise mt-6 flex flex-wrap items-start gap-3 rounded-xl bg-brand-50 px-4 py-4 ring-1 ring-brand-200"
+    role="status"
+  >
+    <span class="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-brand-600 text-white">
+      <app-icon name="rocket" [size]="18" />
+    </span>
+    <div class="min-w-0 flex-1">
+      <p class="text-sm font-semibold text-brand-900">Choose a plan to start working</p>
+      <p class="mt-0.5 text-sm leading-relaxed text-brand-900/80">
+        Contacts, groups, tags, imports, campaigns and the WhatsApp connection all open once a plan
+        is active — and each plan decides which of them you get. Your account and settings are
+        available now.
+      </p>
+      <div class="mt-3 flex flex-wrap items-center gap-2">
+        <a appButton size="sm" routerLink="/pricing">
+          <app-icon name="rocket" [size]="14" />
+          See the plans
+        </a>
+        <a appButton variant="outline" size="sm" routerLink="/subscription">Subscription</a>
+      </div>
+    </div>
+  </div>
+}
+
 <!-- Surfaced here as well as on the WhatsApp page: an admin who never opens
      that screen would otherwise learn about the expiry from a failed campaign. -->
 <app-connection-expiry-notice class="mt-6 block" [connection]="connection()" />

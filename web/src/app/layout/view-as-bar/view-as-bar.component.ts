@@ -10,11 +10,16 @@ import { IconComponent } from '@shared/ui/icon/icon.component';
 /**
  * Shown while an admin is viewing the app as one of their team.
  *
- * Deliberately blunt about what this is and is not: the navigation and the
- * permission gates are that employee's, and **the data is still the admin's
- * own**. Saying so is the difference between a useful preview and a misleading
- * one — nobody should believe they are looking at somebody else's inbox when
- * they are looking at their own through a narrower menu.
+ * Deliberately blunt about which of the two previews is running, because the
+ * difference matters to the person reading the screen:
+ *
+ * - With `capabilities.viewAsEmployee`, every read is answered as that
+ *   teammate — their numbers, their assigned conversations — and every write
+ *   is refused. Read-only is literal here, not a convention.
+ * - Without it, only the menu and the permission gates narrow and the records
+ *   are still the admin's own. Nobody should believe they are looking at
+ *   somebody else's inbox when they are looking at their own through a
+ *   narrower menu.
  *
  * Always visible while previewing, and it is what gets you back: previewing a
  * teammate who cannot open Employees would otherwise hide the way out.
@@ -44,12 +49,18 @@ import { IconComponent } from '@shared/ui/icon/icon.component';
             }
           </p>
           <p class="text-xs text-brand-900/70">
-            Their menu and permissions. The records are still yours — anything you do here is
-            recorded as you.
+            {{
+              auth.isViewingData()
+                ? 'Their records, their numbers, their menu — read-only. Leave the preview to make changes.'
+                : 'Their menu and permissions. The records are still yours — anything you do here is recorded as you.'
+            }}
           </p>
         </div>
 
         <app-badge tone="brand" class="hidden sm:block">{{ subject.role }}</app-badge>
+        @if (auth.isViewingData()) {
+          <app-badge tone="neutral" class="hidden sm:block">Read-only</app-badge>
+        }
 
         <button appButton variant="outline" size="sm" class="ml-auto" (click)="stop()">
           <app-icon name="close" [size]="14" />

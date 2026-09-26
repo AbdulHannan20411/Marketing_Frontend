@@ -52,6 +52,15 @@ export class UploadDropzoneComponent {
   /** Present once the API has taken the file; switches the panel to its accepted state. */
   readonly accepted = input<ImportUploadAccepted | null>(null);
   readonly disabled = input(false);
+  /**
+   * Asked before the file picker opens, and before a dropped file is read.
+   *
+   * The panel does not know why it might not be allowed to start — it asks,
+   * and the owner answers. Returning `false` is how the plan gate stops the
+   * OS file dialog from opening at all, rather than letting somebody choose a
+   * file and only then telling them their workspace has no plan.
+   */
+  readonly requestStart = input<() => boolean>(() => true);
 
   /** Carries the chosen duplicate strategy alongside the file. */
   readonly fileSelected = output<{ file: File; duplicateStrategy: ImportDuplicateStrategy }>();
@@ -71,7 +80,7 @@ export class UploadDropzoneComponent {
   protected readonly locked = computed(() => this.disabled() || this.uploading());
 
   protected browse(): void {
-    if (this.locked()) {
+    if (this.locked() || !this.requestStart()()) {
       return;
     }
     this.fileInput().nativeElement.click();
@@ -92,7 +101,7 @@ export class UploadDropzoneComponent {
   protected onDrop(event: DragEvent): void {
     event.preventDefault();
     this.dragging.set(false);
-    if (this.locked()) {
+    if (this.locked() || !this.requestStart()()) {
       return;
     }
     const file = event.dataTransfer?.files.item(0) ?? null;

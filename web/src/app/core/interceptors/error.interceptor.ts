@@ -3,6 +3,7 @@ import { inject } from '@angular/core';
 import { catchError, throwError } from 'rxjs';
 
 import { AuthService } from '@core/auth/auth.service';
+import { PlanGateService } from '@core/services/plan-gate.service';
 import { ToastService } from '@core/services/toast.service';
 import type { ApiError } from '@core/models/api.model';
 import { SESSION_REVOKED_HEADER } from '@core/models/session-security.model';
@@ -80,6 +81,26 @@ function toApiError(response: HttpErrorResponse): ApiError {
     };
   }
 
+  /*
+   * A write attempted while previewing a teammate.
+   *
+   * The API refuses it rather than performing it as the administrator, which
+   * is right — but "view_as_is_read_only" explains nothing to somebody who
+   * just pressed Save. The way out is the banner they are already looking at.
+   */
+  if (errorCode === 'view_as_is_read_only') {
+    return {
+      status: response.status,
+      title: 'Not while viewing as a teammate',
+      detail:
+        'A preview is read-only. Choose "Back to my view" in the bar at the top, then make the change as yourself.',
+      errorCode,
+      fieldErrors: {},
+      traceId: problem.traceId ?? null,
+      exceptionId: problem.exceptionId ?? null,
+    };
+  }
+
   return {
     status: response.status,
     title: problem.title ?? defaultTitle(response.status),
@@ -141,6 +162,7 @@ function defaultDetail(status: number, fallback: string): string {
 export const errorInterceptor: HttpInterceptorFn = (request, next) => {
   const toast = inject(ToastService);
   const auth = inject(AuthService);
+  const gate = inject(PlanGateService);
 
   return next(request).pipe(
     catchError((error: unknown) => {
@@ -159,6 +181,20 @@ export const errorInterceptor: HttpInterceptorFn = (request, next) => {
         if (!revoked && !request.url.includes('/auth/')) {
           auth.clearSession();
         }
+        return throwError(() => apiError);
+      }
+
+      /*
+       * The API's own refusal, turned back into the offer.
+       *
+       * Every write the client knows about is checked before it runs, but the
+       * server is the boundary and it knows things the client does not — a
+       * plan changed in another tab, a limit only it can count. When it says
+       * `subscription_required`, the person should see the same dialog they
+       * would have seen had the client caught it, not a red toast.
+       */
+      if (apiError.errorCode === 'subscription_required') {
+        gate.promptPurchase();
         return throwError(() => apiError);
       }
 

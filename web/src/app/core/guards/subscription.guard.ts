@@ -1,8 +1,4 @@
-import { inject } from '@angular/core';
-import { Router, type CanActivateChildFn } from '@angular/router';
-
-import { AuthService } from '@core/auth/auth.service';
-import { EntitlementService } from '@core/services/entitlement.service';
+import type { CanActivateChildFn } from '@angular/router';
 
 /**
  * The only routes a locked workspace may still reach.
@@ -12,6 +8,10 @@ import { EntitlementService } from '@core/services/entitlement.service';
  * reach their profile and sign-out lives there too.
  */
 export const UNLOCKED_ROUTES: readonly string[] = [
+  // Read-only and safe: a workspace waiting to buy a plan should land
+  // somewhere that looks like the product rather than on a wall. Nothing on
+  // it can be edited, and the lock notice sits at the top of it.
+  'dashboard',
   'subscription',
   'billing',
   'pricing',
@@ -22,29 +22,18 @@ export const UNLOCKED_ROUTES: readonly string[] = [
 ];
 
 /**
- * Confines a suspended or expired workspace to its subscription screens.
+ * Lets a locked workspace through to every screen.
  *
- * They are deliberately *not* blocked from signing in: the person who can
- * settle the account is the one signing in, and locking them out at the door
- * leaves them no route back. Instead every working screen redirects to
- * `/subscription`, where the reason and the way out are stated.
+ * It used to confine an expired or unpaid workspace to its subscription
+ * screens. The product decision changed: somebody who cannot see what they
+ * are missing has no reason to pay for it, so the screens stay readable and
+ * `PlanGateService` stops the actions — with "Purchase a plan" rather than an
+ * error.
  *
- * Super Admins are exempt — they are platform staff, and a billing state is not
- * a reason to stop them working inside a customer's workspace.
+ * Kept as a pass-through, with `UNLOCKED_ROUTES` above, because both are
+ * where blocking would be reinstated if that decision is ever reversed.
  *
- * This is a usability boundary, not a security one. The API must refuse the
- * same work independently; a client-side redirect stops nobody determined.
+ * This was never a security boundary and is less of one now: the API must
+ * refuse the same work independently.
  */
-export const subscriptionLockGuard: CanActivateChildFn = (route) => {
-  const auth = inject(AuthService);
-  const entitlements = inject(EntitlementService);
-  const router = inject(Router);
-
-  if (auth.isSuperAdmin() || !entitlements.isLocked()) {
-    return true;
-  }
-
-  // Match on the first segment so `/contacts/import` is judged as `contacts`.
-  const target = route.routeConfig?.path?.split('/')[0] ?? '';
-  return UNLOCKED_ROUTES.includes(target) ? true : router.createUrlTree(['/subscription']);
-};
+export const subscriptionLockGuard: CanActivateChildFn = () => true;

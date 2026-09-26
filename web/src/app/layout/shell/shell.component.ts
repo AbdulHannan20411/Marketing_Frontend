@@ -7,10 +7,9 @@ import {
   inject,
   untracked,
 } from '@angular/core';
-import { Router, RouterOutlet } from '@angular/router';
+import { RouterOutlet } from '@angular/router';
 
 import { AuthService } from '@core/auth/auth.service';
-import { UNLOCKED_ROUTES } from '@core/guards/subscription.guard';
 import { EntitlementService } from '@core/services/entitlement.service';
 import { LayoutService } from '@core/services/layout.service';
 import { NotificationPreferencesService } from '@core/services/notification-preferences.service';
@@ -23,6 +22,7 @@ import { AdminScopeService } from '@core/scope/admin-scope.service';
 import { CommandPaletteComponent } from '@layout/command-palette/command-palette.component';
 import { ScopeBarComponent } from '@layout/scope-bar/scope-bar.component';
 import { ViewAsBarComponent } from '../view-as-bar/view-as-bar.component';
+import { PlanGateDialogComponent } from '@shared/plan-gate/plan-gate-dialog.component';
 import { SidebarComponent } from '@layout/sidebar/sidebar.component';
 import { TopbarComponent } from '@layout/topbar/topbar.component';
 import { ProductTourComponent } from '@shared/ui/product-tour/product-tour.component';
@@ -32,6 +32,7 @@ import { ProductTourComponent } from '@shared/ui/product-tour/product-tour.compo
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     ViewAsBarComponent,
+    PlanGateDialogComponent,
     RouterOutlet,
     SidebarComponent,
     TopbarComponent,
@@ -54,6 +55,7 @@ import { ProductTourComponent } from '@shared/ui/product-tour/product-tour.compo
       <app-topbar />
       <app-scope-bar />
       <app-view-as-bar />
+      <app-plan-gate-dialog />
       <main id="main-content" tabindex="-1" class="flex-1 px-4 py-6 sm:px-6 lg:px-8">
         <div class="mx-auto w-full max-w-[88rem]">
           <router-outlet />
@@ -69,7 +71,6 @@ export class ShellComponent {
   private readonly layout = inject(LayoutService);
   private readonly entitlements = inject(EntitlementService);
   private readonly auth = inject(AuthService);
-  private readonly router = inject(Router);
   private readonly notifications = inject(NotificationsService);
   private readonly notificationPrefs = inject(NotificationPreferencesService);
   private readonly realtime = inject(RealtimeService);
@@ -92,24 +93,16 @@ export class ShellComponent {
     this.notifications.load();
 
     /*
-     * Enforce the lock once the subscription is actually known.
+     * There is deliberately no redirect for a workspace with no plan.
      *
-     * `subscriptionLockGuard` runs before this load resolves, so on a fresh
-     * sign-in it sees no subscription and lets the user through to wherever
-     * they were heading. Guards do not re-run on their own, so the redirect has
-     * to happen here — and this also covers a workspace that is suspended
-     * mid-session, which no guard would ever catch.
+     * This used to send a locked workspace to `/subscription` and keep it
+     * there. That was the earlier product direction, and it was wrong: being
+     * dropped on a pricing page with the rest of the product sealed off gives
+     * somebody no idea what they would be buying. Every screen now opens and
+     * reads normally, and the offer arrives on the write — see
+     * `PlanGateService`. The API refuses those writes regardless, so nothing
+     * here is load-bearing for security.
      */
-    effect(() => {
-      if (this.auth.isSuperAdmin() || !this.entitlements.isLocked()) {
-        return;
-      }
-
-      const first = this.router.url.split('?')[0].replace(/^\//, '').split('/')[0];
-      if (!UNLOCKED_ROUTES.includes(first)) {
-        void this.router.navigate(['/subscription']);
-      }
-    });
 
     /*
      * Offer the product tour once, on a first login.
@@ -141,6 +134,15 @@ export class ShellComponent {
       const user = this.auth.user();
       const ready = this.entitlements.isLoaded();
       const scopeId = this.scope.selectedId();
+      /*
+       * Also when a preview starts or ends.
+       *
+       * Under a data preview the API answers reads as the teammate, and the
+       * numbers they may use are rarely the numbers the admin may use. Without
+       * this the picker would keep showing the admin's, which is the one place
+       * a stale cache would quietly contradict the banner.
+       */
+      this.auth.viewingAs();
 
       untracked(() => {
         const inWorkspace = !this.auth.isSuperAdmin() || scopeId !== null;
@@ -150,6 +152,13 @@ export class ShellComponent {
         }
         this.whatsAppContext.load();
       });
+    });
+
+    // The bell is tenant-scoped too, so a preview changes whose notifications
+    // it holds. Reloaded on the way in and on the way out.
+    effect(() => {
+      this.auth.viewingAs();
+      untracked(() => this.notifications.load());
     });
 
     // Campaign progress and notifications arrive by push; the reports endpoints

@@ -71,10 +71,8 @@ export class ReportsComponent {
   ];
 
   /**
-   * Ordered by the API.
-   *
-   * The CSV export does **not** follow this — it is always newest first. Said
-   * out loud on the export button rather than left as a surprise.
+   * Ordered by the API — and so is the CSV export, which sends these same
+   * keys, so the file and the table cannot come out in different orders.
    */
   protected readonly sorter = serverSorter({
     columns: [
@@ -245,7 +243,7 @@ export class ReportsComponent {
     }
     this.exporting.set(true);
 
-    this.dashboardService.exportFailures().subscribe({
+    this.dashboardService.exportFailures(this.sorter.key(), this.sorter.direction()).subscribe({
       next: () => {
         this.exporting.set(false);
         this.toast.success('Export ready', 'The failure log has been downloaded.');

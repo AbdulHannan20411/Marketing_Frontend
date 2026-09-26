@@ -74,6 +74,7 @@
     <div id="panel-upload" role="tabpanel" aria-labelledby="tab-upload">
       <!-- Upload -->
       <app-upload-dropzone
+        [requestStart]="requestUpload"
         [uploading]="uploading()"
         [accepted]="accepted()"
         (fileSelected)="upload($event)"

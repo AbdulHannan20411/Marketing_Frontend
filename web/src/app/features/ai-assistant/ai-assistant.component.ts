@@ -8,6 +8,7 @@ import {
 } from '@core/models/ai-assistant.model';
 import type { ApiError } from '@core/models/api.model';
 import { AiAssistantService } from '@core/services/ai-assistant.service';
+import { PlanGateService } from '@core/services/plan-gate.service';
 import { ToastService } from '@core/services/toast.service';
 import { ButtonDirective } from '@shared/ui/button/button.directive';
 import { CardComponent } from '@shared/ui/card/card.component';
@@ -39,6 +40,7 @@ type GenerationState = 'idle' | 'loading' | 'success' | 'error';
 })
 export class AiAssistantComponent {
   private readonly service = inject(AiAssistantService);
+  private readonly gate = inject(PlanGateService);
   private readonly toast = inject(ToastService);
 
   protected readonly breadcrumbs = [
@@ -87,6 +89,12 @@ export class AiAssistantComponent {
 
   protected generate(): void {
     if (!this.canGenerate()) {
+      return;
+    }
+    // A generation costs the platform money, so the API refuses it outright
+    // without a plan that includes AI. Asking here means the offer arrives
+    // instead of a red toast over a prompt they have just written.
+    if (!this.gate.allow({ action: 'Using the AI assistant', module: 'ai' })) {
       return;
     }
 

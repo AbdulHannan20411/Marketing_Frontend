@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Subject, debounceTime, distinctUntilChanged } from 'rxjs';
 
@@ -16,10 +17,12 @@ import {
   TEMPLATE_CATEGORY_LABEL,
   TEMPLATE_STATUS_LABEL,
 } from '@core/models/whatsapp.model';
+import { PlanGateService } from '@core/services/plan-gate.service';
 import { ToastService } from '@core/services/toast.service';
 import { serverSorter } from '@shared/ui/data-table/sort';
 import { SortMenuComponent } from '@shared/ui/data-table/sort-menu.component';
 import { latestRequest } from '@core/http/latest-request';
+import { WhatsAppContextService } from '@core/services/whatsapp-context.service';
 import { WhatsAppService } from '@core/services/whatsapp.service';
 import { TimeAgoPipe } from '@shared/pipes/time-ago.pipe';
 import { TemplateSegmentsPipe } from '@shared/pipes/template-segments.pipe';
@@ -50,6 +53,7 @@ const STATUS_ORDER: readonly TemplateStatus[] = ['approved', 'pending', 'rejecte
   selector: 'app-templates',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    RouterLink,
     SortMenuComponent,
     HistoryButtonComponent,
     TimeAgoPipe,
@@ -70,7 +74,9 @@ const STATUS_ORDER: readonly TemplateStatus[] = ['approved', 'pending', 'rejecte
 })
 export class TemplatesComponent {
   private readonly whatsapp = inject(WhatsAppService);
+  private readonly whatsAppContext = inject(WhatsAppContextService);
   private readonly toast = inject(ToastService);
+  private readonly gate = inject(PlanGateService);
 
   protected readonly state = signal<LoadState>('loading');
   protected readonly templates = signal<readonly MessageTemplate[]>([]);
@@ -308,7 +314,30 @@ export class TemplatesComponent {
 
   /* ------------------------------ authoring ------------------------------ */
 
+  /**
+   * Whether a template can be submitted at all.
+   *
+   * A template is created **at Meta**, against a WhatsApp Business Account, so
+   * without a connected number there is nothing to submit it to — the API
+   * refuses it and the wizard's work is lost at the last step. Better to say
+   * so before the form opens than after it is filled in.
+   */
+  protected readonly canCompose = computed(() =>
+    this.whatsAppContext.accounts().some((account) => account.status === 'connected'),
+  );
+
   protected compose(): void {
+    if (!this.gate.allow({ action: 'Creating a template', module: 'whatsapp' })) {
+      return;
+    }
+
+    if (!this.canCompose()) {
+      this.toast.warning(
+        'Connect WhatsApp first',
+        'Templates are created at Meta against a connected number. Connect one and this opens.',
+      );
+      return;
+    }
     this.editing.set('new');
   }
 

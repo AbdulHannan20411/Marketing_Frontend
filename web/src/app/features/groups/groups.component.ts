@@ -1,3 +1,6 @@
+import { Subject, debounceTime, distinctUntilChanged } from 'rxjs';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 
@@ -6,7 +9,9 @@ import { RouterLink } from '@angular/router';
 import { AuthService } from '@core/auth/auth.service';
 import type { ApiError, LoadState } from '@core/models/api.model';
 import type { ContactGroup, ContactGroupDraft } from '@core/models/contact.model';
-import { ContactsService } from '@core/services/contacts.service';
+import { latestRequest } from '@core/http/latest-request';
+import { ContactsService, GROUP_SORT_COLUMNS } from '@core/services/contacts.service';
+import { PlanGateService } from '@core/services/plan-gate.service';
 import { ToastService } from '@core/services/toast.service';
 import { TimeAgoPipe } from '@shared/pipes/time-ago.pipe';
 import { ButtonDirective } from '@shared/ui/button/button.directive';
@@ -19,47 +24,15 @@ import { ModalComponent } from '@shared/ui/modal/modal.component';
 import { CardComponent } from '@shared/ui/card/card.component';
 import { IconComponent } from '@shared/ui/icon/icon.component';
 import { PageHeaderComponent } from '@shared/ui/page-header/page-header.component';
-import { clientSorter, type SortColumn } from '@shared/ui/data-table/sort';
+import { serverSorter } from '@shared/ui/data-table/sort';
 import { SearchBoxComponent } from '@shared/ui/search-box/search-box.component';
 import { SortMenuComponent } from '@shared/ui/data-table/sort-menu.component';
-import { clientPager } from '@shared/ui/pagination/pager';
+import { serverPager } from '@shared/ui/pagination/pager';
 import { PaginatorComponent } from '@shared/ui/pagination/paginator.component';
 import { SkeletonComponent } from '@shared/ui/skeleton/skeleton.component';
 import { EmptyStateComponent } from '@shared/ui/state/empty-state.component';
 import { ErrorStateComponent } from '@shared/ui/state/error-state.component';
 import { GroupEditorComponent } from './group-editor.component';
-
-/**
- * What a group can be ordered by.
- *
- * `ContactGroup` carries `createdAt` and `updatedAt` and no "by" fields, so
- * those two are the audit columns — nothing is invented for the other two.
- */
-const GROUP_SORT_COLUMNS: readonly SortColumn<ContactGroup>[] = [
-  { key: 'id', label: 'ID', kind: 'text', value: (group) => group.id },
-  { key: 'name', label: 'Name', kind: 'text', value: (group) => group.name },
-  {
-    key: 'contactCount',
-    label: 'Contacts',
-    kind: 'number',
-    value: (group) => group.contactCount,
-    initialDirection: 'desc',
-  },
-  {
-    key: 'createdAt',
-    label: 'Created',
-    kind: 'date',
-    value: (group) => group.createdAt,
-    initialDirection: 'desc',
-  },
-  {
-    key: 'updatedAt',
-    label: 'Modified',
-    kind: 'date',
-    value: (group) => group.updatedAt,
-    initialDirection: 'desc',
-  },
-];
 
 @Component({
   selector: 'app-groups',
@@ -88,6 +61,7 @@ const GROUP_SORT_COLUMNS: readonly SortColumn<ContactGroup>[] = [
 export class GroupsComponent {
   private readonly contactsService = inject(ContactsService);
   private readonly toast = inject(ToastService);
+  private readonly gate = inject(PlanGateService);
   private readonly auth = inject(AuthService);
 
   protected readonly state = signal<LoadState>('loading');
@@ -100,23 +74,31 @@ export class GroupsComponent {
    * other way round, which would only reorder the cards already on screen.
    */
   protected readonly search = signal('');
+  protected readonly totalItems = signal(0);
+  /** False while `/groups` still answers with the whole collection. */
+  protected readonly pagedByServer = signal(false);
 
-  /** Matched on the name and the description, in the browser. */
-  private readonly matching = computed(() => {
-    const term = this.search().trim().toLowerCase();
-    return term === ''
-      ? this.groups()
-      : this.groups().filter(
-          (group) =>
-            group.name.toLowerCase().includes(term) ||
-            group.description.toLowerCase().includes(term),
-        );
+  /** Keystrokes, before debouncing: one request per pause, not per letter. */
+  private readonly searchInput = new Subject<string>();
+  /** The page read, cancelled whenever a newer one starts. */
+  private readonly listRequest = latestRequest();
+
+  protected readonly pager = serverPager({
+    total: this.totalItems,
+    load: () => this.load(),
   });
 
-  protected readonly sorter = clientSorter(this.matching, GROUP_SORT_COLUMNS);
-
-  /** The API returns every group; only one page of cards is rendered. */
-  protected readonly pager = clientPager(this.sorter.rows);
+  protected readonly sorter = serverSorter({
+    columns: GROUP_SORT_COLUMNS.map(({ key, label, initialDirection }) => ({
+      key,
+      label,
+      initialDirection,
+    })),
+    load: () => {
+      this.pager.reset();
+      this.load();
+    },
+  });
   protected readonly skeletons = [1, 2, 3, 4, 5, 6];
 
   /** `null` = closed, `'new'` = create, otherwise the group being renamed. */
@@ -172,26 +154,64 @@ export class GroupsComponent {
   });
 
   constructor() {
+    this.searchInput
+      .pipe(debounceTime(300), distinctUntilChanged(), takeUntilDestroyed())
+      .subscribe((term) => {
+        this.search.set(term);
+        this.pager.reset();
+        this.load();
+      });
+
     this.load();
   }
 
+  /**
+   * One page, from the API.
+   *
+   * The page, the search and the order all go to the server. Where `/groups`
+   * still answers with the whole collection the service applies them instead,
+   * so this screen reads the same either way and needs no change when the
+   * endpoint starts paging.
+   */
   protected load(): void {
     this.state.set('loading');
-    this.contactsService.listGroups().subscribe({
-      next: (groups) => {
-        this.groups.set(groups);
-        this.state.set(groups.length === 0 ? 'empty' : 'ready');
-      },
-      error: () => this.state.set('error'),
-    });
+
+    this.contactsService
+      .pageGroups({
+        page: this.pager.page(),
+        pageSize: this.pager.pageSize(),
+        search: this.search(),
+        sortBy: this.sorter.key(),
+        sortDirection: this.sorter.direction(),
+      })
+      .pipe(this.listRequest.only())
+      .subscribe({
+        next: (page) => {
+          this.groups.set(page.items);
+          this.totalItems.set(page.totalItems);
+          this.pagedByServer.set(page.pagedByServer);
+          this.state.set(page.totalItems === 0 ? 'empty' : 'ready');
+        },
+        error: () => this.state.set('error'),
+      });
+  }
+
+  protected onSearch(term: string): void {
+    this.searchInput.next(term);
   }
 
   protected openCreate(): void {
+    if (!this.gate.allow({ action: 'Creating a group', module: 'crm' })) {
+      return;
+    }
     this.nameError.set(null);
     this.editing.set('new');
   }
 
   protected openEdit(group: ContactGroup): void {
+    if (!this.gate.allow({ action: 'Editing a group', module: 'crm' })) {
+      return;
+    }
     this.nameError.set(null);
     this.editing.set(group);
   }
@@ -244,6 +264,9 @@ export class GroupsComponent {
   }
 
   protected askDelete(group: ContactGroup): void {
+    if (!this.gate.allow({ action: 'Deleting a group', module: 'crm' })) {
+      return;
+    }
     this.confirmingDelete.set(group);
   }
 

@@ -5,6 +5,7 @@ import { Subject, debounceTime, distinctUntilChanged, type Observable } from 'rx
 
 import type { ApiError, LoadState } from '@core/models/api.model';
 import type { Campaign, CampaignStatus } from '@core/models/campaign.model';
+import { PlanGateService } from '@core/services/plan-gate.service';
 import type { CampaignSummary } from '@core/services/campaigns.service';
 import { latestRequest } from '@core/http/latest-request';
 import { CAMPAIGN_SORT_COLUMNS, CampaignsService } from '@core/services/campaigns.service';
@@ -52,6 +53,7 @@ export class CampaignsComponent {
   private readonly campaignsService = inject(CampaignsService);
   private readonly realtime = inject(RealtimeService);
   private readonly toast = inject(ToastService);
+  private readonly gate = inject(PlanGateService);
   private readonly router = inject(Router);
 
   /** `null` = no dialog open. Destructive and costly actions are confirmed. */
@@ -228,6 +230,10 @@ export class CampaignsComponent {
   /* ------------------------------ actions ------------------------------ */
 
   protected create(): void {
+    if (!this.gate.allow({ action: 'Creating a campaign', module: 'whatsapp' })) {
+      return;
+    }
+
     void this.router.navigate(['/campaigns/new']);
   }
 

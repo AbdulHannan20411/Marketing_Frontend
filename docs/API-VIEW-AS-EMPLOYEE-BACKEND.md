@@ -1,3 +1,10 @@
+> **Resolved.** `?viewAsEmployeeId=` is live as middleware on every tenant-scoped GET, with
+> `capabilities.viewAsEmployee` on `/auth/me`. The client sends it on reads only, never on writes,
+> never on `/superadmin`, `/admin`, `/plans` or `/auth`, and only when the capability is true — so
+> an API without it still gets today's menu-only preview. The banner now distinguishes the two.
+> Kept for the record; the record of the preview lives on the workspace activity feed, which was
+> the backend's call and the right one.
+
 # View as Employee — What the Client Can and Cannot Do Alone
 
 An admin wants what Super Admins have with `?adminId=`: pick one of their team and see the product

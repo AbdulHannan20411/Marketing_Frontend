@@ -16,6 +16,7 @@ import {
   formatSeconds,
 } from '@core/models/auto-reply.model';
 import { AutoReplyService } from '@core/services/auto-reply.service';
+import { PlanGateService } from '@core/services/plan-gate.service';
 import { ToastService } from '@core/services/toast.service';
 import { ButtonDirective } from '@shared/ui/button/button.directive';
 import { HistoryButtonComponent } from '@shared/audit/history-button.component';
@@ -53,6 +54,7 @@ import { AutoReplyKnowledgeComponent } from './auto-reply-knowledge.component';
 })
 export class AutoReplyComponent {
   private readonly service = inject(AutoReplyService);
+  private readonly gate = inject(PlanGateService);
   private readonly toast = inject(ToastService);
 
   private readonly auth = inject(AuthService);
@@ -234,6 +236,11 @@ export class AutoReplyComponent {
 
   protected save(): void {
     if (!this.canSave()) {
+      return;
+    }
+    // `/whatsapp/auto-reply` is gated server-side. Catching it here keeps a
+    // carefully written draft from being refused after the fact.
+    if (!this.gate.allow({ action: 'Saving auto-reply', module: 'ai' })) {
       return;
     }
     this.saving.set(true);

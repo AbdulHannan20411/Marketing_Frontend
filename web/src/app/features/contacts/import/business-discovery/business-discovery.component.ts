@@ -24,6 +24,7 @@ import {
   type PlaceSuggestion,
 } from '@core/services/business-discovery.service';
 import { EntitlementService } from '@core/services/entitlement.service';
+import { PlanGateService } from '@core/services/plan-gate.service';
 import { ToastService } from '@core/services/toast.service';
 import { ButtonDirective } from '@shared/ui/button/button.directive';
 import { CardComponent } from '@shared/ui/card/card.component';
@@ -95,6 +96,7 @@ export class BusinessDiscoveryComponent {
   private readonly router = inject(Router);
 
   private readonly entitlements = inject(EntitlementService);
+  private readonly gate = inject(PlanGateService);
 
   /**
    * The plan's widest search. `undefined` until entitlements arrive or on an
@@ -116,6 +118,14 @@ export class BusinessDiscoveryComponent {
   protected readonly placeCountry = signal<string | null>(null);
   protected readonly placeQuery = signal('');
   protected readonly suggestions = signal<readonly PlaceSuggestion[]>([]);
+  /**
+   * A taller map, for picking a point precisely.
+   *
+   * The map sizes itself from its container, so this is only a class swap —
+   * `app-map-picker` watches its own element and re-measures.
+   */
+  protected readonly mapExpanded = signal(false);
+
   protected readonly searchingPlaces = signal(false);
   /**
    * Why the dropdown is empty.
@@ -356,6 +366,11 @@ export class BusinessDiscoveryComponent {
 
   protected search(): void {
     if (!this.canSearch()) {
+      return;
+    }
+    // Each search costs per request, which is why the API refuses it without a
+    // plan. Better to say so before the map fills than after.
+    if (!this.gate.allow({ action: 'Searching for nearby businesses', module: 'crm' })) {
       return;
     }
 

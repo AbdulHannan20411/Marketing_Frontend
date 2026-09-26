@@ -46,7 +46,7 @@
   <div class="mt-6 flex flex-wrap items-center gap-3">
     <app-search-box
       class="min-w-0 flex-1 sm:max-w-xs"
-      [(value)]="search"
+      [value]="search()" (valueChange)="onSearch($event)"
       label="Search groups"
       placeholder="Search groups"
     />
@@ -57,7 +57,7 @@
   </div>
 
   <div class="mt-3 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-    @for (group of pager.items(); track group.id) {
+    @for (group of groups(); track group.id) {
       <app-card [interactive]="true">
         <div class="flex items-start justify-between gap-3">
           <span class="grid h-10 w-10 place-items-center rounded-xl bg-brand-50 text-brand-600">

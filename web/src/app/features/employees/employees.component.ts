@@ -12,6 +12,7 @@ import {
   type Permission,
   type PermissionCategory,
 } from '@core/models/permission.model';
+import { PlanGateService } from '@core/services/plan-gate.service';
 import { EmployeesService } from '@core/services/employees.service';
 import { EntitlementService } from '@core/services/entitlement.service';
 import { ToastService } from '@core/services/toast.service';
@@ -114,6 +115,7 @@ export class EmployeesComponent {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly toast = inject(ToastService);
+  private readonly gate = inject(PlanGateService);
 
   protected readonly state = signal<LoadState>('loading');
   protected readonly employees = signal<readonly Employee[]>([]);
@@ -381,6 +383,9 @@ export class EmployeesComponent {
     if (employee === null || this.saving()) {
       return;
     }
+    if (!this.gate.allow({ action: 'Changing permissions' })) {
+      return;
+    }
 
     const granted = [...this.effectivePermissions()];
     this.saving.set(true);
@@ -436,6 +441,10 @@ export class EmployeesComponent {
   /* ------------------------------ invitation ------------------------------ */
 
   protected invite(): void {
+    if (!this.gate.allow({ action: 'Inviting a teammate' })) {
+      return;
+    }
+
     if (this.seatsExhausted()) {
       return;
     }

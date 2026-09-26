@@ -4,7 +4,6 @@ import { Router } from '@angular/router';
 import { AuthService } from '@core/auth/auth.service';
 import { GENERAL_TOUR_ID, GUIDED_TOURS, findTour } from '@core/config/tours.config';
 import type { GuidedTour, OnboardingStatus, TourStep } from '@core/models/onboarding.model';
-import { EntitlementService } from './entitlement.service';
 import { LayoutService } from './layout.service';
 import { OnboardingStoreService } from './onboarding-store.service';
 
@@ -49,7 +48,6 @@ export class OnboardingService {
   private readonly store = inject(OnboardingStoreService);
   private readonly auth = inject(AuthService);
   private readonly layout = inject(LayoutService);
-  private readonly entitlements = inject(EntitlementService);
   private readonly router = inject(Router);
 
   private readonly status = signal<OnboardingStatus>('not_started');
@@ -193,11 +191,21 @@ export class OnboardingService {
       return;
     }
 
-    // A locked workspace has almost no sidebar left, so the tour would be two
-    // steps about paying. They get it after they unlock.
-    if (this.entitlements.isLocked()) {
-      return;
-    }
+    /*
+     * A workspace with no plan still gets the tour — in fact it needs it most.
+     *
+     * This used to bail out on `entitlements.isLocked()`, written when a
+     * locked workspace lost most of its sidebar and the tour would have been
+     * two steps about paying. The sidebar is no longer filtered by plan:
+     * every screen opens read-only and the upgrade is offered at the moment
+     * somebody tries to change something. So a brand-new admin has the full
+     * set of steps, and showing them what they have just signed up for is the
+     * point rather than a distraction.
+     *
+     * Nothing in the tour writes: it navigates and highlights, and the only
+     * call it makes is `PUT /auth/me/onboarding`, which the API exempts from
+     * the subscription gate.
+     */
 
     // Whichever tour actually teaches this user something. See
     // `firstLoginTourId` — for someone granted a single module, the general

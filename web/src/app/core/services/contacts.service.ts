@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { tap, type Observable } from 'rxjs';
+import { map, tap, type Observable } from 'rxjs';
 
 import type { BulkOperationResult, PagedResult } from '@core/models/api.model';
 import type {
@@ -21,8 +21,72 @@ import type {
   MergeContactsRequest,
   UpdateContactRequest,
 } from '@core/models/contact.model';
-import { sortParams } from '@shared/ui/data-table/sort';
+import { toAdaptivePage, type AdaptivePage, type ListQuery } from '@core/http/adaptive-page';
+import { rowComparator, sortParams, type SortColumn } from '@shared/ui/data-table/sort';
 import { ApiService } from './api.service';
+
+/**
+ * What a group list can be ordered by.
+ *
+ * Here rather than in the component because the fallback path sorts the whole
+ * collection **before** slicing it — a screen that sorted its own page would
+ * order ten rows out of four hundred.
+ */
+export const GROUP_SORT_COLUMNS: readonly SortColumn<ContactGroup>[] = [
+  { key: 'id', label: 'ID', kind: 'text', value: (group) => group.id },
+  { key: 'name', label: 'Name', kind: 'text', value: (group) => group.name },
+  {
+    key: 'contactCount',
+    label: 'Contacts',
+    kind: 'number',
+    value: (group) => group.contactCount,
+    initialDirection: 'desc',
+  },
+  {
+    key: 'createdAt',
+    label: 'Created',
+    kind: 'date',
+    value: (group) => group.createdAt,
+    initialDirection: 'desc',
+  },
+  {
+    key: 'updatedAt',
+    label: 'Modified',
+    kind: 'date',
+    value: (group) => group.updatedAt,
+    initialDirection: 'desc',
+  },
+];
+
+/** What a tag list can be ordered by. `ContactTag` has `createdAt` and no modified pair. */
+export const TAG_SORT_COLUMNS: readonly SortColumn<ContactTag>[] = [
+  { key: 'id', label: 'ID', kind: 'text', value: (tag) => tag.id },
+  { key: 'name', label: 'Name', kind: 'text', value: (tag) => tag.name },
+  { key: 'color', label: 'Colour', kind: 'text', value: (tag) => tag.color },
+  {
+    key: 'contactCount',
+    label: 'Contacts',
+    kind: 'number',
+    value: (tag) => tag.contactCount,
+    initialDirection: 'desc',
+  },
+  {
+    key: 'createdAt',
+    label: 'Created',
+    kind: 'date',
+    value: (tag) => tag.createdAt,
+    initialDirection: 'desc',
+  },
+];
+
+/** The comparator a query names, or null for the collection's natural order. */
+export function comparatorFor<T>(
+  columns: readonly SortColumn<T>[],
+  query: ListQuery,
+): ((left: T, right: T) => number) | null {
+  const column = columns.find((entry) => entry.key === query.sortBy);
+  return column === undefined ? null : rowComparator(column, query.sortDirection ?? 'asc');
+}
 
 @Injectable({ providedIn: 'root' })
 export class ContactsService {
@@ -63,12 +127,68 @@ export class ContactsService {
     });
   }
 
+  /**
+   * Every group, for the pickers.
+   *
+   * The filter dropdown, the contact editor and the bulk bar each need the
+   * whole set — a page of ten would silently hide the rest — so this stays
+   * unpaged deliberately. The **list screen** uses {@link pageGroups}.
+   */
   listGroups(): Observable<readonly ContactGroup[]> {
     return this.api.get<readonly ContactGroup[]>('/groups');
   }
 
+  /** Every tag, for the pickers. The list screen uses {@link pageTags}. */
   listTags(): Observable<readonly ContactTag[]> {
     return this.api.get<readonly ContactTag[]>('/tags');
+  }
+
+  /**
+   * One page of groups, searched and ordered by the API.
+   *
+   * Sends the paging parameters and adapts whatever comes back: an endpoint
+   * that pages answers a `PagedResult` and this passes it through; one that
+   * still answers the whole collection is filtered, ordered and sliced here.
+   * The screen cannot tell the difference, so the day `/groups` starts paging
+   * there is nothing to change — see `docs/API-LIST-PAGINATION-BACKEND.md`.
+   */
+  pageGroups(query: ListQuery): Observable<AdaptivePage<ContactGroup>> {
+    return this.api
+      .get<PagedResult<ContactGroup> | readonly ContactGroup[]>('/groups', {
+        page: query.page,
+        pageSize: query.pageSize,
+        search: query.search ?? '',
+        ...sortParams(query.sortBy, query.sortDirection),
+      })
+      .pipe(
+        map((response) =>
+          toAdaptivePage(response, query, {
+            matches: (group, term) =>
+              group.name.toLowerCase().includes(term) ||
+              group.description.toLowerCase().includes(term),
+            compare: (current) => comparatorFor(GROUP_SORT_COLUMNS, current),
+          }),
+        ),
+      );
+  }
+
+  /** One page of tags. Same adaptation as {@link pageGroups}. */
+  pageTags(query: ListQuery): Observable<AdaptivePage<ContactTag>> {
+    return this.api
+      .get<PagedResult<ContactTag> | readonly ContactTag[]>('/tags', {
+        page: query.page,
+        pageSize: query.pageSize,
+        search: query.search ?? '',
+        ...sortParams(query.sortBy, query.sortDirection),
+      })
+      .pipe(
+        map((response) =>
+          toAdaptivePage(response, query, {
+            matches: (tag, term) => tag.name.toLowerCase().includes(term),
+            compare: (current) => comparatorFor(TAG_SORT_COLUMNS, current),
+          }),
+        ),
+      );
   }
 
   /* ------------------------------ contact writes ------------------------------ */

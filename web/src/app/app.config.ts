@@ -25,6 +25,7 @@ import { errorInterceptor } from '@core/interceptors/error.interceptor';
 import { lazyMockBackendInterceptor } from '@core/mock/mock-backend.lazy';
 import { timeoutInterceptor } from '@core/interceptors/timeout.interceptor';
 import { scopeInterceptor } from '@core/scope/scope.interceptor';
+import { viewAsInterceptor } from '@core/scope/view-as.interceptor';
 import { routes } from './app.routes';
 
 /**
@@ -32,8 +33,22 @@ import { routes } from './app.routes';
  * build never ships the seeded dataset.
  */
 const interceptors = environment.useMockApi
-  ? [errorInterceptor, authTokenInterceptor, scopeInterceptor, lazyMockBackendInterceptor]
-  : [errorInterceptor, timeoutInterceptor, authTokenInterceptor, scopeInterceptor];
+  ? [
+      errorInterceptor,
+      authTokenInterceptor,
+      scopeInterceptor,
+      viewAsInterceptor,
+      lazyMockBackendInterceptor,
+    ]
+  : [
+      errorInterceptor,
+      timeoutInterceptor,
+      authTokenInterceptor,
+      scopeInterceptor,
+      // After the admin scope: a Super Admin previewing a teammate is scoped to
+      // that workspace first, and both parameters go out together.
+      viewAsInterceptor,
+    ];
 
 export const appConfig: ApplicationConfig = {
   providers: [

@@ -78,6 +78,21 @@ export class AuthService {
   /** The teammate whose view is being previewed, or null. */
   readonly viewingAs = this.preview.asReadonly();
 
+  /**
+   * Whether the API will narrow reads to the previewed teammate.
+   *
+   * With it, the preview shows their records — their numbers, their assigned
+   * conversations — and every write is refused with `view_as_is_read_only`.
+   * Without it, only the menu and the permission gates narrow, and the banner
+   * says which of the two is happening rather than letting somebody assume.
+   */
+  readonly canViewAsData = computed(
+    () => this.currentUser()?.capabilities.viewAsEmployee === true,
+  );
+
+  /** True while a preview is showing the teammate's own records. */
+  readonly isViewingData = computed(() => this.preview() !== null && this.canViewAsData());
+
   viewAs(subject: ViewAsSubject): void {
     this.preview.set(subject);
   }

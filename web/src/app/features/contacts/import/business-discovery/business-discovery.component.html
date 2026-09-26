@@ -190,15 +190,29 @@
 
   <!-- Map -->
   <div class="mt-4">
-    <app-map-picker
-      class="h-72 sm:h-80"
-      [center]="center()"
-      [radiusKm]="radiusKm()"
-      [markers]="mapMarkers()"
-      [interactive]="!searching()"
-      (centerChanged)="onCenterChanged($event)"
-      (markerClicked)="onMarkerClicked($event)"
-    />
+    <div class="relative">
+      <app-map-picker
+        class="transition-[height] duration-200"
+        [class]="mapExpanded() ? 'h-[70vh]' : 'h-72 sm:h-80'"
+        [center]="center()"
+        [radiusKm]="radiusKm()"
+        [markers]="mapMarkers()"
+        [interactive]="!searching()"
+        (centerChanged)="onCenterChanged($event)"
+        (markerClicked)="onMarkerClicked($event)"
+      />
+
+      <!-- Above the map's own panes, which Leaflet puts at z-index 400+. -->
+      <button
+        type="button"
+        class="absolute top-3 right-3 z-500 flex items-center gap-1.5 rounded-lg bg-surface/95 px-2.5 py-1.5 text-xs font-medium text-ink-soft ring-1 ring-line shadow-card backdrop-blur transition-colors hover:bg-surface hover:text-ink"
+        [attr.aria-pressed]="mapExpanded()"
+        (click)="mapExpanded.set(!mapExpanded())"
+      >
+        <app-icon [name]="mapExpanded() ? 'close' : 'grid'" [size]="13" />
+        {{ mapExpanded() ? 'Shrink map' : 'Enlarge map' }}
+      </button>
+    </div>
     <p class="mt-2 text-xs text-ink-muted">
       @if (placeLabel(); as place) {
         Searching around <span class="font-medium text-ink">{{ place }}</span> · {{ radiusKm() }} km

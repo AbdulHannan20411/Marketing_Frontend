@@ -10,11 +10,43 @@
     <app-icon name="refresh" [size]="16" [class.animate-spin]="syncing()" />
     {{ syncing() ? 'Syncing…' : 'Sync from Meta' }}
   </button>
-  <button appButton size="md" data-tour="templates.new" (click)="compose()">
+  <button
+    appButton
+    size="md"
+    data-tour="templates.new"
+    [attr.aria-disabled]="!canCompose()"
+    [attr.title]="
+      canCompose() ? null : 'Connect a WhatsApp number first — templates are created at Meta.'
+    "
+    (click)="compose()"
+  >
     <app-icon name="plus" [size]="16" />
     New template
   </button>
 </app-page-header>
+
+<!-- A template is submitted to Meta against a connected number. Without one
+     there is nothing to submit to, so this says so where the work would
+     otherwise be lost at the final step. -->
+@if (!canCompose()) {
+  <div
+    class="mt-5 flex flex-wrap items-start gap-3 rounded-xl bg-amber-50 px-4 py-3.5 ring-1 ring-amber-200"
+    role="status"
+  >
+    <app-icon name="warning" [size]="18" class="mt-px shrink-0 text-warning" />
+    <div class="min-w-0 flex-1">
+      <p class="text-sm font-medium text-amber-900">Connect WhatsApp to create templates</p>
+      <p class="mt-0.5 text-sm leading-relaxed text-amber-900/80">
+        Templates are created at Meta against a WhatsApp Business Account. Existing templates can
+        still be read and synced.
+      </p>
+      <a appButton size="sm" class="mt-2.5" routerLink="/whatsapp">
+        <app-icon name="phone" [size]="14" />
+        Connect a number
+      </a>
+    </div>
+  </div>
+}
 
 <!-- Search, status and category. Status leads: "what is waiting for Meta?" is
      the question this screen is most often opened to answer. -->

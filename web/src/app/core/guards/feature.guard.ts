@@ -1,21 +1,17 @@
-import { inject } from '@angular/core';
-import { Router, type CanActivateFn } from '@angular/router';
-
-import type { FeatureModule } from '@core/models/permission.model';
-import { EntitlementService } from '@core/services/entitlement.service';
+import type { CanActivateFn } from '@angular/router';
 
 /**
- * Blocks routes whose module is not in the current plan and sends the user to
- * the upgrade page instead of a dead end. Pair with `data: { module: '…' }`.
+ * Lets every route through, whatever the plan covers.
+ *
+ * It used to redirect a module the plan did not include to `/upgrade`. That
+ * made the product invisible to the people most likely to pay for it: a
+ * workspace on a small plan saw a menu of dead ends, and a workspace with no
+ * plan saw almost nothing at all.
+ *
+ * Screens are now readable regardless, and the plan is enforced on the
+ * **actions** — `PlanGateService` stops the write and offers the plan that
+ * would allow it. The guard stays so routes keep declaring which module they
+ * belong to, and so there is one place to reinstate blocking if that decision
+ * is ever reversed.
  */
-export const featureGuard: CanActivateFn = (route) => {
-  const entitlements = inject(EntitlementService);
-  const router = inject(Router);
-
-  const module = route.data['module'] as FeatureModule | undefined;
-  if (module === undefined || entitlements.hasFeature(module)) {
-    return true;
-  }
-
-  return router.createUrlTree(['/upgrade'], { queryParams: { module } });
-};
+export const featureGuard: CanActivateFn = () => true;

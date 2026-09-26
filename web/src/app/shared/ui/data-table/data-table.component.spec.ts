@@ -61,6 +61,15 @@ describe('DataTableComponent — sorting', () => {
     element = fixture.nativeElement as HTMLElement;
   });
 
+  it('renders every header text, sortable or not', () => {
+    // The regression this exists for: two content slots in the header
+    // component meant only one of them received the projected label, so every
+    // sortable column rendered a button with nothing in it.
+    const text = headers().map((header) => header.textContent?.trim());
+    expect(text[0]).toBe('ID');
+    expect(text[1]).toBe('Name');
+  });
+
   it('makes a column with a sort key a button, and leaves the others alone', () => {
     expect(headers()[0].querySelector('button')).not.toBeNull();
     expect(headers()[1].querySelector('button')).not.toBeNull();

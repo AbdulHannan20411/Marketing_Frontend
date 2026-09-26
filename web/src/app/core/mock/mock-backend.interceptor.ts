@@ -440,6 +440,10 @@ function handleAuth(
       isSuperAdmin: account.role === 'SuperAdmin',
       roles: [account.role],
       permissions: [...permissionsForRole(account.role)],
+      // The mock has no per-employee scoping, so it cannot answer a read as
+      // somebody else. Saying so keeps the preview honest here too: the menu
+      // narrows, the records do not, and the banner says which.
+      capabilities: { viewAsEmployee: false },
     });
   }
   if (method === 'POST' && path === '/auth/login') {

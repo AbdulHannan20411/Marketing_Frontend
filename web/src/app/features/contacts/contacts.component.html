@@ -320,6 +320,23 @@
       {{ contact.country }}
     </td>
 
+    <!-- Which groups this contact is in: the other half of "why did this
+         person receive that campaign?", and the one the audience step reads. -->
+    <td class="hidden px-4 py-3 md:table-cell">
+      @if (groupNames(contact); as names) {
+        @if (names.length === 0) {
+          <span class="text-sm text-ink-muted">—</span>
+        } @else {
+          <span
+            class="block max-w-[12rem] truncate text-sm text-ink-soft"
+            [attr.title]="names.join(', ')"
+          >
+            {{ names.join(', ') }}
+          </span>
+        }
+      }
+    </td>
+
     <td class="hidden px-4 py-3 md:table-cell">
       <div class="flex flex-wrap items-center gap-1">
         @for (tagId of contact.tagIds.slice(0, 2); track tagId) {

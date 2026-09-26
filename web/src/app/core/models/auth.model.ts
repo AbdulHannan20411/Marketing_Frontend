@@ -35,6 +35,20 @@ export interface JwtClaims {
 }
 
 /** `GET /auth/me` — the authoritative profile. */
+/**
+ * What the API can do for this caller, beside what they are allowed to do.
+ *
+ * Absent from an older API, which means "not supported" — never assumed.
+ */
+export interface AuthCapabilities {
+  /**
+   * Reads may carry `?viewAsEmployeeId=` and the API answers as that
+   * teammate. Without it the client previews the menu and the permission
+   * gates only, and says so.
+   */
+  readonly viewAsEmployee: boolean;
+}
+
 export interface CurrentUserResponse {
   readonly id: number;
   readonly email: string;
@@ -43,6 +57,7 @@ export interface CurrentUserResponse {
   readonly isSuperAdmin: boolean;
   readonly roles: readonly string[];
   readonly permissions: readonly string[];
+  readonly capabilities?: Partial<Record<string, boolean>>;
 }
 
 export interface AuthUser {
@@ -55,6 +70,7 @@ export interface AuthUser {
   readonly workspaceName: string;
   readonly avatarUrl: string | null;
   readonly isSuperAdmin: boolean;
+  readonly capabilities: AuthCapabilities;
 }
 
 export interface AuthTokens {

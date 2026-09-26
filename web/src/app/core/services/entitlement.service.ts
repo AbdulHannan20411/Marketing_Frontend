@@ -3,6 +3,8 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 import { AuthService } from '@core/auth/auth.service';
 import { AdminScopeService } from '@core/scope/admin-scope.service';
 import type { FeatureModule } from '@core/models/permission.model';
+import type { ApiError } from '@core/models/api.model';
+import { radiusOptionsFor } from '@core/models/business-discovery.model';
 import type {
   EntitlementSnapshot,
   UsageMetric,
@@ -63,6 +65,21 @@ export class EntitlementService {
   private readonly loaded = signal(false);
   /** True when the fetch failed, as opposed to succeeding with nothing. */
   private readonly failed = signal(false);
+  /**
+   * The API said this workspace has no subscription.
+   *
+   * `GET /subscription/entitlements` answers **404** for a workspace that has
+   * never bought a plan — `LoadSubscriptionAsync` throws
+   * `NotFoundException("This organisation has no subscription.")`. To
+   * `HttpClient` that is an error like any other, and both of this service's
+   * error paths deliberately fail *open* so a dropped request cannot lock a
+   * paying customer out. The result was that the one state which should grant
+   * nothing granted everything: no plan, no lock, every module enabled.
+   *
+   * So a 404 is kept apart from every other failure. It is an answer — "there
+   * is no plan" — not a missing answer.
+   */
+  private readonly noPlan = signal(false);
 
   /**
    * Plan limits are a property of an Admin's subscription, so they never apply
@@ -127,15 +144,71 @@ export class EntitlementService {
    * fix it is the one signing in, and they need to reach the subscription page
    * to do it. Shutting them out at the door leaves them with no route back.
    */
-  readonly isLocked = computed(() => {
+  readonly isLocked = computed(() => this.lockReason() !== null);
+
+  /**
+   * Why the workspace is locked, or null when it is not.
+   *
+   * Four states, and the two that were missing are the ones that mattered:
+   *
+   * - **`none`** — the entitlement read succeeded and there is no subscription
+   *   at all. A workspace that has never bought a plan had full use of the
+   *   product: contacts, imports, campaigns, everything. That is the bug this
+   *   exists to close.
+   * - **`cancelled`** — bought once, cancelled since. Same position as never
+   *   having bought one.
+   * - `expired` and `suspended`, as before.
+   *
+   * **A failed read never locks.** `failed` is the difference between "the API
+   * says there is no plan" and "the API did not answer", and locking a paying
+   * customer out over a dropped request would be a worse bug than the one
+   * being fixed. Same for the moment before the answer arrives.
+   */
+  readonly lockReason = computed<'suspended' | 'expired' | 'cancelled' | 'none' | null>(() => {
+    if (this.isUnrestricted() || !this.loaded() || this.failed()) {
+      return null;
+    }
+
+    if (this.noPlan()) {
+      return 'none';
+    }
+
+    /*
+     * A missing status is 'none', however it goes missing.
+     *
+     * `== null` rather than `=== undefined` on purpose. The type says the
+     * field is always one of five strings, but the backend briefly served
+     * `status: null` for a workspace with no plan and could again — and a
+     * strict `=== undefined` would have let that fall through to the
+     * comparisons below, all false, and reported the workspace as unlocked.
+     * That is precisely the bug this whole computed exists to close, so it is
+     * not worth leaving to a contract detail on the other side of the wire.
+     */
     const status = this.subscription()?.status;
-    return status === 'suspended' || status === 'expired';
+    if (status == null) {
+      return 'none';
+    }
+    return status === 'suspended' || status === 'expired' || status === 'cancelled'
+      ? status
+      : null;
   });
 
-  /** Distinguishes the two so the explanation can differ. */
-  readonly lockReason = computed<'suspended' | 'expired' | null>(() => {
-    const status = this.subscription()?.status;
-    return status === 'suspended' || status === 'expired' ? status : null;
+  /**
+   * Whether the plan sells nearby-business search at all.
+   *
+   * Not a module of its own — it sits inside CRM and is bounded by
+   * `maxSearchRadiusKm`, where `0` means the plan does not include it. A plan
+   * with CRM and a zero radius passes `hasFeature('crm')` and still cannot
+   * search, so the two questions are asked separately.
+   */
+  readonly hasBusinessSearch = computed(() => {
+    if (this.isUnrestricted()) {
+      return true;
+    }
+    if (this.noPlan() || !this.hasFeature('crm')) {
+      return false;
+    }
+    return radiusOptionsFor(this.limits()?.maxSearchRadiusKm).length > 0;
   });
 
   /** Metrics at or past their ceiling, used to drive upgrade prompts. */
@@ -160,14 +233,35 @@ export class EntitlementService {
       next: (snapshot) => {
         this.snapshot.set(snapshot);
         this.failed.set(false);
+        this.noPlan.set(false);
         this.loaded.set(true);
       },
-      // A failed fetch must not lock the user out of the whole app. It is
-      // recorded as a *failure* rather than as "loaded with nothing", because
-      // those two need opposite answers from `hasFeature`.
-      error: () => {
+      /*
+       * Three outcomes, not two.
+       *
+       * A 404 is the API telling us there is no subscription, and that has to
+       * grant nothing. Any other failure is the API not telling us anything,
+       * and that must not lock the workspace — see `noPlan`.
+       */
+      error: (error: ApiError) => {
+        /*
+         * `no_subscription` first, the status second.
+         *
+         * The API now names the reason, which is what makes this
+         * unambiguous: a bare 404 on any route is also what a renamed path or
+         * a version bump produces, and those are "unknown" — fail open —
+         * while this one is "no plan" — lock.
+         *
+         * The status is still honoured as a fallback rather than dropped. The
+         * path is a constant in this service, so it cannot be misspelled at
+         * runtime, and an API old enough to answer 404 without the code is an
+         * API this client has already shipped against. Dropping it would fail
+         * open there, which is the bug this whole line exists to close.
+         */
+        const missing = error.errorCode === 'no_subscription' || error.status === 404;
         this.snapshot.set(null);
-        this.failed.set(true);
+        this.noPlan.set(missing);
+        this.failed.set(!missing);
         this.loaded.set(true);
       },
     });
@@ -196,6 +290,11 @@ export class EntitlementService {
   hasFeature(module: FeatureModule): boolean {
     if (this.isUnrestricted()) {
       return true;
+    }
+    // No plan, no modules. This is the state a new workspace is in, and it is
+    // the one that used to answer `true` to everything.
+    if (this.noPlan()) {
+      return false;
     }
     const snapshot = this.snapshot();
     if (snapshot === null) {

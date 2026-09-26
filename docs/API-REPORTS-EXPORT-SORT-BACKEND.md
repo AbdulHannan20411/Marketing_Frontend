@@ -1,3 +1,8 @@
+> **Resolved.** The export takes the same `sortBy`/`sortDirection` as the list, from the same
+> `SortableFailureColumns` dictionary, with the same default and the same tiebreak. The client
+> sends the sorter's state on the download, and the on-screen caveat is deleted. Kept for the
+> record.
+
 # The Failure-Log Export Should Follow the Screen's Sort
 
 Answering §6 of your sorting reply: **yes please, take the four lines.**

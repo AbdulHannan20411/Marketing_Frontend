@@ -39,6 +39,15 @@ export class SetPasswordComponent {
 
   protected readonly appName = environment.appName;
   protected readonly submitting = signal(false);
+  /** Field errors from the server, keyed as it sends them. */
+  private readonly serverErrors = signal<Readonly<Record<string, readonly string[]>>>({});
+
+  /** Matched case-insensitively: the API capitalises its field names. */
+  protected serverError(field: string): string | null {
+    const errors = this.serverErrors();
+    const key = Object.keys(errors).find((entry) => entry.toLowerCase() === field.toLowerCase());
+    return key === undefined ? null : (errors[key][0] ?? null);
+  }
   protected readonly formError = signal<string | null>(null);
   protected readonly passwordVisible = signal(false);
 
@@ -134,6 +143,8 @@ export class SetPasswordComponent {
     const token = this.token();
     const password = this.form.controls.password.value;
 
+    this.serverErrors.set({});
+
     const request$ = this.isInvitation()
       ? this.auth.acceptInvitation(token, password)
       : this.auth.resetPassword(token, password);
@@ -144,8 +155,22 @@ export class SetPasswordComponent {
         void this.router.navigateByUrl(user.isSuperAdmin ? '/superadmin/dashboard' : '/dashboard'),
       error: (error: ApiError) => {
         this.submitting.set(false);
+        this.serverErrors.set(error.fieldErrors);
+
+        /*
+         * A rejected password is not an expired link.
+         *
+         * The server has its own policy — length, reuse, the rest — and it
+         * returns what is wrong with the password as a field error. Showing
+         * only `detail` meant somebody whose password was refused was told to
+         * ask for a new invitation, which would not have helped and which
+         * nobody could act on. The field message now sits under the field;
+         * the generic line is the fallback for everything else.
+         */
         this.formError.set(
-          error.detail || 'That link may have expired. Ask for a new one and try again.',
+          this.serverError('password') !== null
+            ? null
+            : error.detail || 'That link may have expired. Ask for a new one and try again.',
         );
       },
     });

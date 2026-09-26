@@ -10,6 +10,8 @@ import type {
   ImportUploadAccepted,
 } from '@core/models/contact-import.model';
 import { describeFileSize, isImportInFlight } from '@core/models/contact-import.model';
+import { EntitlementService } from '@core/services/entitlement.service';
+import { PlanGateService } from '@core/services/plan-gate.service';
 import { ContactImportService } from '@core/services/contact-import.service';
 import { ImportExportService } from '@core/services/import-export.service';
 import { ImportNotificationService } from '@core/services/import-notification.service';
@@ -65,6 +67,8 @@ export class ContactImportComponent {
   private readonly exports = inject(ImportExportService);
   private readonly notifications = inject(ImportNotificationService);
   private readonly toast = inject(ToastService);
+  private readonly gate = inject(PlanGateService);
+  private readonly entitlements = inject(EntitlementService);
   private readonly router = inject(Router);
 
   /**
@@ -85,11 +89,39 @@ export class ContactImportComponent {
   protected readonly tab = signal<'upload' | 'discover'>('upload');
 
   protected setTab(next: 'upload' | 'discover'): void {
-    if (next === 'discover' && !this.canDiscover()) {
-      return;
+    if (next === 'discover') {
+      if (!this.canDiscover()) {
+        return;
+      }
+      /*
+       * The plan is checked before the panel mounts, not inside it.
+       *
+       * Discovery opens a map, loads categories and geolocates on init — real
+       * work, for a search the workspace cannot run. So the tab stays visible
+       * and clickable, the offer arrives on the click, and the panel is never
+       * built until the plan covers it.
+       */
+      if (
+        !this.gate.allow({
+          action: 'Importing business contacts',
+          module: 'crm',
+          included: this.entitlements.hasBusinessSearch(),
+        })
+      ) {
+        return;
+      }
     }
     this.tab.set(next);
   }
+
+  /**
+   * Answered by the dropzone before it opens the file picker.
+   *
+   * An arrow property rather than a method so the reference is stable across
+   * change detection, and so `this` is the component when the panel calls it.
+   */
+  protected readonly requestUpload = (): boolean =>
+    this.gate.allow({ action: 'Importing contacts', module: 'crm' });
 
   protected readonly breadcrumbs = [
     { label: 'Contacts', route: '/contacts' },
@@ -201,6 +233,10 @@ export class ContactImportComponent {
   }
 
   protected upload(request: { file: File; duplicateStrategy: ImportDuplicateStrategy }): void {
+    if (!this.gate.allow({ action: 'Importing contacts', module: 'crm' })) {
+      return;
+    }
+
     this.uploading.set(true);
 
     this.imports.uploadFile(request.file, request.duplicateStrategy).subscribe({
