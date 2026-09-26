@@ -105,12 +105,31 @@
           <table class="w-full min-w-[56rem] text-sm">
             <thead>
               <tr class="border-b border-line text-left text-xs tracking-wide text-ink-muted uppercase">
-                <th scope="col" class="px-5 py-3 font-medium">Organisation</th>
-                <th scope="col" class="px-3 py-3 font-medium">Plan</th>
-                <th scope="col" class="px-3 py-3 text-right font-medium">Amount</th>
+                <!-- Paged by the API with a fixed order and no sort allow-list
+                     yet, so every header here is a label. -->
+                <th scope="col" class="px-5 py-3 font-medium" [attr.aria-sort]="sorter.ariaSort('id')">
+                  <app-sort-header [sorter]="sorter" sortKey="id" headerLabel="ID">ID</app-sort-header>
+                </th>
+                <th scope="col" class="px-3 py-3 font-medium" [attr.aria-sort]="sorter.ariaSort('organisation')">
+                  <app-sort-header [sorter]="sorter" sortKey="organisation" headerLabel="Organisation">Organisation</app-sort-header>
+                </th>
+                <th scope="col" class="px-3 py-3 font-medium" [attr.aria-sort]="sorter.ariaSort('plan')">
+                  <app-sort-header [sorter]="sorter" sortKey="plan" headerLabel="Plan">Plan</app-sort-header>
+                </th>
+                <th scope="col" class="px-3 py-3 text-right font-medium" [attr.aria-sort]="sorter.ariaSort('amount')">
+                  <app-sort-header [sorter]="sorter" sortKey="amount" headerLabel="Amount">Amount</app-sort-header>
+                </th>
                 <th scope="col" class="px-3 py-3 font-medium">Method</th>
-                <th scope="col" class="px-3 py-3 font-medium">Status</th>
-                <th scope="col" class="px-3 py-3 font-medium">Submitted</th>
+                <th scope="col" class="px-3 py-3 font-medium" [attr.aria-sort]="sorter.ariaSort('status')">
+                  <app-sort-header [sorter]="sorter" sortKey="status" headerLabel="Status">Status</app-sort-header>
+                </th>
+                <th scope="col" class="px-3 py-3 font-medium" [attr.aria-sort]="sorter.ariaSort('submittedAt')">
+                  <app-sort-header [sorter]="sorter" sortKey="submittedAt" headerLabel="Submitted">Submitted</app-sort-header>
+                </th>
+                <th scope="col" class="px-3 py-3 font-medium" [attr.aria-sort]="sorter.ariaSort('reviewedAt')">
+                  <app-sort-header [sorter]="sorter" sortKey="reviewedAt" headerLabel="Reviewed">Reviewed</app-sort-header>
+                </th>
+                <th scope="col" class="px-3 py-3 font-medium">Reviewed by</th>
                 <th scope="col" class="px-5 py-3 text-right font-medium">Actions</th>
               </tr>
             </thead>
@@ -121,6 +140,14 @@
                   (click)="open(request)"
                 >
                   <td class="px-5 py-3">
+                    <span
+                      class="block max-w-[7rem] truncate font-mono text-xs text-ink-muted"
+                      [title]="request.id"
+                    >
+                      {{ request.id }}
+                    </span>
+                  </td>
+                  <td class="px-3 py-3">
                     <p class="font-medium text-ink">{{ request.organisation }}</p>
                     <p class="text-xs text-ink-muted">{{ request.submittedByEmail }}</p>
                   </td>
@@ -139,6 +166,14 @@
                   </td>
                   <td class="px-3 py-3 whitespace-nowrap text-ink-muted">
                     {{ request.submittedAt | timeAgo }}
+                  </td>
+                  <!-- Who decided, and when. Both null while a request waits in
+                       the queue, which is an em dash rather than a blank. -->
+                  <td class="px-3 py-3 whitespace-nowrap text-ink-muted">
+                    {{ request.reviewedAt === null ? '—' : (request.reviewedAt | timeAgo) }}
+                  </td>
+                  <td class="max-w-[10rem] truncate px-3 py-3 text-ink-soft">
+                    {{ request.reviewedBy ?? '—' }}
                   </td>
                   <td class="px-5 py-3 text-right">
                     <button

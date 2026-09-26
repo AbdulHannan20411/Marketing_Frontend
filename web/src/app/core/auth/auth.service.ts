@@ -30,6 +30,17 @@ import { TokenStorageService } from './token-storage.service';
 
 const SIGN_OUT_REASON_KEY = 'vd.auth.signout-reason';
 
+/** Who the app is being previewed as. Held in memory only: a borrowed view
+ *  should not survive a reload, let alone a different session. */
+export interface ViewAsSubject {
+  readonly id: string;
+  readonly name: string;
+  readonly initials: string;
+  readonly role: UserRole;
+  readonly jobTitle: string;
+  readonly permissions: readonly Permission[];
+}
+
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly http = inject(HttpClient);
@@ -47,8 +58,39 @@ export class AuthService {
   readonly isSuperAdmin = computed(() => this.currentUser()?.isSuperAdmin ?? false);
   readonly isAdmin = computed(() => this.role() === 'Admin');
 
+  /* ------------------------------------------------------------------ *
+   * Viewing the app as a teammate
+   *
+   * An admin asking "what does Ayesha actually see?" had to read a permission
+   * list and imagine it. This answers it by driving the real navigation and
+   * the real permission gates from that employee's permissions.
+   *
+   * **It only ever narrows.** The intersection below is the whole safety
+   * property: a preview cannot grant the signed-in account anything it does
+   * not already have, so the worst a tampered preview can do is hide things.
+   * The data on screen is still the admin's own — the API authorises the
+   * token, not this — which is what the banner says and what
+   * `docs/API-VIEW-AS-EMPLOYEE-BACKEND.md` asks the API to change.
+   * ------------------------------------------------------------------ */
+
+  private readonly preview = signal<ViewAsSubject | null>(null);
+
+  /** The teammate whose view is being previewed, or null. */
+  readonly viewingAs = this.preview.asReadonly();
+
+  viewAs(subject: ViewAsSubject): void {
+    this.preview.set(subject);
+  }
+
+  stopViewingAs(): void {
+    this.preview.set(null);
+  }
+
   hasPermission(permission: Permission): boolean {
-    return this.currentUser()?.permissions.includes(permission) ?? false;
+    const granted = this.currentUser()?.permissions.includes(permission) ?? false;
+    const previewed = this.preview();
+
+    return granted && (previewed === null || previewed.permissions.includes(permission));
   }
 
   hasAnyPermission(permissions: readonly Permission[]): boolean {
@@ -249,6 +291,8 @@ export class AuthService {
   discardSession(): void {
     this.storage.clear();
     this.currentUser.set(null);
+    // A borrowed view must not outlive the session that borrowed it.
+    this.preview.set(null);
     this.refresh$ = null;
   }
 

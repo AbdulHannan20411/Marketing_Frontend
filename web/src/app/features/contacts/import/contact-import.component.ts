@@ -20,6 +20,8 @@ import { CardComponent } from '@shared/ui/card/card.component';
 import { IconComponent } from '@shared/ui/icon/icon.component';
 import { PageHeaderComponent } from '@shared/ui/page-header/page-header.component';
 import { serverPager } from '@shared/ui/pagination/pager';
+import { serverSorter } from '@shared/ui/data-table/sort';
+import { SortHeaderComponent } from '@shared/ui/data-table/sort-header.component';
 import { PaginatorComponent } from '@shared/ui/pagination/paginator.component';
 import { SkeletonComponent } from '@shared/ui/skeleton/skeleton.component';
 import { EmptyStateComponent } from '@shared/ui/state/empty-state.component';
@@ -40,6 +42,7 @@ import { UploadDropzoneComponent } from './upload-dropzone/upload-dropzone.compo
   selector: 'app-contact-import',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    SortHeaderComponent,
     DecimalPipe,
     TimeAgoPipe,
     ButtonDirective,
@@ -97,6 +100,33 @@ export class ContactImportComponent {
   protected readonly batches = signal<readonly ImportBatchSummary[]>([]);
   protected readonly totalItems = signal(0);
   /** The API pages this list; `load()` reads the page and size from here. */
+  /**
+   * Ordering, done by the API.
+   *
+   * These keys are `ImportHistoryService.SortableColumns` on the server; it
+   * answers a 400 naming the allowed values for anything else. The history is
+   * paged server-side, so sorting has to happen there too — ordering the ten
+   * rows on screen would say nothing about the rest.
+   */
+  protected readonly sorter = serverSorter({
+    columns: [
+      // The API takes `id` and `batchId` for the same column.
+      { key: 'id', label: 'ID' },
+      { key: 'fileName', label: 'File name' },
+      { key: 'status', label: 'Status' },
+      { key: 'totalRows', label: 'Total rows', initialDirection: 'desc' },
+      { key: 'failedCount', label: 'Failed', initialDirection: 'desc' },
+      { key: 'fileSizeBytes', label: 'File size', initialDirection: 'desc' },
+      { key: 'uploadedAt', label: 'Uploaded', initialDirection: 'desc' },
+      { key: 'completedAt', label: 'Completed', initialDirection: 'desc' },
+    ],
+    load: () => {
+      // A different order is a different first page.
+      this.pager.reset();
+      this.load();
+    },
+  });
+
   protected readonly pager = serverPager({
     total: this.totalItems,
     load: () => this.load(),
@@ -132,7 +162,14 @@ export class ContactImportComponent {
       this.state.set('loading');
     }
 
-    this.imports.getImports(this.pager.page(), this.pager.pageSize()).subscribe({
+    this.imports
+      .getImports(
+        this.pager.page(),
+        this.pager.pageSize(),
+        this.sorter.key(),
+        this.sorter.direction(),
+      )
+      .subscribe({
       next: (result) => {
         this.batches.set(result.items);
         this.totalItems.set(result.totalItems);

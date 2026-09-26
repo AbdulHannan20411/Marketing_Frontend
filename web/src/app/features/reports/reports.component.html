@@ -150,6 +150,7 @@
       [rows]="failures()"
       [state]="failureState()"
       [pager]="failurePager"
+      [sorter]="sorter"
       emptyTitle="No delivery failures"
       emptyDescription="Every message in this period reached its recipient."
       (retry)="load()"
@@ -158,6 +159,15 @@
         <div>
           <h2 class="text-sm font-semibold text-ink">Failure log</h2>
           <p class="mt-0.5 text-xs text-ink-muted">Individual undelivered messages</p>
+          <!-- The export route takes no sort, so the file is always newest
+               first. Said here rather than letting somebody sort the table,
+               export it, and find a different order in the file. -->
+          @if (sorter.key() !== null) {
+            <p class="mt-1 flex items-center gap-1 text-xs text-warning">
+              <app-icon name="info" [size]="12" class="shrink-0" />
+              The export is always newest first, whatever the table is sorted by.
+            </p>
+          }
         </div>
         <button appButton variant="outline" size="sm" (click)="exportCsv()">
           <app-icon name="download" [size]="14" />
@@ -166,6 +176,15 @@
       </div>
 
       <ng-template [appTableRow]="failures()" let-failure>
+        <td class="hidden px-4 py-3 md:table-cell">
+          <span
+            class="block max-w-[7rem] truncate font-mono text-xs text-ink-muted"
+            [title]="failure.id"
+          >
+            {{ failure.id }}
+          </span>
+        </td>
+
         <td class="px-4 py-3">
           <p class="text-sm font-medium text-ink">{{ failure.contactName }}</p>
           <p class="mt-0.5 text-xs text-ink-muted tabular-nums">{{ failure.phoneNumber }}</p>

@@ -23,6 +23,7 @@ import type {
   SubmitPaymentRequest,
   UpdatePaymentChannel,
 } from '@core/models/payment-request.model';
+import { sortParams, type SortDirection } from '@shared/ui/data-table/sort';
 import { ApiService } from './api.service';
 
 const CUSTOMER_BASE = '/billing/payment-requests';
@@ -146,6 +147,8 @@ export class PaymentRequestService {
     page: number,
     pageSize: number,
     search = '',
+    sortBy: string | null = null,
+    sortDirection: SortDirection = 'asc',
   ): Observable<PagedResult<PaymentRequest>> {
     return this.api
       .get<PagedResult<PaymentRequestDto>>(PLATFORM_BASE, {
@@ -153,6 +156,7 @@ export class PaymentRequestService {
         page,
         pageSize,
         search,
+        ...sortParams(sortBy, sortDirection),
       })
       .pipe(map(toPagedDomain));
   }

@@ -15,6 +15,8 @@ import { SubscriptionService } from '@core/services/subscription.service';
 import { ToastService } from '@core/services/toast.service';
 import { TimeAgoPipe } from '@shared/pipes/time-ago.pipe';
 import { BadgeComponent, type BadgeTone } from '@shared/ui/badge/badge.component';
+import { clientSorter, type SortColumn } from '@shared/ui/data-table/sort';
+import { SortHeaderComponent } from '@shared/ui/data-table/sort-header.component';
 import { ButtonDirective } from '@shared/ui/button/button.directive';
 import { CardComponent } from '@shared/ui/card/card.component';
 import { IconComponent } from '@shared/ui/icon/icon.component';
@@ -39,10 +41,43 @@ const PAYMENT_TONE: Readonly<Record<PaymentStatus, BadgeTone>> = {
   refunded: 'neutral',
 };
 
+/** What an invoice row can be ordered by. */
+const INVOICE_SORT_COLUMNS: readonly SortColumn<Invoice>[] = [
+  { key: 'number', label: 'Invoice number', kind: 'text', value: (invoice) => invoice.number },
+  { key: 'planName', label: 'Plan', kind: 'text', value: (invoice) => invoice.planName },
+  { key: 'status', label: 'Status', kind: 'text', value: (invoice) => invoice.status },
+  {
+    key: 'amount',
+    label: 'Amount',
+    kind: 'number',
+    // The total the row shows, tax included — not the pre-tax figure, which
+    // is never on screen.
+    value: (invoice) => invoice.amount + invoice.tax,
+    initialDirection: 'desc',
+  },
+  {
+    key: 'issuedAt',
+    label: 'Issued',
+    kind: 'date',
+    value: (invoice) => invoice.issuedAt,
+    initialDirection: 'desc',
+  },
+  {
+    key: 'paidAt',
+    label: 'Paid',
+    kind: 'date',
+    // Null for anything unpaid, which the comparator keeps at the end either
+    // way round rather than filling the first page with blanks.
+    value: (invoice) => invoice.paidAt,
+    initialDirection: 'desc',
+  },
+];
+
 @Component({
   selector: 'app-billing',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    SortHeaderComponent,
     DatePipe,
     DecimalPipe,
     RouterLink,
@@ -85,7 +120,22 @@ export class BillingComponent {
     { value: 'renewals', label: 'Renewals' },
   ];
 
-  protected readonly invoices = computed(() => this.history()?.invoices ?? []);
+  private readonly allInvoices = computed(() => this.history()?.invoices ?? []);
+
+  /**
+   * Ordering in the browser.
+   *
+   * `GET /billing/history` answers with the whole history in one payload and
+   * this table renders all of it, so sorting here orders everything rather
+   * than a page.
+   *
+   * `Invoice` has `issuedAt`, `dueAt` and `paidAt` — dates that describe the
+   * invoice itself. There is no created/modified audit pair on the contract,
+   * and inventing one would be fiction.
+   */
+  protected readonly invoiceSorter = clientSorter(this.allInvoices, INVOICE_SORT_COLUMNS);
+
+  protected readonly invoices = this.invoiceSorter.rows;
   protected readonly payments = computed(() => this.history()?.payments ?? []);
   protected readonly renewals = computed(() => this.history()?.renewals ?? []);
 

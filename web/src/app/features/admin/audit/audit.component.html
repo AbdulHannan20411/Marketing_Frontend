@@ -25,6 +25,9 @@
       {{ option.label }}
     </button>
   }
+
+  <!-- A timeline of rows, so there is no header row to click. -->
+  <app-sort-menu class="ml-auto" [sorter]="sorter" defaultLabel="Newest first" />
 </div>
 
 @if (state() === 'loading') {
@@ -85,6 +88,9 @@
               </span>
               <span class="font-mono tabular-nums">{{ entry.ipAddress }}</span>
               <span>{{ entry.occurredAt | timeAgo }}</span>
+              <!-- The entry's own id: what support quotes when asking about a
+                   specific line of this log. -->
+              <span class="font-mono" [title]="entry.id">{{ entry.id }}</span>
             </div>
           </div>
         </li>

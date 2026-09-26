@@ -143,16 +143,33 @@
               <table class="w-full min-w-[68rem] text-sm">
                 <thead>
                   <tr class="border-b border-line text-left text-xs tracking-wide text-ink-muted uppercase">
-                    <th scope="col" class="px-5 py-3 font-medium">File name</th>
-                    <th scope="col" class="px-3 py-3 font-medium">Status</th>
-                    <th scope="col" class="px-3 py-3 text-right font-medium">Total</th>
+                    <!-- The batch id: what support and the API both call this import. -->
+                    <th scope="col" class="px-5 py-3 font-medium" [attr.aria-sort]="sorter.ariaSort('id')">
+                      <app-sort-header [sorter]="sorter" sortKey="id" headerLabel="ID">ID</app-sort-header>
+                    </th>
+                    <th scope="col" class="px-3 py-3 font-medium" [attr.aria-sort]="sorter.ariaSort('fileName')">
+                      <app-sort-header [sorter]="sorter" sortKey="fileName" headerLabel="File name">File name</app-sort-header>
+                    </th>
+                    <th scope="col" class="px-3 py-3 font-medium" [attr.aria-sort]="sorter.ariaSort('status')">
+                      <app-sort-header [sorter]="sorter" sortKey="status" headerLabel="Status">Status</app-sort-header>
+                    </th>
+                    <th scope="col" class="px-3 py-3 text-right font-medium" [attr.aria-sort]="sorter.ariaSort('totalRows')">
+                      <app-sort-header [sorter]="sorter" sortKey="totalRows" headerLabel="Total rows">Total</app-sort-header>
+                    </th>
                     <th scope="col" class="px-3 py-3 text-right font-medium">Success</th>
                     <th scope="col" class="px-3 py-3 text-right font-medium">Updated</th>
                     <th scope="col" class="px-3 py-3 text-right font-medium">Duplicates</th>
-                    <th scope="col" class="px-3 py-3 text-right font-medium">Failed</th>
+                    <th scope="col" class="px-3 py-3 text-right font-medium" [attr.aria-sort]="sorter.ariaSort('failedCount')">
+                      <app-sort-header [sorter]="sorter" sortKey="failedCount" headerLabel="Failed">Failed</app-sort-header>
+                    </th>
                     <th scope="col" class="px-3 py-3 text-right font-medium">Skipped</th>
-                    <th scope="col" class="px-3 py-3 font-medium">Uploaded</th>
-                    <th scope="col" class="px-3 py-3 font-medium">Completed</th>
+                    <th scope="col" class="px-3 py-3 font-medium">Uploaded by</th>
+                    <th scope="col" class="px-3 py-3 font-medium" [attr.aria-sort]="sorter.ariaSort('uploadedAt')">
+                      <app-sort-header [sorter]="sorter" sortKey="uploadedAt" headerLabel="Uploaded">Uploaded</app-sort-header>
+                    </th>
+                    <th scope="col" class="px-3 py-3 font-medium" [attr.aria-sort]="sorter.ariaSort('completedAt')">
+                      <app-sort-header [sorter]="sorter" sortKey="completedAt" headerLabel="Completed">Completed</app-sort-header>
+                    </th>
                     <th scope="col" class="px-5 py-3 text-right font-medium">Actions</th>
                   </tr>
                 </thead>
@@ -163,13 +180,19 @@
                       (click)="openBatch(batch.batchId)"
                     >
                       <td class="px-5 py-3">
+                        <span
+                          class="block max-w-[7rem] truncate font-mono text-xs text-ink-muted"
+                          [title]="batch.batchId"
+                        >
+                          {{ batch.batchId }}
+                        </span>
+                      </td>
+                      <td class="px-3 py-3">
                         <div class="flex items-center gap-2.5">
                           <app-icon name="tableCells" [size]="17" class="shrink-0 text-ink-muted" />
                           <div class="min-w-0">
                             <p class="truncate font-medium text-ink">{{ batch.fileName }}</p>
-                            <p class="text-xs text-ink-muted">
-                              {{ describe(batch.fileSizeBytes) }} · {{ batch.uploadedBy }}
-                            </p>
+                            <p class="text-xs text-ink-muted">{{ describe(batch.fileSizeBytes) }}</p>
                           </div>
                         </div>
                       </td>
@@ -196,6 +219,9 @@
                       </td>
                       <td class="px-3 py-3 text-right tabular-nums text-ink-soft">
                         {{ batch.statistics.skipped | number }}
+                      </td>
+                      <td class="max-w-[10rem] truncate px-3 py-3 text-ink-soft">
+                        {{ batch.uploadedBy }}
                       </td>
                       <td class="px-3 py-3 whitespace-nowrap text-ink-muted">
                         {{ batch.uploadedAt | timeAgo }}

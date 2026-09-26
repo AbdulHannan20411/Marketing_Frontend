@@ -17,6 +17,7 @@ import type {
   WhatsAppConnection,
 } from '@core/models/whatsapp.model';
 import { DEFAULT_CONVERSATION_FILTERS } from '@core/models/whatsapp.model';
+import { sortParams } from '@shared/ui/data-table/sort';
 import { ApiService } from './api.service';
 import { WhatsAppContextService } from './whatsapp-context.service';
 
@@ -191,6 +192,7 @@ export class WhatsAppService {
           category: query.category,
           // Templates belong to a WABA, so a number with its own WABA has its own set.
           accountId: id,
+          ...sortParams(query.sortBy, query.sortDirection),
         })
         .pipe(map((response) => normaliseTemplatePage(response))),
     );

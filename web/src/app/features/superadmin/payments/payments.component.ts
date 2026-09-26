@@ -17,6 +17,8 @@ import { ButtonDirective } from '@shared/ui/button/button.directive';
 import { CardComponent } from '@shared/ui/card/card.component';
 import { IconComponent } from '@shared/ui/icon/icon.component';
 import { PageHeaderComponent } from '@shared/ui/page-header/page-header.component';
+import { serverSorter } from '@shared/ui/data-table/sort';
+import { SortHeaderComponent } from '@shared/ui/data-table/sort-header.component';
 import { serverPager } from '@shared/ui/pagination/pager';
 import { PaginatorComponent } from '@shared/ui/pagination/paginator.component';
 import { SkeletonComponent } from '@shared/ui/skeleton/skeleton.component';
@@ -51,6 +53,7 @@ const FILTERS: readonly { value: PaymentStatusFilter; label: string }[] = [
   selector: 'app-superadmin-payments',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    SortHeaderComponent,
     DecimalPipe,
     TimeAgoPipe,
     PageHeaderComponent,
@@ -111,13 +114,44 @@ export class SuperAdminPaymentsComponent {
     this.realtime.paymentRequests$.pipe(takeUntilDestroyed()).subscribe(() => this.load(true));
   }
 
+  /**
+   * Ordered by the API.
+   *
+   * Sorting this queue by status matters more than it looks: nearly every row
+   * is `pending`, and a sort with ties the database may break differently per
+   * page is how two reviewers end up handed the same payment. The API appends
+   * a key tiebreak for exactly that reason.
+   */
+  protected readonly sorter = serverSorter({
+    columns: [
+      { key: 'id', label: 'ID' },
+      { key: 'organisation', label: 'Organisation' },
+      { key: 'plan', label: 'Plan' },
+      { key: 'amount', label: 'Amount', initialDirection: 'desc' },
+      { key: 'status', label: 'Status' },
+      { key: 'submittedAt', label: 'Submitted', initialDirection: 'desc' },
+      { key: 'reviewedAt', label: 'Reviewed', initialDirection: 'desc' },
+    ],
+    load: () => {
+      this.pager.reset();
+      this.load();
+    },
+  });
+
   protected load(silent = false): void {
     if (!silent) {
       this.state.set('loading');
     }
 
     this.payments
-      .listForReview(this.filter(), this.pager.page(), this.pager.pageSize(), this.search().trim())
+      .listForReview(
+        this.filter(),
+        this.pager.page(),
+        this.pager.pageSize(),
+        this.search().trim(),
+        this.sorter.key(),
+        this.sorter.direction(),
+      )
       .subscribe({
         next: (result) => {
           this.requests.set(result.items);

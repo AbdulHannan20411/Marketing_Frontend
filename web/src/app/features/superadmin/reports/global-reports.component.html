@@ -72,17 +72,17 @@
           <table class="w-full border-collapse text-sm">
             <thead>
               <tr class="border-b border-line bg-surface-sunken/60">
-                <th scope="col" class="px-5 py-2.5 text-left text-xs font-semibold tracking-wide text-ink-muted uppercase">
-                  Admin
+                <th scope="col" class="px-5 py-2.5 text-left text-xs font-semibold tracking-wide text-ink-muted uppercase" [attr.aria-sort]="sorter.ariaSort('organisation')">
+                  <app-sort-header [sorter]="sorter" sortKey="organisation" headerLabel="Admin">Admin</app-sort-header>
                 </th>
-                <th scope="col" class="hidden px-5 py-2.5 text-left text-xs font-semibold tracking-wide text-ink-muted uppercase md:table-cell">
-                  Plan
+                <th scope="col" class="hidden px-5 py-2.5 text-left text-xs font-semibold tracking-wide text-ink-muted uppercase md:table-cell" [attr.aria-sort]="sorter.ariaSort('plan')">
+                  <app-sort-header [sorter]="sorter" sortKey="plan" headerLabel="Plan">Plan</app-sort-header>
                 </th>
-                <th scope="col" class="hidden px-5 py-2.5 text-right text-xs font-semibold tracking-wide text-ink-muted uppercase sm:table-cell">
-                  Employees
+                <th scope="col" class="hidden px-5 py-2.5 text-right text-xs font-semibold tracking-wide text-ink-muted uppercase sm:table-cell" [attr.aria-sort]="sorter.ariaSort('employeeCount')">
+                  <app-sort-header [sorter]="sorter" sortKey="employeeCount" headerLabel="Employees">Employees</app-sort-header>
                 </th>
-                <th scope="col" class="px-5 py-2.5 text-right text-xs font-semibold tracking-wide text-ink-muted uppercase">
-                  Messages
+                <th scope="col" class="px-5 py-2.5 text-right text-xs font-semibold tracking-wide text-ink-muted uppercase" [attr.aria-sort]="sorter.ariaSort('messages')">
+                  <app-sort-header [sorter]="sorter" sortKey="messages" headerLabel="Messages">Messages</app-sort-header>
                 </th>
                 <th scope="col" class="px-5 py-2.5 text-right text-xs font-semibold tracking-wide text-ink-muted uppercase">
                   Share
@@ -98,6 +98,9 @@
                   <td class="px-5 py-3.5">
                     <p class="text-sm font-medium text-ink">{{ row.admin.organisation }}</p>
                     <p class="mt-0.5 text-xs text-ink-muted">{{ row.admin.name }}</p>
+                    <p class="mt-0.5 font-mono text-[11px] text-ink-muted" [title]="row.admin.id">
+                      {{ row.admin.id }}
+                    </p>
                   </td>
                   <td class="hidden px-5 py-3.5 md:table-cell">
                     <app-badge tone="neutral">{{ row.admin.plan }}</app-badge>

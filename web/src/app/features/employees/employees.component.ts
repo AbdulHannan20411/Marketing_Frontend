@@ -2,6 +2,8 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import type { Observable } from 'rxjs';
 
 import type { ApiError, LoadState } from '@core/models/api.model';
+import { Router } from '@angular/router';
+
 import { AuthService } from '@core/auth/auth.service';
 import { USER_ROLE_LABEL, type UserRole } from '@core/models/auth.model';
 import type { Employee, EmployeeStatus, PermissionSet } from '@core/models/employee.model';
@@ -21,6 +23,9 @@ import { CardComponent } from '@shared/ui/card/card.component';
 import { HistoryButtonComponent } from '@shared/audit/history-button.component';
 import { IconComponent } from '@shared/ui/icon/icon.component';
 import { PageHeaderComponent } from '@shared/ui/page-header/page-header.component';
+import { clientSorter, type SortColumn } from '@shared/ui/data-table/sort';
+import { SearchBoxComponent } from '@shared/ui/search-box/search-box.component';
+import { SortMenuComponent } from '@shared/ui/data-table/sort-menu.component';
 import { clientPager } from '@shared/ui/pagination/pager';
 import { PaginatorComponent } from '@shared/ui/pagination/paginator.component';
 import { SkeletonComponent } from '@shared/ui/skeleton/skeleton.component';
@@ -54,10 +59,35 @@ const ROLE_TONE: Readonly<Record<UserRole, BadgeTone>> = {
  */
 const PERMISSION_FLOOR: readonly Permission[] = ['dashboard.view'];
 
+/** What an employee row can be ordered by. */
+const EMPLOYEE_SORT_COLUMNS: readonly SortColumn<Employee>[] = [
+  { key: 'id', label: 'ID', kind: 'text', value: (employee) => employee.id },
+  { key: 'name', label: 'Name', kind: 'text', value: (employee) => employee.name },
+  { key: 'email', label: 'Email', kind: 'text', value: (employee) => employee.email },
+  { key: 'role', label: 'Role', kind: 'text', value: (employee) => employee.role },
+  { key: 'status', label: 'Status', kind: 'text', value: (employee) => employee.status },
+  {
+    key: 'invitedAt',
+    label: 'Invited',
+    kind: 'date',
+    value: (employee) => employee.invitedAt,
+    initialDirection: 'desc',
+  },
+  {
+    key: 'lastActiveAt',
+    label: 'Last active',
+    kind: 'date',
+    value: (employee) => employee.lastActiveAt,
+    initialDirection: 'desc',
+  },
+];
+
 @Component({
   selector: 'app-employees',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    SearchBoxComponent,
+    SortMenuComponent,
     HistoryButtonComponent,
     PaginatorComponent,
     EmployeeWhatsAppAccessComponent,
@@ -82,12 +112,37 @@ export class EmployeesComponent {
   private readonly employeesService = inject(EmployeesService);
   private readonly entitlements = inject(EntitlementService);
   private readonly auth = inject(AuthService);
+  private readonly router = inject(Router);
   private readonly toast = inject(ToastService);
 
   protected readonly state = signal<LoadState>('loading');
   protected readonly employees = signal<readonly Employee[]>([]);
   /** The API returns the whole team; the table renders one page of it. */
-  protected readonly pager = clientPager(this.employees);
+  /**
+   * Ordering in the browser: `GET /employees` answers with the whole team.
+   *
+   * `Employee` has `invitedAt` — when the account was created — and
+   * `lastActiveAt`. There is no createdBy/updatedAt pair on the contract, so
+   * those are the two time columns offered.
+   */
+  protected readonly search = signal('');
+
+  /** Matched on name, email and job title — the three things on the row. */
+  private readonly matching = computed(() => {
+    const term = this.search().trim().toLowerCase();
+    return term === ''
+      ? this.employees()
+      : this.employees().filter(
+          (employee) =>
+            employee.name.toLowerCase().includes(term) ||
+            employee.email.toLowerCase().includes(term) ||
+            employee.jobTitle.toLowerCase().includes(term),
+        );
+  });
+
+  protected readonly sorter = clientSorter(this.matching, EMPLOYEE_SORT_COLUMNS);
+
+  protected readonly pager = clientPager(this.sorter.rows);
   protected readonly permissionSets = signal<readonly PermissionSet[]>([]);
   protected readonly tab = signal<EmployeeTab>('team');
   protected readonly selectedId = signal<string | null>(null);
@@ -204,6 +259,37 @@ export class EmployeesComponent {
     this.employeesService.listPermissionSets().subscribe({
       next: (sets) => this.permissionSets.set(sets),
     });
+  }
+
+  /**
+   * Who can be previewed.
+   *
+   * Not yourself — that is the view you are already in — not a suspended
+   * account, and not while a preview is already running, since the permission
+   * overlay would then be previewing a preview.
+   */
+  protected canViewAs(employee: Employee): boolean {
+    return (
+      !this.isSelf(employee) &&
+      employee.status === 'active' &&
+      this.auth.viewingAs() === null &&
+      this.auth.hasPermission('settings.employees')
+    );
+  }
+
+  protected viewAs(employee: Employee): void {
+    this.auth.viewAs({
+      id: employee.id,
+      name: employee.name,
+      initials: employee.initials,
+      role: employee.role,
+      jobTitle: employee.jobTitle,
+      permissions: employee.permissions,
+    });
+
+    // Their landing page, not the one you happen to be on: Employees is the
+    // first thing most teammates cannot open.
+    void this.router.navigate(['/dashboard']);
   }
 
   protected select(employee: Employee): void {

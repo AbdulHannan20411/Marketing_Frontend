@@ -240,6 +240,9 @@ export interface TemplateQuery {
   readonly search: string;
   readonly status: TemplateStatusFilter;
   readonly category: TemplateCategoryFilter;
+  /** A key from the endpoint's allow-list; omitted for its default order. */
+  readonly sortBy?: string | null;
+  readonly sortDirection?: 'asc' | 'desc';
 }
 
 /**

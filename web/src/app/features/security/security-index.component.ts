@@ -10,6 +10,7 @@ import { SessionSecurityService } from '@core/services/session-security.service'
 import { ButtonDirective } from '@shared/ui/button/button.directive';
 import { CardComponent } from '@shared/ui/card/card.component';
 import { IconComponent } from '@shared/ui/icon/icon.component';
+import { SearchBoxComponent } from '@shared/ui/search-box/search-box.component';
 import { PageHeaderComponent } from '@shared/ui/page-header/page-header.component';
 import { clientPager } from '@shared/ui/pagination/pager';
 import { PaginatorComponent } from '@shared/ui/pagination/paginator.component';
@@ -62,6 +63,7 @@ function summarise(overview: SecurityOverview): TenantSummary {
   selector: 'app-security-index',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    SearchBoxComponent,
     RouterLink,
     PageHeaderComponent,
     CardComponent,
@@ -79,6 +81,12 @@ function summarise(overview: SecurityOverview): TenantSummary {
         description="Sessions, devices and shared-login risk in every workspace. Open one to see each person and the reasons behind their risk."
         [breadcrumbs]="breadcrumbs"
       >
+        <app-search-box
+          class="w-full sm:w-64"
+          [(value)]="search"
+          label="Search workspaces"
+          placeholder="Search workspace, admin or email"
+        />
         <button appButton variant="outline" size="md" (click)="load()">
           <app-icon name="refresh" [size]="16" />
           Refresh
@@ -193,6 +201,17 @@ function summarise(overview: SecurityOverview): TenantSummary {
                             Open
                             <app-icon name="chevronRight" [size]="14" />
                           </a>
+                        } @else {
+                          <!-- The security screens are addressed by workspace id,
+                               and this account's row arrived without one. An
+                               empty cell reads as a missing button; this says
+                               which side the gap is on. -->
+                          <span
+                            class="text-xs text-ink-muted"
+                            title="The admin list did not include this account's workspace id, so its security screen cannot be addressed."
+                          >
+                            No workspace id
+                          </span>
                         }
                       </td>
                     </tr>
@@ -201,6 +220,16 @@ function summarise(overview: SecurityOverview): TenantSummary {
               </table>
             </div>
           </app-card>
+
+          @if (rows().length === 0) {
+            <app-card>
+              <app-empty-state
+                icon="search"
+                title="No workspace matches that"
+                description="Try part of the organisation name, the admin's name, or their email."
+              />
+            </app-card>
+          }
 
           <app-paginator [pager]="pager" />
         }
@@ -222,10 +251,25 @@ export class SecurityIndexComponent {
   private readonly admins = signal<readonly AdminAccount[]>([]);
   private readonly summaries = signal<ReadonlyMap<string, TenantSummary>>(new Map());
 
+  protected readonly search = signal('');
+
+  /** Matched on the workspace, the admin's name and their email. */
+  private readonly matching = computed(() => {
+    const term = this.search().trim().toLowerCase();
+    return term === ''
+      ? this.admins()
+      : this.admins().filter(
+          (admin) =>
+            admin.organisation.toLowerCase().includes(term) ||
+            admin.name.toLowerCase().includes(term) ||
+            admin.email.toLowerCase().includes(term),
+        );
+  });
+
   /** In the API's order, so a row does not jump pages as its numbers arrive. */
   private readonly allRows = computed<readonly Row[]>(() => {
     const summaries = this.summaries();
-    return this.admins().map((admin) => ({
+    return this.matching().map((admin) => ({
       admin,
       summary: admin.tenantId ? (summaries.get(admin.tenantId) ?? null) : null,
     }));

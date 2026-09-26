@@ -12,6 +12,7 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { toSignal } from '@angular/core/rxjs-interop';
 
 import { AuthService } from '@core/auth/auth.service';
+import { AdminScopeService } from '@core/scope/admin-scope.service';
 import {
   NOTIFICATION_CATEGORY_COPY,
   SWITCHABLE_CATEGORIES,
@@ -103,6 +104,7 @@ const THEME_OPTIONS: readonly ThemeOption[] = [
 export class SettingsComponent {
   private readonly theme = inject(ThemeService);
   private readonly auth = inject(AuthService);
+  private readonly scope = inject(AdminScopeService);
   private readonly formBuilder = inject(FormBuilder);
   private readonly toast = inject(ToastService);
   private readonly onboarding = inject(OnboardingService);
@@ -174,9 +176,21 @@ export class SettingsComponent {
     });
   }
 
-  /** Team sessions are an admin's view, and only in a workspace. */
-  /** The workspace record is behind the same permission as its profile. */
-  protected readonly canSeeWorkspaceHistory = computed(() => this.auth.hasPermission('settings.company'));
+  /**
+   * The workspace record is behind the same permission as its profile — and
+   * there has to be a workspace.
+   *
+   * Platform staff have none of their own: `GET /audit/Workspace/current`
+   * resolves `current` from the caller's tenant, so an unscoped Super Admin
+   * got a 404 and the panel said "history is not available yet" — which reads
+   * as a missing feature rather than "you are not in a workspace". Scoped to
+   * an admin through the scope bar, the tenant exists and the button returns.
+   */
+  protected readonly canSeeWorkspaceHistory = computed(
+    () =>
+      this.auth.hasPermission('settings.company') &&
+      (!this.auth.isSuperAdmin() || this.scope.isScoped()),
+  );
 
   protected readonly canSeeTeamSecurity = computed(
     () => !this.auth.isSuperAdmin() && this.auth.hasPermission('settings.employees'),

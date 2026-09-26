@@ -10,6 +10,7 @@ import { ButtonDirective } from '@shared/ui/button/button.directive';
 import { DataTableComponent, type TableColumn } from '@shared/ui/data-table/data-table.component';
 import { TableRowDirective } from '@shared/ui/data-table/table-row.directive';
 import { IconComponent } from '@shared/ui/icon/icon.component';
+import { serverSorter } from '@shared/ui/data-table/sort';
 import { serverPager } from '@shared/ui/pagination/pager';
 import { PageHeaderComponent } from '@shared/ui/page-header/page-header.component';
 import { StatCardComponent } from '@shared/ui/stat-card/stat-card.component';
@@ -61,14 +62,45 @@ export class TenantsComponent {
   protected readonly planTone = PLAN_TONE;
 
   protected readonly columns: readonly TableColumn[] = [
-    { key: 'name', header: 'Workspace' },
-    { key: 'plan', header: 'Plan', hideOnMobile: true },
-    { key: 'status', header: 'Status' },
-    { key: 'seats', header: 'Seats', align: 'right', hideOnMobile: true },
-    { key: 'usage', header: 'Quota used', align: 'right' },
-    { key: 'created', header: 'Created', align: 'right', hideOnMobile: true },
+    { key: 'id', header: 'ID', widthClass: 'w-28', sortKey: 'id' },
+    { key: 'name', header: 'Workspace', sortKey: 'name' },
+    { key: 'plan', header: 'Plan', hideOnMobile: true, sortKey: 'plan' },
+    { key: 'status', header: 'Status', sortKey: 'status' },
+    { key: 'seats', header: 'Seats', align: 'right', hideOnMobile: true, sortKey: 'seats' },
+    // Quota used is a ratio the API does not sort on; messages sent is the
+    // figure behind it and is in the allow-list.
+    {
+      key: 'usage',
+      header: 'Quota used',
+      align: 'right',
+      sortKey: 'messagesThisMonth',
+    },
+    {
+      key: 'created',
+      header: 'Created',
+      align: 'right',
+      hideOnMobile: true,
+      sortKey: 'createdAt',
+    },
     { key: 'security', header: 'Security', align: 'right' },
   ];
+
+  /** Ordered by the API — this list is paged there. */
+  protected readonly sorter = serverSorter({
+    columns: [
+      { key: 'id', label: 'ID' },
+      { key: 'name', label: 'Workspace' },
+      { key: 'plan', label: 'Plan' },
+      { key: 'status', label: 'Status' },
+      { key: 'seats', label: 'Seats', initialDirection: 'desc' },
+      { key: 'messagesThisMonth', label: 'Messages', initialDirection: 'desc' },
+      { key: 'createdAt', label: 'Created', initialDirection: 'desc' },
+    ],
+    load: () => {
+      this.pager.reset();
+      this.load();
+    },
+  });
 
   protected readonly totals = computed(() => {
     const all = this.tenants();
@@ -86,7 +118,14 @@ export class TenantsComponent {
 
   protected load(): void {
     this.state.set('loading');
-    this.platform.listTenants(this.pager.page(), this.pager.pageSize()).subscribe({
+    this.platform
+      .listTenants(
+        this.pager.page(),
+        this.pager.pageSize(),
+        this.sorter.key(),
+        this.sorter.direction(),
+      )
+      .subscribe({
       next: (result) => {
         this.tenants.set(result.items);
         this.totalItems.set(result.totalItems);

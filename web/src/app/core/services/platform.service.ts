@@ -10,6 +10,7 @@ import type {
   TenantPlan,
   TenantStatus,
 } from '@core/models/platform.model';
+import { sortParams, type SortDirection } from '@shared/ui/data-table/sort';
 import { ApiService } from './api.service';
 
 /**
@@ -63,12 +64,30 @@ export class PlatformService {
     return this.api.delete(`/superadmin/admins/${id}`);
   }
 
-  listTenants(page: number, pageSize: number): Observable<PagedResult<Tenant>> {
-    return this.api.get<PagedResult<Tenant>>('/admin/tenants', { page, pageSize });
+  listTenants(
+    page: number,
+    pageSize: number,
+    sortBy: string | null = null,
+    sortDirection: SortDirection = 'asc',
+  ): Observable<PagedResult<Tenant>> {
+    return this.api.get<PagedResult<Tenant>>('/admin/tenants', {
+      page,
+      pageSize,
+      ...sortParams(sortBy, sortDirection),
+    });
   }
 
-  listAuditLogs(page: number, pageSize: number): Observable<PagedResult<AuditLogEntry>> {
-    return this.api.get<PagedResult<AuditLogEntry>>('/admin/audit', { page, pageSize });
+  listAuditLogs(
+    page: number,
+    pageSize: number,
+    sortBy: string | null = null,
+    sortDirection: SortDirection = 'asc',
+  ): Observable<PagedResult<AuditLogEntry>> {
+    return this.api.get<PagedResult<AuditLogEntry>>('/admin/audit', {
+      page,
+      pageSize,
+      ...sortParams(sortBy, sortDirection),
+    });
   }
 
   getSystemSnapshot(): Observable<SystemSnapshot> {

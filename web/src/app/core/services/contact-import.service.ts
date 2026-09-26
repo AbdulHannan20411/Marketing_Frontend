@@ -91,9 +91,28 @@ export class ContactImportService {
       .pipe(map(toImportUploadAccepted));
   }
 
-  getImports(page: number, pageSize: number): Observable<PagedResult<ImportBatchSummary>> {
+  /**
+   * A page of import history.
+   *
+   * `sortBy` is one of the endpoint's own allow-list — `fileName`,
+   * `fileSizeBytes`, `status`, `totalRows`, `failedCount`, `uploadedAt`,
+   * `completedAt` — and the direction is spelled out in full because the
+   * server binds a .NET enum from the query string by member name.
+   */
+  getImports(
+    page: number,
+    pageSize: number,
+    sortBy: string | null = null,
+    sortDirection: 'asc' | 'desc' = 'asc',
+  ): Observable<PagedResult<ImportBatchSummary>> {
+    const params: Record<string, string | number> = { page, pageSize };
+    if (sortBy) {
+      params['sortBy'] = sortBy;
+      params['sortDirection'] = sortDirection === 'desc' ? 'descending' : 'ascending';
+    }
+
     return this.api
-      .get<PagedResult<ImportListItemDto>>(BASE, { page, pageSize })
+      .get<PagedResult<ImportListItemDto>>(BASE, params)
       .pipe(map((result) => toPagedDomain(result, toImportBatchSummary)));
   }
 

@@ -29,6 +29,10 @@ import { BadgeComponent } from '@shared/ui/badge/badge.component';
 import { ButtonDirective } from '@shared/ui/button/button.directive';
 import { CardComponent } from '@shared/ui/card/card.component';
 import { IconComponent } from '@shared/ui/icon/icon.component';
+import {
+  ContactListComponent,
+  type ContactListSource,
+} from '@shared/contacts/contact-list.component';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
 import { PageHeaderComponent } from '@shared/ui/page-header/page-header.component';
 import { RecurrenceEditorComponent } from '@shared/ui/recurrence-editor/recurrence-editor.component';
@@ -76,6 +80,7 @@ const LOOKUP_PAGE_SIZE = 500;
     ButtonDirective,
     IconComponent,
     ModalComponent,
+    ContactListComponent,
     RecurrenceEditorComponent,
     SkeletonComponent,
     EmptyStateComponent,
@@ -147,6 +152,31 @@ export class CampaignFormComponent {
   protected readonly selectedTemplateId = signal('');
   protected readonly selectedGroupIds = signal<readonly string[]>([]);
   protected readonly recurrence = signal<RecurrenceRule>(defaultRecurrence());
+
+  /** Whether the recipient list is on screen. */
+  protected readonly showingRecipients = signal(false);
+
+  /**
+   * Reads the audience, deduplicated across every chosen group.
+   *
+   * A `computed`, so the identity only changes when the selection does —
+   * `app-contact-list` re-reads when its source changes, and a new closure on
+   * every change detection would restart the request forever.
+   */
+  protected readonly recipientSource = computed<ContactListSource>(() => {
+    const groupIds = this.selectedGroupIds();
+
+    return (page, pageSize, search) =>
+      this.campaigns.previewAudienceContacts(groupIds, page, pageSize, search);
+  });
+
+  protected openRecipients(): void {
+    this.showingRecipients.set(true);
+  }
+
+  protected closeRecipients(): void {
+    this.showingRecipients.set(false);
+  }
 
   protected readonly form = this.formBuilder.nonNullable.group({
     name: ['', [Validators.required, Validators.maxLength(120)]],
@@ -397,9 +427,14 @@ export class CampaignFormComponent {
   /**
    * Asks the API for the true recipient count.
    *
-   * Falls back silently to the summed estimate when the endpoint is unavailable
-   * - the wizard keeps working and simply keeps its caveat, rather than showing
-   * an error for a number that is only ever advisory.
+   * Read from the **recipient list** rather than the separate count endpoint:
+   * both are built from the same audience subquery server-side, so asking for
+   * one row gives the same total and guarantees the figure on this step and
+   * the list behind "See who is included" can never disagree.
+   *
+   * Falls back silently to the summed estimate when the endpoint is
+   * unavailable — the wizard keeps working and keeps its caveat, rather than
+   * showing an error for a number that is only ever advisory.
    */
   private refreshRecipientCount(groupIds: readonly string[]): void {
     const token = ++this.previewToken;
@@ -411,12 +446,12 @@ export class CampaignFormComponent {
     }
 
     this.countingRecipients.set(true);
-    this.campaigns.previewAudience(groupIds).subscribe({
+    this.campaigns.previewAudienceContacts(groupIds, 1, 1).subscribe({
       next: (preview) => {
         if (token !== this.previewToken) {
           return;
         }
-        this.exactRecipients.set(preview.recipientCount);
+        this.exactRecipients.set(preview.totalItems);
         this.countingRecipients.set(false);
       },
       error: () => {

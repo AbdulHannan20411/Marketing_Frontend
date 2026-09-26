@@ -1,0 +1,88 @@
+<!-- One height for every state, so the dialog around this does not resize as
+     it loads, or between a page of eight and a page of two. -->
+<div class="flex min-h-[22rem] flex-col">
+  @if (searchable()) {
+    <!-- For a list nobody scrolls: the real question is "is this person
+         included?", which is one filtered read rather than 155 pages. -->
+    <div class="relative mb-3">
+      <label class="sr-only" for="contact-list-search">{{ searchPlaceholder() }}</label>
+      <app-icon
+        name="search"
+        [size]="15"
+        class="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-ink-muted"
+      />
+      <input
+        id="contact-list-search"
+        type="search"
+        [placeholder]="searchPlaceholder()"
+        (input)="onSearch($any($event.target).value)"
+        class="h-9 w-full rounded-lg border-0 bg-surface-sunken py-2 pr-3 pl-9 text-sm text-ink ring-1 ring-line ring-inset placeholder:text-ink-muted focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
+      />
+    </div>
+  }
+
+  @switch (state()) {
+    @case ('loading') {
+      <ul class="divide-y divide-line">
+        @for (row of skeletons(); track row) {
+          <li class="flex items-center gap-3 py-2.5">
+            <div class="h-9 w-9 shrink-0 animate-shimmer rounded-full bg-gray-200/70"></div>
+            <div class="min-w-0 flex-1">
+              <app-skeleton width="45%" height="0.875rem" />
+              <div class="mt-1.5"><app-skeleton width="30%" height="0.75rem" /></div>
+            </div>
+          </li>
+        }
+      </ul>
+    }
+
+    @case ('error') {
+      <app-error-state
+        title="Could not load these contacts"
+        [description]="errorDetail() ?? 'Please try again in a moment.'"
+        (retry)="retry()"
+      />
+    }
+
+    @case ('empty') {
+      <app-empty-state
+        icon="users"
+        [title]="filtered() ? 'Nobody matches that' : 'Nobody to show'"
+        [description]="filtered() ? 'No one in this list matches that search.' : emptyMessage()"
+      />
+    }
+
+    @default {
+      <ul class="divide-y divide-line">
+        @for (contact of rows(); track contact.id) {
+          <li class="flex items-center gap-3 py-2.5">
+            <app-avatar
+              [name]="contact.fullName"
+              [initials]="contact.initials"
+              size="sm"
+              class="shrink-0"
+            />
+
+            <div class="min-w-0 flex-1">
+              <p class="truncate text-sm font-medium text-ink">{{ contact.fullName }}</p>
+              <p class="mt-0.5 flex items-center gap-1.5 truncate text-xs text-ink-muted">
+                <app-icon name="phone" [size]="12" class="shrink-0" />
+                {{ contact.phoneNumber }}
+                @if (contact.email) {
+                  <span class="hidden truncate sm:inline">· {{ contact.email }}</span>
+                }
+              </p>
+            </div>
+
+            <app-badge class="shrink-0" [tone]="statusTone[contact.status]">
+              {{ contact.status }}
+            </app-badge>
+          </li>
+        }
+      </ul>
+
+      <!-- Pushed to the bottom, so it sits in the same place on a short page. -->
+      <app-paginator class="mt-auto pt-4" [pager]="pager" [showPageSize]="false" />
+    }
+  }
+</div>

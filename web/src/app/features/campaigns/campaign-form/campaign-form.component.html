@@ -355,6 +355,19 @@
                     {{ recipientCount().toLocaleString() }}
                   }
                 </p>
+
+                <!-- The count is a promise about who gets messaged; this is how
+                     it gets checked without leaving the wizard. -->
+                @if (!countingRecipients() && recipientCount() > 0) {
+                  <button
+                    type="button"
+                    class="mt-1.5 inline-flex items-center gap-1.5 text-xs font-medium text-brand-700 underline-offset-2 transition-colors hover:text-brand-800 hover:underline"
+                    (click)="openRecipients()"
+                  >
+                    <app-icon name="eye" [size]="13" />
+                    See who is included
+                  </button>
+                }
                 @if (recipientCountIsExact()) {
                   <p class="mt-1 text-xs text-ink-muted">
                     Deduplicated across groups, with opt-outs removed.
@@ -513,6 +526,33 @@
 </div>
 
 <!-- Activation reaches real customers and costs money, so it is confirmed. -->
+@if (showingRecipients()) {
+  <app-modal
+    title="Who is included"
+    [subtitle]="
+      recipientCount().toLocaleString() +
+      (recipientCount() === 1 ? ' recipient' : ' recipients') +
+      ' · deduplicated across groups, opt-outs removed'
+    "
+    size="lg"
+    (closed)="closeRecipients()"
+  >
+    <!-- One list for every chosen group, deduplicated by the API. Searching
+         narrows the audience, so a match is always somebody who would be
+         messaged. -->
+    <app-contact-list
+      [source]="recipientSource()"
+      [searchable]="true"
+      searchPlaceholder="Is somebody included? Search by name or number"
+      emptyMessage="Nobody in these groups can be messaged — every contact in them has opted out or is blocked."
+    />
+
+    <ng-container modalFooter>
+      <button appButton variant="ghost" size="md" (click)="closeRecipients()">Close</button>
+    </ng-container>
+  </app-modal>
+}
+
 @if (confirmingActivate()) {
   <app-modal
     title="Schedule this campaign?"

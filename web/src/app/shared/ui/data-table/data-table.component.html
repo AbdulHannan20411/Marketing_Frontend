@@ -39,8 +39,16 @@
                 [class]="alignClass(column) + ' ' + (column.widthClass ?? '')"
                 [class.hidden]="column.hideOnMobile"
                 [class.md:table-cell]="column.hideOnMobile"
+                [attr.aria-sort]="ariaSort(column)"
               >
-                {{ column.header }}
+                <!-- `aria-sort` belongs on this cell, the control inside it. -->
+                <app-sort-header
+                  [sorter]="sorter()"
+                  [sortKey]="column.sortKey ?? ''"
+                  [headerLabel]="column.header"
+                >
+                  {{ column.header }}
+                </app-sort-header>
               </th>
             }
           </tr>

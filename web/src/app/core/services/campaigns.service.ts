@@ -4,12 +4,33 @@ import { map, type Observable } from 'rxjs';
 import type { PagedResult } from '@core/models/api.model';
 import type { Campaign, CampaignRun } from '@core/models/campaign.model';
 import type { RecurrenceRule } from '@core/models/recurrence.model';
+import {
+  rowComparator,
+  sortParams,
+  type SortColumn,
+  type SortDirection,
+} from '@shared/ui/data-table/sort';
 import { ApiService } from './api.service';
 
 /** Body of `POST /campaigns/{id}/schedule`. */
 export interface SchedulePayload {
   readonly recurrence?: RecurrenceRule | null;
   readonly scheduledAt?: string | null;
+}
+
+/**
+ * A recipient, in the slim shape the audience endpoint returns.
+ *
+ * No email and no tag or group lists: those would be two more joins per page
+ * for fields this dialog never renders. `status` is always `subscribed`,
+ * because the audience excludes everyone else.
+ */
+export interface AudienceContact {
+  readonly id: string;
+  readonly fullName: string;
+  readonly initials: string;
+  readonly phoneNumber: string;
+  readonly status: 'subscribed';
 }
 
 export interface AudiencePreview {
@@ -53,6 +74,9 @@ export interface CampaignQuery {
   /** Matches the campaign name and the template name. */
   readonly search: string;
   readonly status: CampaignStatusFilter;
+  /** A key from {@link CAMPAIGN_SORT_COLUMNS}; omitted for the natural order. */
+  readonly sortBy?: string | null;
+  readonly sortDirection?: 'asc' | 'desc';
 }
 
 /**
@@ -88,6 +112,71 @@ export interface CampaignPage extends PagedResult<Campaign> {
   readonly summary?: CampaignSummary;
 }
 
+/**
+ * Columns the campaign list can be ordered by.
+ *
+ * Ordered **here**, not in the component: `GET /campaigns` answers with the
+ * whole collection, and this service is what filters and slices it. Sorting
+ * after the slice would only reorder the page on screen.
+ */
+export const CAMPAIGN_SORT_COLUMNS: readonly SortColumn<Campaign>[] = [
+  { key: 'id', label: 'ID', kind: 'text', value: (campaign) => campaign.id },
+  { key: 'name', label: 'Campaign', kind: 'text', value: (campaign) => campaign.name },
+  { key: 'status', label: 'Status', kind: 'text', value: (campaign) => campaign.status },
+  {
+    key: 'audienceSize',
+    label: 'Audience',
+    kind: 'number',
+    value: (campaign) => campaign.metrics.audienceSize,
+    initialDirection: 'desc',
+  },
+  {
+    key: 'delivered',
+    label: 'Delivered',
+    kind: 'number',
+    value: (campaign) => campaign.metrics.delivered,
+    initialDirection: 'desc',
+  },
+  {
+    key: 'readRate',
+    label: 'Read rate',
+    kind: 'number',
+    // The rate, not the count: sorting by "read" when the column shows a
+    // percentage would order the rows by something the screen never displays.
+    value: (campaign) =>
+      campaign.metrics.delivered === 0
+        ? null
+        : campaign.metrics.read / campaign.metrics.delivered,
+    initialDirection: 'desc',
+  },
+  {
+    key: 'when',
+    label: 'When',
+    kind: 'date',
+    // The same value the When column renders — completed, else scheduled,
+    // else created — so the order always matches what is on screen.
+    value: (campaign) => campaign.completedAt ?? campaign.scheduledAt ?? campaign.createdAt,
+    initialDirection: 'desc',
+  },
+  {
+    key: 'createdAt',
+    label: 'Created',
+    kind: 'date',
+    value: (campaign) => campaign.createdAt,
+    initialDirection: 'desc',
+  },
+  { key: 'createdBy', label: 'Created by', kind: 'text', value: (campaign) => campaign.createdBy },
+  {
+    key: 'updatedAt',
+    label: 'Modified',
+    kind: 'date',
+    value: (campaign) => campaign.updatedAt ?? null,
+    initialDirection: 'desc',
+  },
+];
+
+const CAMPAIGN_SORT_BY_KEY = new Map(CAMPAIGN_SORT_COLUMNS.map((column) => [column.key, column]));
+
 function matchesCampaign(campaign: Campaign, query: CampaignQuery): boolean {
   const term = query.search.trim().toLowerCase();
   const matchesSearch =
@@ -122,7 +211,16 @@ function normaliseCampaignPage(
   }
 
   const all = response as readonly Campaign[];
-  const matched = all.filter((campaign) => matchesCampaign(campaign, query));
+  const filtered = all.filter((campaign) => matchesCampaign(campaign, query));
+  const column = query.sortBy === undefined || query.sortBy === null
+    ? undefined
+    : CAMPAIGN_SORT_BY_KEY.get(query.sortBy);
+  // Sorted before the slice, so page two is the second page of the ordering
+  // the user asked for rather than the second page re-ordered.
+  const matched =
+    column === undefined
+      ? filtered
+      : [...filtered].sort(rowComparator(column, query.sortDirection ?? 'asc'));
   const start = (query.page - 1) * query.pageSize;
 
   return {
@@ -213,8 +311,18 @@ export class CampaignsService {
    * A one-off has exactly one; a recurring campaign has one per occurrence,
    * including the ones that were skipped.
    */
-  listRuns(id: string, page = 1, pageSize = 20): Observable<PagedResult<CampaignRun>> {
-    return this.api.get<PagedResult<CampaignRun>>(`/campaigns/${id}/runs`, { page, pageSize });
+  listRuns(
+    id: string,
+    page = 1,
+    pageSize = 20,
+    sortBy: string | null = null,
+    sortDirection: SortDirection = 'asc',
+  ): Observable<PagedResult<CampaignRun>> {
+    return this.api.get<PagedResult<CampaignRun>>(`/campaigns/${id}/runs`, {
+      page,
+      pageSize,
+      ...sortParams(sortBy, sortDirection),
+    });
   }
 
   /**
@@ -241,6 +349,38 @@ export class CampaignsService {
    *
    * The wizard falls back to summing `contactCount` when this is unavailable,
    * and labels that sum an estimate, because overlapping groups double-count.
+   */
+  /**
+   * One page of the campaign's recipients, deduplicated across the groups.
+   *
+   * `totalItems` **is** the recipient count: the API builds this page from the
+   * same audience subquery the count uses, so the two cannot disagree. That is
+   * why the wizard reads its figure from here rather than calling
+   * `preview-audience` as well.
+   *
+   * `search` narrows the audience, not the address book — it is applied after
+   * the audience is resolved, so a match is always someone who would be
+   * messaged.
+   */
+  previewAudienceContacts(
+    groupIds: readonly string[],
+    page: number,
+    pageSize: number,
+    search = '',
+  ): Observable<PagedResult<AudienceContact>> {
+    return this.api.post<
+      PagedResult<AudienceContact>,
+      { readonly groupIds: readonly string[]; readonly search: string }
+    >('/campaigns/preview-audience/contacts', { groupIds, search }, { page, pageSize });
+  }
+
+  /**
+   * The recipient count on its own.
+   *
+   * Unused by the wizard, which reads its total from
+   * {@link previewAudienceContacts} so the figure and the list it opens cannot
+   * disagree. Kept because the endpoint exists and a caller that wants only
+   * the number should not have to ask for a row to get it.
    */
   previewAudience(groupIds: readonly string[]): Observable<AudiencePreview> {
     return this.api.post<AudiencePreview, { groupIds: readonly string[] }>(

@@ -22,6 +22,7 @@ import { SessionHeartbeatService } from '@core/services/session-heartbeat.servic
 import { AdminScopeService } from '@core/scope/admin-scope.service';
 import { CommandPaletteComponent } from '@layout/command-palette/command-palette.component';
 import { ScopeBarComponent } from '@layout/scope-bar/scope-bar.component';
+import { ViewAsBarComponent } from '../view-as-bar/view-as-bar.component';
 import { SidebarComponent } from '@layout/sidebar/sidebar.component';
 import { TopbarComponent } from '@layout/topbar/topbar.component';
 import { ProductTourComponent } from '@shared/ui/product-tour/product-tour.component';
@@ -30,6 +31,7 @@ import { ProductTourComponent } from '@shared/ui/product-tour/product-tour.compo
   selector: 'app-shell',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    ViewAsBarComponent,
     RouterOutlet,
     SidebarComponent,
     TopbarComponent,
@@ -51,6 +53,7 @@ import { ProductTourComponent } from '@shared/ui/product-tour/product-tour.compo
     <div class="flex min-h-dvh flex-col transition-[padding] duration-300 ease-out" [class]="offset()">
       <app-topbar />
       <app-scope-bar />
+      <app-view-as-bar />
       <main id="main-content" tabindex="-1" class="flex-1 px-4 py-6 sm:px-6 lg:px-8">
         <div class="mx-auto w-full max-w-[88rem]">
           <router-outlet />

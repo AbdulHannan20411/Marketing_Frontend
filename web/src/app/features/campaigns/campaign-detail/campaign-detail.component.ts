@@ -26,6 +26,8 @@ import { CardComponent } from '@shared/ui/card/card.component';
 import { IconComponent } from '@shared/ui/icon/icon.component';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
 import { PageHeaderComponent } from '@shared/ui/page-header/page-header.component';
+import { serverSorter } from '@shared/ui/data-table/sort';
+import { SortHeaderComponent } from '@shared/ui/data-table/sort-header.component';
 import { serverPager } from '@shared/ui/pagination/pager';
 import { PaginatorComponent } from '@shared/ui/pagination/paginator.component';
 import { SkeletonComponent } from '@shared/ui/skeleton/skeleton.component';
@@ -56,6 +58,7 @@ const LOOKUP_PAGE_SIZE = 500;
   selector: 'app-campaign-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    SortHeaderComponent,
     DecimalPipe,
     RouterLink,
     TimeAgoPipe,
@@ -95,6 +98,32 @@ export class CampaignDetailComponent {
   protected readonly runsState = signal<LoadState>('loading');
   protected readonly runsTotal = signal(0);
   /** The API pages a campaign's runs; `loadRuns()` reads from here. */
+  /**
+   * Ordering for the run history, done by the API.
+   *
+   * Its default is newest first with the occurrence number as the tiebreak,
+   * so two runs scheduled for the same instant keep a stable order across
+   * pages.
+   */
+  protected readonly runsSorter = serverSorter({
+    columns: [
+      { key: 'id', label: 'ID' },
+      { key: 'occurrenceNumber', label: 'Run number' },
+      { key: 'scheduledFor', label: 'Scheduled for', initialDirection: 'desc' },
+      { key: 'startedAt', label: 'Started', initialDirection: 'desc' },
+      { key: 'completedAt', label: 'Completed', initialDirection: 'desc' },
+      { key: 'status', label: 'Status' },
+      { key: 'triggeredManually', label: 'Manual run' },
+    ],
+    load: () => {
+      this.runsPager.reset();
+      const id = this.campaignId();
+      if (id !== undefined) {
+        this.loadRuns(id);
+      }
+    },
+  });
+
   protected readonly runsPager = serverPager({
     total: this.runsTotal,
     pageSize: RUNS_PAGE_SIZE,
@@ -329,7 +358,15 @@ export class CampaignDetailComponent {
   protected loadRuns(id: string): void {
     this.runsState.set('loading');
 
-    this.campaigns.listRuns(id, this.runsPager.page(), this.runsPager.pageSize()).subscribe({
+    this.campaigns
+      .listRuns(
+        id,
+        this.runsPager.page(),
+        this.runsPager.pageSize(),
+        this.runsSorter.key(),
+        this.runsSorter.direction(),
+      )
+      .subscribe({
       next: (page) => {
         this.runsAvailable.set(true);
         this.runs.set(page.items);

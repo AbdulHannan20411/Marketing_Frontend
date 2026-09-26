@@ -76,7 +76,21 @@
     </app-empty-state>
   </app-card>
 } @else {
-  <div class="mt-5 grid gap-4 lg:grid-cols-2">
+  <!-- Cards, so there is no header row to click: the ordering lives here. -->
+  <div class="mt-5 flex flex-wrap items-center gap-3">
+    <app-search-box
+      class="min-w-0 flex-1 sm:max-w-xs"
+      [(value)]="search"
+      label="Search plans"
+      placeholder="Search plans"
+    />
+    <p class="text-xs text-ink-muted">
+      {{ visiblePlans().length }} {{ visiblePlans().length === 1 ? 'plan' : 'plans' }}
+    </p>
+    <app-sort-menu class="ml-auto" [sorter]="sorter" defaultLabel="Display order" />
+  </div>
+
+  <div class="mt-3 grid gap-4 lg:grid-cols-2">
     @for (plan of visiblePlans(); track plan.id) {
       <app-card>
         <!-- Header -->
@@ -96,6 +110,11 @@
               }
             </div>
             <p class="mt-1 line-clamp-1 text-xs text-ink-muted">{{ plan.tagline }}</p>
+            <!-- `SubscriptionPlan` has `updatedAt` and no created pair, so that
+                 is the whole audit trail this contract carries. -->
+            <p class="mt-1 font-mono text-[11px] text-ink-muted" [title]="plan.id">
+              {{ plan.id }} · Updated {{ plan.updatedAt | timeAgo }}
+            </p>
           </div>
         </div>
 

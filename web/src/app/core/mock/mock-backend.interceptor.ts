@@ -268,12 +268,54 @@ function summariseCampaigns(all: readonly Campaign[]) {
   };
 }
 
+/**
+ * Orders a mock collection by `?sortBy=`, so a sortable header does something
+ * here too.
+ *
+ * Best effort by design: it reads the property the key names, which covers the
+ * plain columns and quietly leaves the derived ones (`severity`, `seats`, the
+ * audit log's joined `actor`) in their existing order. The real API resolves
+ * those in SQL, and reimplementing that here would be a second definition of
+ * the same ordering, free to disagree with the one that matters.
+ */
+function sortForMock<T>(items: readonly T[], params: HttpParams): readonly T[] {
+  const key = params.get('sortBy');
+  if (key === null || key === '' || items.length === 0) {
+    return items;
+  }
+  if (!(key in (items[0] as Record<string, unknown>))) {
+    return items;
+  }
+
+  const sign = (params.get('sortDirection') ?? '').toLowerCase().startsWith('desc') ? -1 : 1;
+
+  return [...items].sort((left, right) => {
+    const a = (left as Record<string, unknown>)[key];
+    const b = (right as Record<string, unknown>)[key];
+    if (a === b) {
+      return 0;
+    }
+    // Empties last whichever way round, as the client's own comparator does.
+    if (a === null || a === undefined || a === '') {
+      return 1;
+    }
+    if (b === null || b === undefined || b === '') {
+      return -1;
+    }
+    if (typeof a === 'number' && typeof b === 'number') {
+      return sign * (a - b);
+    }
+    return sign * String(a).localeCompare(String(b), undefined, { numeric: true });
+  });
+}
+
 function paginate<T>(items: readonly T[], params: HttpParams): PagedResult<T> {
   const page = Number(params.get('page') ?? '1');
   const pageSize = Number(params.get('pageSize') ?? '10');
   const start = (page - 1) * pageSize;
+  const ordered = sortForMock(items, params);
   return {
-    items: items.slice(start, start + pageSize),
+    items: ordered.slice(start, start + pageSize),
     page,
     pageSize,
     totalItems: items.length,
@@ -353,6 +395,9 @@ function filterContacts(params: HttpParams): readonly Contact[] {
   const search = (params.get('search') ?? '').trim().toLowerCase();
   const status = params.get('status') ?? 'all';
   const groupId = params.get('groupId') ?? 'all';
+  // Sent by the contacts screen and by the tag member list; the mock ignored
+  // it, so filtering by tag quietly returned everybody.
+  const tagId = params.get('tagId') ?? 'all';
   const adminId = scopeOf(params);
   const source = adminId === null ? CONTACTS : contactsForAdmin(adminId);
   return source.filter((contact) => {
@@ -363,7 +408,8 @@ function filterContacts(params: HttpParams): readonly Contact[] {
       (contact.email?.toLowerCase().includes(search) ?? false);
     const matchesStatus = status === 'all' || contact.status === status;
     const matchesGroup = groupId === 'all' || contact.groupIds.includes(groupId);
-    return matchesSearch && matchesStatus && matchesGroup;
+    const matchesTag = tagId === 'all' || contact.tagIds.includes(tagId);
+    return matchesSearch && matchesStatus && matchesGroup && matchesTag;
   });
 }
 function handleAuth(
@@ -1828,16 +1874,59 @@ export const mockBackendInterceptor: HttpInterceptorFn = (request, next) => {
     const adminId = scopeOf(params);
     return ok(summariseCampaigns(adminId === null ? campaignStore : campaignsForAdmin(adminId)));
   }
+
+  /*
+   * The campaign audience: who would be messaged, deduplicated across groups.
+   *
+   * Both routes answer from the same filter here for the same reason the API
+   * builds them from one subquery — a count and a list that can disagree is
+   * the bug this shape exists to prevent.
+   */
+  if (method === 'POST' && path.startsWith('/campaigns/preview-audience')) {
+    const body = (request.body ?? {}) as { groupIds?: unknown; search?: unknown };
+    const groupIds = Array.isArray(body.groupIds) ? body.groupIds.map(String) : [];
+    const term = String(body.search ?? '').trim().toLowerCase();
+
+    const audience = CONTACTS.filter(
+      (contact) =>
+        contact.status === 'subscribed' &&
+        contact.groupIds.some((groupId) => groupIds.includes(groupId)),
+    );
+
+    if (path === '/campaigns/preview-audience') {
+      return ok({ recipientCount: audience.length });
+    }
+
+    const matching = audience.filter(
+      (contact) =>
+        term === '' ||
+        contact.fullName.toLowerCase().includes(term) ||
+        contact.phoneNumber.toLowerCase().includes(term),
+    );
+
+    // The slim shape the API sends: no email, no tag or group lists.
+    return ok(
+      paginate(
+        [...matching]
+          .sort((left, right) => left.fullName.localeCompare(right.fullName) || left.id.localeCompare(right.id))
+          .map((contact) => ({
+            id: contact.id,
+            fullName: contact.fullName,
+            initials: contact.initials,
+            phoneNumber: contact.phoneNumber,
+            status: contact.status,
+          })),
+        params,
+      ),
+    );
+  }
   const campaignResponse = handleCampaigns(path, method, request.body, params, templateStore, { ok, fail });
   if (campaignResponse !== null) {
     return campaignResponse;
   }
   if (method === 'GET') {
     switch (path) {
-      // Same payload from both: the reporting overview is the dashboard's
-      // numbers behind the reports permission, which is what the API does.
-      case '/dashboard':
-      case '/reports/overview': {
+      case '/dashboard': {
         const adminId = scopeOf(params);
         return ok(adminId === null ? DASHBOARD : dashboardForAdmin(adminId));
       }

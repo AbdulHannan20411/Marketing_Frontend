@@ -161,6 +161,7 @@
   [rows]="contacts()"
   [state]="state()"
   [pager]="pager"
+  [sorter]="sorter"
   emptyTitle="No contacts match those filters"
   emptyDescription="Try a different search term, or clear the filters to see everyone."
   (retry)="load()"
@@ -197,29 +198,37 @@
       <option value="blocked">Blocked</option>
     </select>
 
+    <!-- `[selected]` on the options rather than `[value]` on the select.
+         The groups arrive after the first render, so a value set before its
+         options exist — arriving from a group's "Open in Contacts", or from
+         `?group=` — was dropped by the browser and the filter read "All
+         groups" over a list that was genuinely filtered. Same reason the
+         import mapper and the inbox bind theirs this way. -->
     <label for="group-filter" class="sr-only">Filter by group</label>
     <select
       id="group-filter"
-      [value]="groupId()"
       (change)="onGroupChange($event)"
       class="h-9 rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink-soft ring-1 ring-line ring-inset transition-all focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
+      [class.ring-brand-300]="groupId() !== 'all'"
+      [class.text-ink]="groupId() !== 'all'"
     >
-      <option value="all">All groups</option>
+      <option value="all" [selected]="groupId() === 'all'">All groups</option>
       @for (group of groups(); track group.id) {
-        <option [value]="group.id">{{ group.name }}</option>
+        <option [value]="group.id" [selected]="group.id === groupId()">{{ group.name }}</option>
       }
     </select>
 
     <label for="tag-filter" class="sr-only">Filter by tag</label>
     <select
       id="tag-filter"
-      [value]="tagId()"
       (change)="onTagChange($event)"
       class="h-9 rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink-soft ring-1 ring-line ring-inset transition-all focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
+      [class.ring-brand-300]="tagId() !== 'all'"
+      [class.text-ink]="tagId() !== 'all'"
     >
-      <option value="all">All tags</option>
+      <option value="all" [selected]="tagId() === 'all'">All tags</option>
       @for (tag of tags(); track tag.id) {
-        <option [value]="tag.id">{{ tag.name }}</option>
+        <option [value]="tag.id" [selected]="tag.id === tagId()">{{ tag.name }}</option>
       }
     </select>
 
@@ -259,6 +268,14 @@
         [attr.aria-label]="'Select ' + contact.fullName"
         class="h-4 w-4 rounded border-line-strong text-brand-600 focus:ring-2 focus:ring-brand-500"
       />
+    </td>
+
+    <!-- The identifier the API and support both use. Monospace so a column of
+         them lines up, and truncated rather than wrapping the row. -->
+    <td class="px-4 py-3">
+      <span class="block max-w-[7rem] truncate font-mono text-xs text-ink-muted" [title]="contact.id">
+        {{ contact.id }}
+      </span>
     </td>
 
     <td class="px-4 py-3">
@@ -359,6 +376,15 @@
       class="hidden px-4 py-3 text-right text-sm whitespace-nowrap text-ink-muted md:table-cell"
     >
       {{ contact.lastMessagedAt | timeAgo }}
+    </td>
+
+    <!-- `Contact` carries `createdAt` and nothing else from the audit set: no
+         createdBy, no modified pair. Shown as what exists rather than four
+         columns of blanks. -->
+    <td
+      class="hidden px-4 py-3 text-right text-sm whitespace-nowrap text-ink-muted md:table-cell"
+    >
+      {{ contact.createdAt | timeAgo }}
     </td>
 
     <td class="px-4 py-3 text-right">

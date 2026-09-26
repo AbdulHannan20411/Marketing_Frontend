@@ -42,16 +42,43 @@
     </app-empty-state>
   </app-card>
 } @else {
-  <div class="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+  <!-- No header row to click on a grid of cards, so ordering lives here. -->
+  <div class="mt-6 flex flex-wrap items-center gap-3">
+    <app-search-box
+      class="min-w-0 flex-1 sm:max-w-xs"
+      [(value)]="search"
+      label="Search groups"
+      placeholder="Search groups"
+    />
+    <p class="text-xs text-ink-muted">
+      {{ pager.total() }} {{ pager.total() === 1 ? 'group' : 'groups' }}
+    </p>
+    <app-sort-menu class="ml-auto" [sorter]="sorter" defaultLabel="Default order" />
+  </div>
+
+  <div class="mt-3 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
     @for (group of pager.items(); track group.id) {
       <app-card [interactive]="true">
         <div class="flex items-start justify-between gap-3">
           <span class="grid h-10 w-10 place-items-center rounded-xl bg-brand-50 text-brand-600">
             <app-icon name="userGroup" [size]="20" />
           </span>
+
+          <!-- Outside the manage block on purpose: seeing who is in a group is
+               reading, and anyone who can open this page can already read the
+               contacts behind it. -->
+          <button
+            type="button"
+            class="-mt-1 -mr-1 rounded-lg p-1.5 text-ink-muted transition-colors hover:bg-surface-muted hover:text-brand-700"
+            [attr.aria-label]="'View the contacts in ' + group.name"
+            (click)="viewMembers(group)"
+          >
+            <app-icon name="eye" [size]="17" />
+          </button>
         </div>
 
         <h2 class="mt-3.5 text-sm font-semibold text-ink">{{ group.name }}</h2>
+        <p class="mt-0.5 font-mono text-[11px] text-ink-muted" [title]="group.id">{{ group.id }}</p>
         <p class="mt-1 line-clamp-2 min-h-8 text-xs leading-relaxed text-ink-muted">
           {{ group.description }}
         </p>
@@ -63,7 +90,10 @@
             </p>
             <p class="text-xs text-ink-muted">contacts</p>
           </div>
-          <p class="text-xs text-ink-muted">Updated {{ group.updatedAt | timeAgo }}</p>
+          <div class="text-right">
+            <p class="text-xs text-ink-muted">Created {{ group.createdAt | timeAgo }}</p>
+            <p class="text-xs text-ink-muted">Updated {{ group.updatedAt | timeAgo }}</p>
+          </div>
         </div>
 
         @if (canManage()) {
@@ -94,6 +124,36 @@
       </app-card>
     }
   </div>
+}
+
+@if (viewingMembers(); as group) {
+  <app-modal
+    [title]="group.name"
+    [subtitle]="
+      (group.contactCount | number) + (group.contactCount === 1 ? ' contact' : ' contacts')
+    "
+    size="lg"
+    (closed)="closeMembers()"
+  >
+    <app-contact-list
+      [source]="membersSource()"
+      emptyMessage="This group has no contacts yet. Add some from the Contacts screen."
+    />
+
+    <ng-container modalFooter>
+      <a
+        appButton
+        variant="outline"
+        size="md"
+        routerLink="/contacts"
+        [queryParams]="{ group: group.id }"
+      >
+        <app-icon name="users" [size]="15" />
+        Open in Contacts
+      </a>
+      <button appButton variant="ghost" size="md" (click)="closeMembers()">Close</button>
+    </ng-container>
+  </app-modal>
 }
 
 @if (editing() !== null) {

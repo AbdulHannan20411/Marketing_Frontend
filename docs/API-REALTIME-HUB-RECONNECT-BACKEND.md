@@ -30,7 +30,42 @@ and the screens visibly reloaded while people were reading them.
 
 So the traffic stops either way. What remains is why the connection does not stay up.
 
-## 2. What to check on your side
+## 2. The cause, found in your logs
+
+Since writing the above I read `logs/marketing-20260926.json`. It is suspect 2 on the list below:
+
+```
+Microsoft.IdentityModel.Tokens.SecurityTokenSignatureKeyNotFoundException: IDX10517:
+Signature validation failed. The token's kid is missing.
+Keys tried: 'Microsoft.IdentityModel.Tokens.SymmetricSecurityKey, KeyId: ''...
+Number of keys in TokenValidationParameters: '1'.
+Number of keys in Configuration: '0'.
+   RequestPath: /hubs/realtime
+```
+
+**102 of them across two days — 62 on the 25th, 40 on the 26th**, the last at 07:24. Every one on
+`/hubs/realtime`, and none on any HTTP route: the same token authenticates
+`GET /api/v1/contacts` perfectly well in the requests either side of them.
+
+So the hub rejects a token the API accepts. That is not a client problem — the client sends the
+same string to both — and it explains the whole pattern: the socket is refused, the connection
+closes, the client reconnects, the refetch storm follows.
+
+Worth looking at, in this order:
+
+1. **The hub's own `TokenValidationParameters`.** "Number of keys in Configuration: 0" and a
+   `SymmetricSecurityKey` with an empty `KeyId` suggest the `/hubs` path is validating against a
+   different (or half-configured) set of parameters from the one the API's `JwtBearer` handler uses
+   — a second `AddJwtBearer` scheme, or an `OnMessageReceived` that hands the query-string token to
+   a pipeline configured elsewhere.
+2. **Whether the token is reaching the handler intact.** `access_token` from a query string is URL
+   decoded once; a token that arrives truncated or re-encoded would fail signature validation with
+   exactly this error.
+
+The client-side work below stands either way — it stops the storm — but the connection will not
+stay up until this is fixed.
+
+## 3. What to check on your side (written before the above)
 
 The client connects **straight over WebSockets with `skipNegotiation: true`**, with the token on
 the query string, because the SignalR client sends `X-Requested-With` on negotiate and the CORS
@@ -52,7 +87,7 @@ Worth looking at, roughly in order:
    doing that lets negotiation run normally and restores the long-polling fallback, which would also
    make the failure mode far more diagnosable.
 
-## 3. What I need from you
+## 4. What I need from you
 
 Either a cause and a fix, or "the hub is expected to drop like that in development" — in which case
 nothing more is needed, because the client now handles it quietly. What is not acceptable is the

@@ -2,8 +2,11 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  effect,
   inject,
+  input,
   signal,
+  untracked,
 } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { Subject, debounceTime, distinctUntilChanged } from 'rxjs';
@@ -47,6 +50,7 @@ import { TableRowDirective } from '@shared/ui/data-table/table-row.directive';
 import { HistoryButtonComponent } from '@shared/audit/history-button.component';
 import { IconComponent } from '@shared/ui/icon/icon.component';
 import { serverPager } from '@shared/ui/pagination/pager';
+import { serverSorter } from '@shared/ui/data-table/sort';
 import { PageHeaderComponent } from '@shared/ui/page-header/page-header.component';
 import { ContactEditorComponent } from './contact-editor.component';
 
@@ -154,20 +158,57 @@ export class ContactsComponent {
 
   protected readonly columns: readonly TableColumn[] = [
     { key: 'select', header: '', widthClass: 'w-10' },
-    { key: 'name', header: 'Contact' },
+    // `sortKey` only where the API's allow-list accepts it: this list is paged
+    // by the server, so ordering one page in the browser would reorder the
+    // page and nothing else.
+    { key: 'id', header: 'ID', widthClass: 'w-28', sortKey: 'id' },
+    { key: 'name', header: 'Contact', sortKey: 'fullName' },
     { key: 'phone', header: 'Phone', hideOnMobile: true },
-    { key: 'country', header: 'Country', hideOnMobile: true },
+    { key: 'country', header: 'Country', hideOnMobile: true, sortKey: 'country' },
     { key: 'tags', header: 'Tags', hideOnMobile: true },
-    { key: 'status', header: 'Status' },
+    { key: 'status', header: 'Status', sortKey: 'status' },
     {
       key: 'lastMessaged',
       header: 'Last messaged',
       align: 'right',
       hideOnMobile: true,
+      sortKey: 'lastMessagedAt',
+    },
+    {
+      key: 'createdAt',
+      header: 'Created',
+      align: 'right',
+      hideOnMobile: true,
+      sortKey: 'createdAt',
     },
     // The History button. Headerless: the icon says what it is.
     { key: 'history', header: '', align: 'right', widthClass: 'w-12' },
   ];
+
+  /**
+   * Ordering, done by the API.
+   *
+   * The keys are the endpoint's allow-list (`ContactService.SortableColumns`).
+   * An unknown key is a 422 naming the allowed values, so a typo here is loud
+   * rather than silently unsorted.
+   */
+  protected readonly sorter = serverSorter({
+    columns: [
+      // Ordered by the real key, so `cnt_9` comes after `cnt_10` — the public
+      // id is a rendering of that number, not the number itself.
+      { key: 'id', label: 'ID' },
+      { key: 'fullName', label: 'Name' },
+      { key: 'status', label: 'Status' },
+      { key: 'country', label: 'Country' },
+      { key: 'createdAt', label: 'Created', initialDirection: 'desc' },
+      { key: 'lastMessagedAt', label: 'Last messaged', initialDirection: 'desc' },
+    ],
+    load: () => {
+      // A different order is a different first page.
+      this.pager.reset();
+      this.load();
+    },
+  });
 
   protected readonly selectedCount = computed(() => this.selected().size);
   private readonly selectedList = computed(() => [...this.selected().values()]);
@@ -236,7 +277,36 @@ export class ContactsComponent {
     return lookup;
   });
 
+  /**
+   * Filters taken from the query string, bound by `withComponentInputBinding`
+   * — `/contacts?group=grp_1`.
+   *
+   * "Open in Contacts" in the group and tag member dialogs lands here already
+   * narrowed. Without it the link would drop somebody on the full list to
+   * rebuild by hand the filter they had just been looking at.
+   */
+  readonly group = input<string | undefined>(undefined);
+  readonly tag = input<string | undefined>(undefined);
+
   constructor() {
+    // Only when a filter was actually asked for — the plain page is already
+    // read from the bottom of this constructor, and a second read there would
+    // be one request for nothing on every visit.
+    effect(() => {
+      const group = this.group();
+      const tag = this.tag();
+
+      untracked(() => {
+        if (group === undefined && tag === undefined) {
+          return;
+        }
+        this.groupId.set(group ?? 'all');
+        this.tagId.set(tag ?? 'all');
+        this.pager.reset();
+        this.load();
+      });
+    });
+
     this.searchInput
       .pipe(debounceTime(300), distinctUntilChanged(), takeUntilDestroyed())
       .subscribe((term) => {
@@ -273,6 +343,8 @@ export class ContactsComponent {
         status: this.status(),
         groupId: this.groupId(),
         tagId: this.tagId(),
+        sortBy: this.sorter.key(),
+        sortDirection: this.sorter.direction(),
       })
       .pipe(this.listRequest.only())
       .subscribe({

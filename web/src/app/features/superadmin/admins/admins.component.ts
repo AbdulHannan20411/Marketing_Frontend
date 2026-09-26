@@ -14,6 +14,8 @@ import { BadgeComponent, type BadgeTone } from '@shared/ui/badge/badge.component
 import { ButtonDirective } from '@shared/ui/button/button.directive';
 import { CardComponent } from '@shared/ui/card/card.component';
 import { IconComponent } from '@shared/ui/icon/icon.component';
+import { clientSorter, type SortColumn } from '@shared/ui/data-table/sort';
+import { SortMenuComponent } from '@shared/ui/data-table/sort-menu.component';
 import { clientPager } from '@shared/ui/pagination/pager';
 import { PaginatorComponent } from '@shared/ui/pagination/paginator.component';
 import { PageHeaderComponent } from '@shared/ui/page-header/page-header.component';
@@ -42,10 +44,60 @@ const PLAN_TONE: Readonly<Record<TenantPlan, BadgeTone>> = {
  * the user was heading for (carried in `?next=`), so the picker doubles as the
  * gate in front of scoped routes.
  */
+/**
+ * What an admin card can be ordered by.
+ *
+ * `AdminAccount` carries `createdAt` and `lastActiveAt`; there is no
+ * createdBy/updatedAt pair on the contract, so neither is offered.
+ */
+const ADMIN_SORT_COLUMNS: readonly SortColumn<AdminAccount>[] = [
+  { key: 'id', label: 'ID', kind: 'text', value: (admin) => admin.id },
+  { key: 'organisation', label: 'Organisation', kind: 'text', value: (admin) => admin.organisation },
+  { key: 'name', label: 'Admin', kind: 'text', value: (admin) => admin.name },
+  { key: 'plan', label: 'Plan', kind: 'text', value: (admin) => admin.plan },
+  { key: 'status', label: 'Status', kind: 'text', value: (admin) => admin.status },
+  {
+    key: 'messagesThisMonth',
+    label: 'Messages',
+    kind: 'number',
+    value: (admin) => admin.messagesThisMonth,
+    initialDirection: 'desc',
+  },
+  {
+    key: 'employeeCount',
+    label: 'Staff',
+    kind: 'number',
+    value: (admin) => admin.employeeCount,
+    initialDirection: 'desc',
+  },
+  {
+    key: 'contactCount',
+    label: 'Contacts',
+    kind: 'number',
+    value: (admin) => admin.contactCount,
+    initialDirection: 'desc',
+  },
+  {
+    key: 'createdAt',
+    label: 'Created',
+    kind: 'date',
+    value: (admin) => admin.createdAt,
+    initialDirection: 'desc',
+  },
+  {
+    key: 'lastActiveAt',
+    label: 'Last active',
+    kind: 'date',
+    value: (admin) => admin.lastActiveAt,
+    initialDirection: 'desc',
+  },
+];
+
 @Component({
   selector: 'app-superadmin-admins',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    SortMenuComponent,
     PaginatorComponent,
     RouterLink,
     TimeAgoPipe,
@@ -122,7 +174,14 @@ export class SuperAdminAdminsComponent {
   });
 
   /** One page of admin cards. The platform list grows with every customer. */
-  protected readonly pager = clientPager(this.visibleAdmins);
+  /**
+    * Ordering in the browser: the platform endpoint answers with every admin
+    * account, and `visibleAdmins` has already applied the search and status
+    * filters, so this sorts the filtered set and the pager cuts a page from it.
+    */
+  protected readonly sorter = clientSorter(this.visibleAdmins, ADMIN_SORT_COLUMNS);
+
+  protected readonly pager = clientPager(this.sorter.rows);
 
   protected setStatusFilter(value: TenantStatus | 'all'): void {
     this.statusFilter.set(value);

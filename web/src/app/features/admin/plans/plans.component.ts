@@ -8,6 +8,9 @@ import { ToastService } from '@core/services/toast.service';
 import { TimeAgoPipe } from '@shared/pipes/time-ago.pipe';
 import { BadgeComponent, type BadgeTone } from '@shared/ui/badge/badge.component';
 import { ButtonDirective } from '@shared/ui/button/button.directive';
+import { clientSorter, type SortColumn } from '@shared/ui/data-table/sort';
+import { SearchBoxComponent } from '@shared/ui/search-box/search-box.component';
+import { SortMenuComponent } from '@shared/ui/data-table/sort-menu.component';
 import { HistoryButtonComponent } from '@shared/audit/history-button.component';
 import { CardComponent } from '@shared/ui/card/card.component';
 import { IconComponent } from '@shared/ui/icon/icon.component';
@@ -25,10 +28,36 @@ const STATUS_TONE: Readonly<Record<PlanStatus, BadgeTone>> = {
 
 type StatusFilter = PlanStatus | 'all';
 
+/**
+ * What a plan can be ordered by.
+ *
+ * `SubscriptionPlan` carries `updatedAt` and nothing else from the audit set —
+ * no created pair, no "by" fields — so Modified is the only audit column here.
+ * `sortOrder` is the display order the platform set by hand, which is what the
+ * default ordering already uses.
+ */
+const PLAN_SORT_COLUMNS: readonly SortColumn<SubscriptionPlan>[] = [
+  { key: 'id', label: 'ID', kind: 'text', value: (plan) => plan.id },
+  { key: 'name', label: 'Name', kind: 'text', value: (plan) => plan.name },
+  { key: 'status', label: 'Status', kind: 'text', value: (plan) => plan.status },
+  { key: 'monthlyPrice', label: 'Monthly price', kind: 'number', value: (plan) => plan.monthlyPrice },
+  { key: 'yearlyPrice', label: 'Yearly price', kind: 'number', value: (plan) => plan.yearlyPrice },
+  { key: 'sortOrder', label: 'Display order', kind: 'number', value: (plan) => plan.sortOrder },
+  {
+    key: 'updatedAt',
+    label: 'Modified',
+    kind: 'date',
+    value: (plan) => plan.updatedAt,
+    initialDirection: 'desc',
+  },
+];
+
 @Component({
   selector: 'app-plans',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    SearchBoxComponent,
+    SortMenuComponent,
     HistoryButtonComponent,
     TimeAgoPipe,
     PageHeaderComponent,
@@ -72,11 +101,35 @@ export class PlansComponent {
     return target === null || target === 'new' ? null : target;
   });
 
-  protected readonly visiblePlans = computed(() => {
+  protected readonly search = signal('');
+
+  private readonly filteredPlans = computed(() => {
     const filter = this.statusFilter();
+    const term = this.search().trim().toLowerCase();
     const sorted = [...this.plans()].sort((a, b) => a.sortOrder - b.sortOrder);
-    return filter === 'all' ? sorted : sorted.filter((plan) => plan.status === filter);
+    const byStatus = filter === 'all' ? sorted : sorted.filter((plan) => plan.status === filter);
+
+    // Name and tagline: the tagline is what distinguishes two plans with
+    // similar names, and it is on the card.
+    return term === ''
+      ? byStatus
+      : byStatus.filter(
+          (plan) =>
+            plan.name.toLowerCase().includes(term) || plan.tagline.toLowerCase().includes(term),
+        );
   });
+
+  /**
+   * Ordering in the browser.
+   *
+   * `GET /plans` answers with every plan and the screen renders them all, so
+   * the whole set is in hand and this is the complete ordering, not a page of
+   * one.
+   */
+  protected readonly sorter = clientSorter(this.filteredPlans, PLAN_SORT_COLUMNS);
+
+  /** What the cards render, filtered then sorted. */
+  protected readonly visiblePlans = this.sorter.rows;
 
   protected readonly counts = computed(() => {
     const all = this.plans();

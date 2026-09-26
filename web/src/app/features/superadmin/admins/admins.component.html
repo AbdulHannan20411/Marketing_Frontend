@@ -88,6 +88,8 @@
       {{ option.label }}
     </button>
   }
+
+  <app-sort-menu class="ml-auto" [sorter]="sorter" defaultLabel="Default order" />
 </div>
 
 @if (state() === 'loading') {
@@ -135,6 +137,9 @@
               }
             </div>
             <p class="mt-0.5 truncate text-xs text-ink-muted">{{ admin.name }} · {{ admin.email }}</p>
+            <p class="mt-0.5 font-mono text-[11px] text-ink-muted" [title]="admin.id">
+              {{ admin.id }}
+            </p>
           </div>
         </div>
 
@@ -142,6 +147,7 @@
           <app-badge [tone]="planTone[admin.plan]">{{ admin.plan }}</app-badge>
           <app-badge [tone]="statusTone[admin.status]" [dot]="true">{{ admin.status }}</app-badge>
           <span class="text-[11px] text-ink-muted">Active {{ admin.lastActiveAt | timeAgo }}</span>
+          <span class="text-[11px] text-ink-muted">· Created {{ admin.createdAt | timeAgo }}</span>
         </div>
 
         <!-- Per-admin figures -->

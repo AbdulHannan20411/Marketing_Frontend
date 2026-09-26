@@ -15,6 +15,7 @@ import { areaTrendChart, funnelChart } from '@shared/ui/chart/chart.presets';
 import { DataTableComponent, type TableColumn } from '@shared/ui/data-table/data-table.component';
 import { TableRowDirective } from '@shared/ui/data-table/table-row.directive';
 import { IconComponent } from '@shared/ui/icon/icon.component';
+import { serverSorter } from '@shared/ui/data-table/sort';
 import { serverPager } from '@shared/ui/pagination/pager';
 import { PageHeaderComponent } from '@shared/ui/page-header/page-header.component';
 import { SkeletonComponent } from '@shared/ui/skeleton/skeleton.component';
@@ -59,12 +60,36 @@ export class ReportsComponent {
   });
 
   protected readonly columns: readonly TableColumn[] = [
-    { key: 'contact', header: 'Recipient' },
-    { key: 'campaign', header: 'Campaign', hideOnMobile: true },
+    { key: 'id', header: 'ID', widthClass: 'w-28', hideOnMobile: true, sortKey: 'id' },
+    { key: 'contact', header: 'Recipient', sortKey: 'contactName' },
+    { key: 'campaign', header: 'Campaign', hideOnMobile: true, sortKey: 'campaignName' },
+    // The reason is free text from Meta and is not in the allow-list; the code
+    // beside it groups the same failures and is.
     { key: 'reason', header: 'Reason' },
-    { key: 'code', header: 'Code', align: 'right', hideOnMobile: true },
-    { key: 'when', header: 'When', align: 'right', hideOnMobile: true },
+    { key: 'code', header: 'Code', align: 'right', hideOnMobile: true, sortKey: 'errorCode' },
+    { key: 'when', header: 'When', align: 'right', hideOnMobile: true, sortKey: 'occurredAt' },
   ];
+
+  /**
+   * Ordered by the API.
+   *
+   * The CSV export does **not** follow this — it is always newest first. Said
+   * out loud on the export button rather than left as a surprise.
+   */
+  protected readonly sorter = serverSorter({
+    columns: [
+      { key: 'id', label: 'ID' },
+      { key: 'occurredAt', label: 'When', initialDirection: 'desc' },
+      { key: 'campaignName', label: 'Campaign' },
+      { key: 'contactName', label: 'Recipient' },
+      { key: 'errorCode', label: 'Code' },
+      { key: 'phoneNumber', label: 'Phone number' },
+    ],
+    load: () => {
+      this.failurePager.reset();
+      this.loadFailures();
+    },
+  });
 
   protected readonly kpis = computed(() => this.snapshot()?.kpis ?? null);
 
@@ -163,7 +188,12 @@ export class ReportsComponent {
 
     forkJoin({
       snapshot: this.dashboardService.getReportsOverview(),
-      failures: this.dashboardService.getFailures(this.failurePager.page(), this.failurePager.pageSize()),
+      failures: this.dashboardService.getFailures(
+        this.failurePager.page(),
+        this.failurePager.pageSize(),
+        this.sorter.key(),
+        this.sorter.direction(),
+      ),
     }).subscribe({
       next: ({ snapshot, failures }) => {
         this.snapshot.set(snapshot);
@@ -179,10 +209,17 @@ export class ReportsComponent {
     });
   }
 
-  private loadFailures(): void {
+  protected loadFailures(): void {
     this.failureState.set('loading');
 
-    this.dashboardService.getFailures(this.failurePager.page(), this.failurePager.pageSize()).subscribe({
+    this.dashboardService
+      .getFailures(
+        this.failurePager.page(),
+        this.failurePager.pageSize(),
+        this.sorter.key(),
+        this.sorter.direction(),
+      )
+      .subscribe({
       next: (result) => {
         this.failures.set(result.items);
         this.failureTotal.set(result.totalItems);

@@ -5,6 +5,7 @@ import type { DashboardSnapshot } from '@core/models/analytics.model';
 import type { Campaign } from '@core/models/campaign.model';
 import type { DeliveryFailure } from '@core/models/campaign.model';
 import type { PagedResult } from '@core/models/api.model';
+import { sortParams, type SortDirection } from '@shared/ui/data-table/sort';
 import { ApiService } from './api.service';
 import { saveBlob } from './contacts.service';
 
@@ -34,8 +35,17 @@ export class DashboardService {
     return this.api.get<readonly Campaign[]>('/campaigns');
   }
 
-  getFailures(page: number, pageSize: number): Observable<PagedResult<DeliveryFailure>> {
-    return this.api.get<PagedResult<DeliveryFailure>>('/reports/failures', { page, pageSize });
+  getFailures(
+    page: number,
+    pageSize: number,
+    sortBy: string | null = null,
+    sortDirection: SortDirection = 'asc',
+  ): Observable<PagedResult<DeliveryFailure>> {
+    return this.api.get<PagedResult<DeliveryFailure>>('/reports/failures', {
+      page,
+      pageSize,
+      ...sortParams(sortBy, sortDirection),
+    });
   }
 
   /**

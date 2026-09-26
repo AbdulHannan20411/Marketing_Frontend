@@ -7,7 +7,8 @@ import type { ApiError, LoadState } from '@core/models/api.model';
 import type { Campaign, CampaignStatus } from '@core/models/campaign.model';
 import type { CampaignSummary } from '@core/services/campaigns.service';
 import { latestRequest } from '@core/http/latest-request';
-import { CampaignsService } from '@core/services/campaigns.service';
+import { CAMPAIGN_SORT_COLUMNS, CampaignsService } from '@core/services/campaigns.service';
+import { serverSorter } from '@shared/ui/data-table/sort';
 import { RealtimeService } from '@core/services/realtime.service';
 import { ToastService } from '@core/services/toast.service';
 import { TimeAgoPipe } from '@shared/pipes/time-ago.pipe';
@@ -69,14 +70,67 @@ export class CampaignsComponent {
   protected readonly statusLabel = CAMPAIGN_STATUS_LABEL;
 
   protected readonly columns: readonly TableColumn[] = [
-    { key: 'name', header: 'Campaign' },
-    { key: 'status', header: 'Status' },
-    { key: 'audience', header: 'Audience', align: 'right', hideOnMobile: true },
-    { key: 'delivered', header: 'Delivered', align: 'right', hideOnMobile: true },
-    { key: 'read', header: 'Read rate', align: 'right' },
-    { key: 'when', header: 'When', align: 'right', hideOnMobile: true },
+    { key: 'id', header: 'ID', widthClass: 'w-28', sortKey: 'id' },
+    { key: 'name', header: 'Campaign', sortKey: 'name' },
+    { key: 'status', header: 'Status', sortKey: 'status' },
+    {
+      key: 'audience',
+      header: 'Audience',
+      align: 'right',
+      hideOnMobile: true,
+      sortKey: 'audienceSize',
+    },
+    {
+      key: 'delivered',
+      header: 'Delivered',
+      align: 'right',
+      hideOnMobile: true,
+      sortKey: 'delivered',
+    },
+    { key: 'read', header: 'Read rate', align: 'right', sortKey: 'readRate' },
+    { key: 'when', header: 'When', align: 'right', hideOnMobile: true, sortKey: 'when' },
+    // `Campaign` carries createdAt, createdBy and an optional updatedAt. There
+    // is no "modified by" on the contract, so none is shown.
+    { key: 'createdBy', header: 'Created by', hideOnMobile: true, sortKey: 'createdBy' },
+    {
+      key: 'createdAt',
+      header: 'Created',
+      align: 'right',
+      hideOnMobile: true,
+      sortKey: 'createdAt',
+    },
+    {
+      key: 'updatedAt',
+      header: 'Modified',
+      align: 'right',
+      hideOnMobile: true,
+      sortKey: 'updatedAt',
+    },
     { key: 'actions', header: '', align: 'right' },
   ];
+
+  /**
+   * Ordering for the list.
+   *
+   * `GET /campaigns` returns the whole collection, so the service sorts it
+   * before slicing the page — see `CAMPAIGN_SORT_COLUMNS`. Should the API
+   * start paging server-side, `pagedByServer` goes true and the sort controls
+   * hide themselves rather than reordering one page and implying the rest.
+   */
+  protected readonly sorter = serverSorter({
+    columns: CAMPAIGN_SORT_COLUMNS.map(({ key, label, initialDirection }) => ({
+      key,
+      label,
+      initialDirection,
+    })),
+    load: () => {
+      this.pager.reset();
+      this.load();
+    },
+  });
+
+  /** Null while the API pages the list itself: see `sorter`. */
+  protected readonly activeSorter = computed(() => (this.pagedByServer() ? null : this.sorter));
 
   protected readonly statuses: readonly { value: StatusFilter; label: string }[] = [
     { value: 'all', label: 'All' },
@@ -283,6 +337,8 @@ export class CampaignsComponent {
         pageSize: this.pager.pageSize(),
         search: this.search().trim(),
         status: this.statusFilter(),
+        sortBy: this.sorter.key(),
+        sortDirection: this.sorter.direction(),
       })
       .pipe(this.listRequest.only())
       .subscribe({

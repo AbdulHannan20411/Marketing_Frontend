@@ -17,6 +17,8 @@ import {
   PaginationComponent,
 } from '@shared/ui/pagination/pagination.component';
 import type { Pager } from '@shared/ui/pagination/pager';
+import type { Sorter } from './sort';
+import { SortHeaderComponent } from './sort-header.component';
 import { TableRowDirective } from './table-row.directive';
 
 /**
@@ -37,6 +39,14 @@ export interface TableColumn {
   readonly widthClass?: string;
   /** Hidden below the `md` breakpoint so narrow screens stay readable. */
   readonly hideOnMobile?: boolean;
+  /**
+   * The sorter key this column orders by.
+   *
+   * Opt-in, and absent by default: a column is only sortable when the list can
+   * actually sort by it — the whole collection is in hand, or the endpoint
+   * accepts that key. An Actions column simply never sets it.
+   */
+  readonly sortKey?: string;
 }
 
 /**
@@ -53,6 +63,7 @@ export interface TableColumn {
     SkeletonComponent,
     ButtonDirective,
     PaginationComponent,
+    SortHeaderComponent,
   ],
   templateUrl: './data-table.component.html',
   host: { class: 'block' },
@@ -71,6 +82,15 @@ export class DataTableComponent<TRow> {
    * whatever record took that position.
    */
   readonly trackBy = input<(row: TRow, index: number) => unknown>(rowIdentity);
+  /**
+   * Ordering for this table, if it has any — see `sort.ts`.
+   *
+   * Given one, every column carrying a `sortKey` the sorter knows becomes a
+   * header button with a direction indicator. Without one the header renders
+   * as plain text, which is what a list that cannot be sorted should look
+   * like rather than a control that does nothing.
+   */
+  readonly sorter = input<Sorter | null>(null);
   readonly state = input<LoadState>('ready');
   /**
    * The table's pagination, as one object — see `pager.ts`. Preferred over the
@@ -130,4 +150,14 @@ export class DataTableComponent<TRow> {
     }
   }
 
+
+  protected ariaSort(column: TableColumn): 'ascending' | 'descending' | 'none' | null {
+    const sorter = this.sorter();
+    if (sorter === null || column.sortKey === undefined) {
+      return null;
+    }
+    return sorter.ariaSort(column.sortKey);
+  }
+
 }
+

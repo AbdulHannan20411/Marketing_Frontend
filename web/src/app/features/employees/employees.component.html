@@ -48,7 +48,8 @@
 }
 
 <!-- Tabs -->
-<div class="mt-5 flex flex-wrap items-center gap-2" role="tablist">
+<div class="mt-5 flex flex-wrap items-center gap-2">
+  <div class="flex flex-wrap items-center gap-2" role="tablist">
   @for (option of tabs; track option.value) {
     <button
       type="button"
@@ -65,6 +66,17 @@
       {{ option.label }}
     </button>
   }
+  </div>
+
+  <app-search-box
+    class="ml-auto min-w-0 max-w-xs flex-1"
+    [(value)]="search"
+    label="Search your team"
+    placeholder="Search name, email or job title"
+  />
+
+  <!-- A list of rows has no header to click, so ordering lives here. -->
+  <app-sort-menu [sorter]="sorter" defaultLabel="Default order" />
 </div>
 
 @if (state() === 'loading') {
@@ -101,6 +113,9 @@
               <p class="mt-0.5 truncate text-xs text-ink-muted">
                 {{ employee.jobTitle }} · {{ employee.email }}
               </p>
+              <p class="mt-0.5 font-mono text-[11px] text-ink-muted" [title]="employee.id">
+                {{ employee.id }}
+              </p>
             </div>
 
             <div class="hidden text-right sm:block">
@@ -118,6 +133,10 @@
                     : 'Active ' + (employee.lastActiveAt | timeAgo)
                 }}
               </p>
+              <!-- When the account came into being. `Employee` has no
+                   createdBy/updatedAt pair, so this is the audit trail the
+                   contract actually carries. -->
+              <p class="text-xs text-ink-muted">Invited {{ employee.invitedAt | timeAgo }}</p>
             </div>
 
             <div class="flex flex-wrap items-center justify-end gap-1.5">
@@ -126,6 +145,23 @@
                 <button appButton variant="outline" size="sm" (click)="select(employee)">
                   <app-icon name="key" [size]="14" />
                   Permissions
+                </button>
+              }
+
+              <!-- Answers "what does this person actually see?" by driving the
+                   real menu and the real permission gates from their
+                   permissions. Not for yourself, and not while already
+                   previewing somebody. -->
+              @if (canViewAs(employee)) {
+                <button
+                  appButton
+                  variant="ghost"
+                  size="sm"
+                  [attr.aria-label]="'View the app as ' + employee.name"
+                  (click)="viewAs(employee)"
+                >
+                  <app-icon name="eye" [size]="14" />
+                  View as
                 </button>
               }
 

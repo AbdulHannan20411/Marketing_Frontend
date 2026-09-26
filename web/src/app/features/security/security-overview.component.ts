@@ -25,6 +25,8 @@ import {
 } from '@core/models/session-security.model';
 import { SessionSecurityService } from '@core/services/session-security.service';
 import { ToastService } from '@core/services/toast.service';
+import { clientSorter, type SortColumn } from '@shared/ui/data-table/sort';
+import { SortHeaderComponent } from '@shared/ui/data-table/sort-header.component';
 import { TimeAgoPipe } from '@shared/pipes/time-ago.pipe';
 import { ButtonDirective } from '@shared/ui/button/button.directive';
 import { CardComponent } from '@shared/ui/card/card.component';
@@ -54,10 +56,58 @@ const RISK_CLASS: Readonly<Record<RiskLevel, string>> = {
  * - **Platform staff** (a tenant's Security page) also see the risk score and,
  *   more importantly, its reasons: the evidence for a customer who disputes it.
  */
+/**
+ * What the team's security table can be ordered by.
+ *
+ * `SecurityEmployee` carries no created/modified pair — it is a live view of
+ * sessions and devices, not a stored record — so `lastActiveAt` is the only
+ * time column, and it is the one that matters here.
+ */
+const SECURITY_SORT_COLUMNS: readonly SortColumn<SecurityEmployee>[] = [
+  { key: 'name', label: 'Person', kind: 'text', value: (employee) => employee.name },
+  { key: 'role', label: 'Role', kind: 'text', value: (employee) => employee.role },
+  {
+    key: 'activeSessions',
+    label: 'Signed in',
+    kind: 'number',
+    value: (employee) => employee.activeSessions,
+    initialDirection: 'desc',
+  },
+  {
+    key: 'devices',
+    label: 'Devices',
+    kind: 'number',
+    value: (employee) => employee.devices,
+    initialDirection: 'desc',
+  },
+  {
+    key: 'displacedLast24Hours',
+    label: 'Pushed off',
+    kind: 'number',
+    value: (employee) => employee.displacedLast24Hours,
+    initialDirection: 'desc',
+  },
+  {
+    key: 'lastActiveAt',
+    label: 'Last active',
+    kind: 'date',
+    value: (employee) => employee.lastActiveAt,
+    initialDirection: 'desc',
+  },
+  {
+    key: 'risk',
+    label: 'Risk',
+    kind: 'number',
+    value: (employee) => employee.risk?.score ?? null,
+    initialDirection: 'desc',
+  },
+];
+
 @Component({
   selector: 'app-security-overview',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    SortHeaderComponent,
     TimeAgoPipe,
     PageHeaderComponent,
     CardComponent,
@@ -99,9 +149,20 @@ export class SecurityOverviewComponent {
   protected readonly overview = signal<SecurityOverview | null>(null);
 
   /** Platform staff are outside session security, so never listed even if an API sends them. */
-  protected readonly employees = computed(() =>
+  /**
+   * Default order: riskiest first, which is what this screen is for.
+   *
+   * `sorter` re-orders this set when somebody picks a column; with no column
+   * chosen it hands back exactly this list, so the default review order is
+   * still what greets you.
+   */
+  private readonly forReview = computed(() =>
     sortForReview((this.overview()?.employees ?? []).filter((employee) => !isPlatformStaff(employee))),
   );
+
+  protected readonly sorter = clientSorter(this.forReview, SECURITY_SORT_COLUMNS);
+
+  protected readonly employees = this.sorter.rows;
   protected readonly attentionCount = computed(() => this.employees().filter(needsAttention).length);
 
   protected readonly breadcrumbs = computed(() =>

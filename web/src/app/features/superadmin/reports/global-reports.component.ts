@@ -10,6 +10,8 @@ import { PlatformService } from '@core/services/platform.service';
 import { ToastService } from '@core/services/toast.service';
 import { BadgeComponent } from '@shared/ui/badge/badge.component';
 import { ButtonDirective } from '@shared/ui/button/button.directive';
+import { clientSorter, type SortColumn } from '@shared/ui/data-table/sort';
+import { SortHeaderComponent } from '@shared/ui/data-table/sort-header.component';
 import { CardComponent } from '@shared/ui/card/card.component';
 import { ChartComponent } from '@shared/ui/chart/chart.component';
 import { areaTrendChart } from '@shared/ui/chart/chart.presets';
@@ -26,10 +28,50 @@ interface AdminReportRow {
 }
 
 /** Reports aggregated across every admin and employee on the platform. */
+/**
+ * What the per-workspace report can be ordered by.
+ *
+ * The row is a view over `AdminAccount`, which carries `createdAt` and
+ * `lastActiveAt` and no modified pair — so those are the time columns.
+ */
+const REPORT_SORT_COLUMNS: readonly SortColumn<AdminReportRow>[] = [
+  { key: 'organisation', label: 'Workspace', kind: 'text', value: (row) => row.admin.organisation },
+  { key: 'plan', label: 'Plan', kind: 'text', value: (row) => row.admin.plan },
+  {
+    key: 'employeeCount',
+    label: 'Employees',
+    kind: 'number',
+    value: (row) => row.admin.employeeCount,
+    initialDirection: 'desc',
+  },
+  {
+    key: 'messages',
+    label: 'Messages',
+    kind: 'number',
+    value: (row) => row.messages,
+    initialDirection: 'desc',
+  },
+  {
+    key: 'createdAt',
+    label: 'Created',
+    kind: 'date',
+    value: (row) => row.admin.createdAt,
+    initialDirection: 'desc',
+  },
+  {
+    key: 'lastActiveAt',
+    label: 'Last active',
+    kind: 'date',
+    value: (row) => row.admin.lastActiveAt,
+    initialDirection: 'desc',
+  },
+];
+
 @Component({
   selector: 'app-global-reports',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    SortHeaderComponent,
     DecimalPipe,
     PageHeaderComponent,
     CardComponent,
@@ -67,7 +109,7 @@ export class GlobalReportsComponent {
   });
 
   /** Each admin's share of total platform volume. */
-  protected readonly rows = computed<readonly AdminReportRow[]>(() => {
+  private readonly ranked = computed<readonly AdminReportRow[]>(() => {
     const all = this.admins();
     const total = all.reduce((sum, admin) => sum + admin.messagesThisMonth, 0);
 
@@ -79,6 +121,17 @@ export class GlobalReportsComponent {
         sharePercent: total === 0 ? 0 : Math.round((admin.messagesThisMonth / total) * 100),
       }));
   });
+
+  /**
+   * Ordering in the browser.
+   *
+   * Every admin account is already in hand — the table renders all of them —
+   * so this orders the whole report, not a page of it. With no column chosen
+   * it hands back the default ranking, busiest workspace first.
+   */
+  protected readonly sorter = clientSorter(this.ranked, REPORT_SORT_COLUMNS);
+
+  protected readonly rows = this.sorter.rows;
 
   protected readonly totalMessages = computed(
     () => this.overview()?.totalMessagesThisMonth ?? 0,

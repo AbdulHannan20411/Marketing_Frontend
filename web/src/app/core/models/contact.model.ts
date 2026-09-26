@@ -45,6 +45,14 @@ export interface ContactQuery {
   readonly status: ContactStatus | 'all';
   readonly groupId: string | 'all';
   readonly tagId: string | 'all';
+  /**
+   * Column to order by, from the API's own allow-list — `fullName`, `status`,
+   * `country`, `createdAt` or `lastMessagedAt`. Anything else is answered with
+   * a 400 naming the allowed values, so a typo here is loud rather than
+   * silently unsorted. Omitted for the endpoint's default order.
+   */
+  readonly sortBy?: string | null;
+  readonly sortDirection?: 'asc' | 'desc';
 }
 
 /* ------------------------------------------------------------------ *

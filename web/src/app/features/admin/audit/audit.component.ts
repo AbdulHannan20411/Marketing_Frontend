@@ -9,6 +9,8 @@ import { BadgeComponent, type BadgeTone } from '@shared/ui/badge/badge.component
 import { ButtonDirective } from '@shared/ui/button/button.directive';
 import { CardComponent } from '@shared/ui/card/card.component';
 import { IconComponent } from '@shared/ui/icon/icon.component';
+import { serverSorter } from '@shared/ui/data-table/sort';
+import { SortMenuComponent } from '@shared/ui/data-table/sort-menu.component';
 import { serverPager } from '@shared/ui/pagination/pager';
 import { PaginatorComponent } from '@shared/ui/pagination/paginator.component';
 import { PageHeaderComponent } from '@shared/ui/page-header/page-header.component';
@@ -29,6 +31,7 @@ type SeverityFilter = AuditSeverity | 'all';
   selector: 'app-audit',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    SortMenuComponent,
     TimeAgoPipe,
     PageHeaderComponent,
     CardComponent,
@@ -77,9 +80,39 @@ export class AuditComponent {
     this.load();
   }
 
+  /**
+   * Ordered by the API.
+   *
+   * `actor` and `workspace` are joined columns with no index behind them —
+   * fine at this size, and the API says so rather than withdrawing the keys.
+   * `severity` is derived from the action, so ascending puts the routine
+   * entries first and the deletions last.
+   */
+  protected readonly sorter = serverSorter({
+    columns: [
+      { key: 'occurredAt', label: 'When', initialDirection: 'desc' },
+      { key: 'actor', label: 'Who' },
+      { key: 'action', label: 'Action' },
+      { key: 'severity', label: 'Severity', initialDirection: 'desc' },
+      { key: 'workspace', label: 'Workspace' },
+      { key: 'entity', label: 'Record' },
+    ],
+    load: () => {
+      this.pager.reset();
+      this.load();
+    },
+  });
+
   protected load(): void {
     this.state.set('loading');
-    this.platform.listAuditLogs(this.pager.page(), this.pager.pageSize()).subscribe({
+    this.platform
+      .listAuditLogs(
+        this.pager.page(),
+        this.pager.pageSize(),
+        this.sorter.key(),
+        this.sorter.direction(),
+      )
+      .subscribe({
       next: (result) => {
         this.entries.set(result.items);
         this.totalItems.set(result.totalItems);

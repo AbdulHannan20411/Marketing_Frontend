@@ -98,11 +98,21 @@
             <table class="w-full text-sm" [class.min-w-[56rem]]="isPlatform()" [class.min-w-[44rem]]="!isPlatform()">
               <thead>
                 <tr class="border-b border-line text-left text-xs tracking-wide text-ink-muted uppercase">
-                  <th scope="col" class="px-5 py-3 font-medium">Person</th>
-                  <th scope="col" class="px-3 py-3 text-right font-medium">Signed in</th>
-                  <th scope="col" class="px-3 py-3 text-right font-medium">Devices</th>
-                  <th scope="col" class="px-3 py-3 text-right font-medium">Pushed off (24h)</th>
-                  <th scope="col" class="px-3 py-3 font-medium">Last active</th>
+                  <th scope="col" class="px-5 py-3 font-medium" [attr.aria-sort]="sorter.ariaSort('name')">
+                    <app-sort-header [sorter]="sorter" sortKey="name" headerLabel="Person">Person</app-sort-header>
+                  </th>
+                  <th scope="col" class="px-3 py-3 text-right font-medium" [attr.aria-sort]="sorter.ariaSort('activeSessions')">
+                    <app-sort-header [sorter]="sorter" sortKey="activeSessions" headerLabel="Signed in">Signed in</app-sort-header>
+                  </th>
+                  <th scope="col" class="px-3 py-3 text-right font-medium" [attr.aria-sort]="sorter.ariaSort('devices')">
+                    <app-sort-header [sorter]="sorter" sortKey="devices" headerLabel="Devices">Devices</app-sort-header>
+                  </th>
+                  <th scope="col" class="px-3 py-3 text-right font-medium" [attr.aria-sort]="sorter.ariaSort('displacedLast24Hours')">
+                    <app-sort-header [sorter]="sorter" sortKey="displacedLast24Hours" headerLabel="Pushed off">Pushed off (24h)</app-sort-header>
+                  </th>
+                  <th scope="col" class="px-3 py-3 font-medium" [attr.aria-sort]="sorter.ariaSort('lastActiveAt')">
+                    <app-sort-header [sorter]="sorter" sortKey="lastActiveAt" headerLabel="Last active">Last active</app-sort-header>
+                  </th>
                   @if (isPlatform()) {
                     <th scope="col" class="px-3 py-3 font-medium">Risk</th>
                   }
@@ -122,6 +132,11 @@
                         }
                       </p>
                       <p class="text-xs text-ink-muted">{{ employee.email }} · {{ employee.role }}</p>
+                      <!-- The user id: what a suspension or a session revoke is
+                           recorded against. -->
+                      <p class="font-mono text-[11px] text-ink-muted" [title]="employee.userId">
+                        {{ employee.userId }}
+                      </p>
                     </td>
                     <td class="px-3 py-3 text-right tabular-nums text-ink-soft">{{ employee.activeSessions }}</td>
                     <td class="px-3 py-3 text-right tabular-nums">

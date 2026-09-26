@@ -224,9 +224,18 @@
                     <table class="w-full min-w-[46rem] border-collapse text-sm">
                       <thead>
                         <tr class="border-b border-line text-left">
-                          <th scope="col" class="px-3 py-2 text-xs font-medium tracking-wide text-ink-muted uppercase">Run</th>
-                          <th scope="col" class="px-3 py-2 text-xs font-medium tracking-wide text-ink-muted uppercase">Scheduled for</th>
-                          <th scope="col" class="px-3 py-2 text-xs font-medium tracking-wide text-ink-muted uppercase">Status</th>
+                          <th scope="col" class="px-3 py-2 text-xs font-medium tracking-wide text-ink-muted uppercase" [attr.aria-sort]="runsSorter.ariaSort('occurrenceNumber')">
+                            <app-sort-header [sorter]="runsSorter" sortKey="occurrenceNumber" headerLabel="Run">Run</app-sort-header>
+                          </th>
+                          <th scope="col" class="px-3 py-2 text-xs font-medium tracking-wide text-ink-muted uppercase" [attr.aria-sort]="runsSorter.ariaSort('id')">
+                            <app-sort-header [sorter]="runsSorter" sortKey="id" headerLabel="ID">ID</app-sort-header>
+                          </th>
+                          <th scope="col" class="px-3 py-2 text-xs font-medium tracking-wide text-ink-muted uppercase" [attr.aria-sort]="runsSorter.ariaSort('scheduledFor')">
+                            <app-sort-header [sorter]="runsSorter" sortKey="scheduledFor" headerLabel="Scheduled for">Scheduled for</app-sort-header>
+                          </th>
+                          <th scope="col" class="px-3 py-2 text-xs font-medium tracking-wide text-ink-muted uppercase" [attr.aria-sort]="runsSorter.ariaSort('status')">
+                            <app-sort-header [sorter]="runsSorter" sortKey="status" headerLabel="Status">Status</app-sort-header>
+                          </th>
                           <th scope="col" class="px-3 py-2 text-right text-xs font-medium tracking-wide text-ink-muted uppercase">Sent</th>
                           <th scope="col" class="px-3 py-2 text-right text-xs font-medium tracking-wide text-ink-muted uppercase">Delivered</th>
                           <th scope="col" class="px-3 py-2 text-right text-xs font-medium tracking-wide text-ink-muted uppercase">Read</th>
@@ -237,6 +246,14 @@
                         @for (run of runs(); track run.id) {
                           <tr class="border-b border-line/70 transition-colors last:border-0 hover:bg-brand-50/40">
                             <td class="px-3 py-2.5 tabular-nums text-ink-soft">#{{ run.occurrenceNumber }}</td>
+                            <td class="px-3 py-2.5">
+                              <span
+                                class="block max-w-[7rem] truncate font-mono text-xs text-ink-muted"
+                                [title]="run.id"
+                              >
+                                {{ run.id }}
+                              </span>
+                            </td>
                             <td class="px-3 py-2.5 whitespace-nowrap text-ink">
                               {{ runWhen(run) }}
                               @if (run.triggeredManually) {

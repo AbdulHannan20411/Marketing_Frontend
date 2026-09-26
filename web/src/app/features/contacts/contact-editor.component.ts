@@ -67,25 +67,23 @@ const STATUSES: readonly {
   templateUrl: './contact-editor.component.html',
 })
 export class ContactEditorComponent {
-  
   constructor() {
-      console.log('🔥 ContactEditorComponent CREATED');
+    // Fills the form from the record being edited, and again if it changes.
+    effect(() => {
+      const contact = this.contact();
+      if (!contact) {
+        return;
+      }
 
-  effect(() => {
-    const contact = this.contact();
-    if (!contact) {
-      return;
-    }
-
-    this.fullName.set(contact.fullName);
-    this.phoneNumber.set(contact.phoneNumber);
-    this.email.set(contact.email ?? '');
-    this.country.set(contact.country ?? '');
-    this.status.set(contact.status);
-    this.selectedTags.set(new Set(contact.tagIds));
-    this.selectedGroups.set(new Set(contact.groupIds));
-  });
-}
+      this.fullName.set(contact.fullName);
+      this.phoneNumber.set(contact.phoneNumber);
+      this.email.set(contact.email ?? '');
+      this.country.set(contact.country ?? '');
+      this.status.set(contact.status);
+      this.selectedTags.set(new Set(contact.tagIds));
+      this.selectedGroups.set(new Set(contact.groupIds));
+    });
+  }
 
   readonly groups = input.required<readonly ContactGroup[]>();
   readonly tags = input.required<readonly ContactTag[]>();
@@ -212,6 +210,8 @@ export class ContactEditorComponent {
     const email = this.email().trim();
     const country = this.country();
 
+    const existing = this.contact();
+
     this.save.emit({
       fullName: this.fullName().trim(),
       phoneNumber: this.phoneNumber().trim(),
@@ -219,10 +219,36 @@ export class ContactEditorComponent {
       // Omitted rather than empty, so the server infers from the number.
       ...(country.length === 0 ? {} : { country }),
       status: this.status(),
-      tagIds: [...this.selectedTags()],
-      groupIds: [...this.selectedGroups()],
+      /*
+       * Sent only when they actually changed.
+       *
+       * The API replaces a collection whenever it is supplied, so sending the
+       * memberships back unchanged soft-deleted every group and tag row and
+       * re-created identical ones — three to seven audit entries per save, all
+       * of them churn, and none of them describing anything the user did.
+       * Omitting an untouched collection leaves those rows alone.
+       */
+      ...(sameMembers(this.selectedTags(), existing?.tagIds)
+        ? {}
+        : { tagIds: [...this.selectedTags()] }),
+      ...(sameMembers(this.selectedGroups(), existing?.groupIds)
+        ? {}
+        : { groupIds: [...this.selectedGroups()] }),
     });
   }
+}
+
+/**
+ * Whether a selection still matches what the record came with.
+ *
+ * `undefined` for a contact being created, where there is nothing to compare
+ * against and everything has to be sent.
+ */
+function sameMembers(selected: ReadonlySet<string>, original: readonly string[] | undefined): boolean {
+  if (original === undefined) {
+    return false;
+  }
+  return selected.size === original.length && original.every((id) => selected.has(id));
 }
 
 function toggle(current: ReadonlySet<string>, id: string): ReadonlySet<string> {

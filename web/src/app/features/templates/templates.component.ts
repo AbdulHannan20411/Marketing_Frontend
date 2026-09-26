@@ -17,6 +17,8 @@ import {
   TEMPLATE_STATUS_LABEL,
 } from '@core/models/whatsapp.model';
 import { ToastService } from '@core/services/toast.service';
+import { serverSorter } from '@shared/ui/data-table/sort';
+import { SortMenuComponent } from '@shared/ui/data-table/sort-menu.component';
 import { latestRequest } from '@core/http/latest-request';
 import { WhatsAppService } from '@core/services/whatsapp.service';
 import { TimeAgoPipe } from '@shared/pipes/time-ago.pipe';
@@ -48,6 +50,7 @@ const STATUS_ORDER: readonly TemplateStatus[] = ['approved', 'pending', 'rejecte
   selector: 'app-templates',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    SortMenuComponent,
     HistoryButtonComponent,
     TimeAgoPipe,
     TemplateSegmentsPipe,
@@ -164,6 +167,26 @@ export class TemplatesComponent {
    */
   private readonly listRequest = latestRequest();
 
+  /**
+   * Ordered by the API: this list is paged there, so ordering the cards on
+   * screen would reorder one page and say nothing about the rest.
+   */
+  protected readonly sorter = serverSorter({
+    columns: [
+      { key: 'id', label: 'ID' },
+      { key: 'name', label: 'Name' },
+      { key: 'status', label: 'Status' },
+      { key: 'category', label: 'Category' },
+      { key: 'timesUsed', label: 'Times used', initialDirection: 'desc' },
+      { key: 'createdAt', label: 'Created', initialDirection: 'desc' },
+      { key: 'updatedAt', label: 'Modified', initialDirection: 'desc' },
+    ],
+    load: () => {
+      this.pager.reset();
+      this.load();
+    },
+  });
+
   protected load(): void {
     this.state.set('loading');
 
@@ -174,6 +197,8 @@ export class TemplatesComponent {
         search: this.search(),
         status: this.status(),
         category: this.category(),
+        sortBy: this.sorter.key(),
+        sortDirection: this.sorter.direction(),
       })
       .pipe(this.listRequest.only())
       .subscribe({

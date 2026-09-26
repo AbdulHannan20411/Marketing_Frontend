@@ -21,6 +21,7 @@ import type {
   MergeContactsRequest,
   UpdateContactRequest,
 } from '@core/models/contact.model';
+import { sortParams } from '@shared/ui/data-table/sort';
 import { ApiService } from './api.service';
 
 @Injectable({ providedIn: 'root' })
@@ -30,7 +31,7 @@ export class ContactsService {
   /* ------------------------------ reads ------------------------------ */
 
   list(query: ContactQuery): Observable<PagedResult<Contact>> {
-    return this.api.get<PagedResult<Contact>>('/contacts', {
+    const params: Record<string, string | number> = {
       page: query.page,
       pageSize: query.pageSize,
       search: query.search,
@@ -38,6 +39,11 @@ export class ContactsService {
       status: query.status,
       groupId: query.groupId,
       tagId: query.tagId,
+    };
+
+    return this.api.get<PagedResult<Contact>>('/contacts', {
+      ...params,
+      ...sortParams(query.sortBy, query.sortDirection),
     });
   }
 
