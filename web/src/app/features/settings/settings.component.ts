@@ -192,6 +192,18 @@ export class SettingsComponent {
       (!this.auth.isSuperAdmin() || this.scope.isScoped()),
   );
 
+  /**
+   * Where the export centre lives for whoever is looking.
+   *
+   * It is registered under both portals, at different paths — the platform one
+   * is mounted at `superadmin`. A hard-coded `/exports` would resolve for an
+   * Admin and fall through to the landing guard for platform staff, which
+   * lands them on a dashboard and reads as a broken link.
+   */
+  protected readonly downloadsRoute = computed(() =>
+    this.auth.isSuperAdmin() ? '/superadmin/exports' : '/exports',
+  );
+
   protected readonly canSeeTeamSecurity = computed(
     () => !this.auth.isSuperAdmin() && this.auth.hasPermission('settings.employees'),
   );

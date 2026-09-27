@@ -1,6 +1,8 @@
 import type { Route } from '@angular/router';
 
-import { NAVIGATION, SUPERADMIN_NAVIGATION } from '@core/config/navigation.config';
+import { NAVIGATION } from '@core/config/navigation.config';
+import { SUPERADMIN_NAVIGATION } from '@core/config/superadmin-navigation.config';
+import type { NavSection } from '@core/models/navigation.model';
 import { adminPortalGuard, superAdminPortalGuard } from '@core/guards/portal.guard';
 import { routes } from './app.routes';
 
@@ -36,21 +38,24 @@ describe('sidebar links resolve to routes', () => {
     };
 
     for (const parent of parents) {
-      walk(parent.children ?? [], '');
+      // From the parent's own path, not from the root: the platform portal is
+      // mounted at `superadmin`, so its children are `superadmin/admins` and
+      // not `admins` — which is exactly what the sidebar links to.
+      walk(parent.children ?? [], parent.path ?? '');
     }
 
     return paths;
   }
 
-  /** A nav route as a path: `/contacts` → `contacts`. */
-  const asPath = (route: string): string => route.replace(/^\//, '');
+  /** Nav routes as paths, without their leading slash: `/contacts` → `contacts`. */
+  function navPaths(sections: readonly NavSection[]): readonly string[] {
+    return sections.flatMap((section) => section.items.map((item) => item.route.replace(/^\//, '')));
+  }
 
   it('registers every workspace nav route under the workspace portal', () => {
     const registered = pathsFor(adminPortalGuard);
 
-    const missing = NAVIGATION.flatMap((section) => section.items)
-      .map((item) => asPath(item.route))
-      .filter((path) => !registered.has(path));
+    const missing = navPaths(NAVIGATION).filter((path) => !registered.has(path));
 
     expect(missing).toEqual([]);
   });
@@ -58,9 +63,7 @@ describe('sidebar links resolve to routes', () => {
   it('registers every platform nav route under the platform portal', () => {
     const registered = pathsFor(superAdminPortalGuard);
 
-    const missing = SUPERADMIN_NAVIGATION.flatMap((section) => section.items)
-      .map((item) => asPath(item.route))
-      .filter((path) => !registered.has(path));
+    const missing = navPaths(SUPERADMIN_NAVIGATION).filter((path) => !registered.has(path));
 
     expect(missing).toEqual([]);
   });
@@ -70,6 +73,6 @@ describe('sidebar links resolve to routes', () => {
     // "Downloads" and an export belongs to the person who asked for it, not to
     // the portal they happen to be in.
     expect(pathsFor(adminPortalGuard).has('exports')).toBeTrue();
-    expect(pathsFor(superAdminPortalGuard).has('exports')).toBeTrue();
+    expect(pathsFor(superAdminPortalGuard).has('superadmin/exports')).toBeTrue();
   });
 });

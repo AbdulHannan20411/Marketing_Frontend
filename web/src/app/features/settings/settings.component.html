@@ -196,7 +196,7 @@
     notification, or closed the tab while one was running, the file is still waiting.
   </p>
 
-  <a appButton variant="outline" size="sm" routerLink="/exports">
+  <a appButton variant="outline" size="sm" [routerLink]="downloadsRoute()">
     <app-icon name="download" [size]="14" />
     Open your downloads
   </a>
