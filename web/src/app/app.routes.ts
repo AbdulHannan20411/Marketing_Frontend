@@ -307,6 +307,16 @@ export const routes: Routes = [
             (m) => m.NotificationsComponent,
           ),
       },
+      {
+        // No permission guard: the page only ever shows the caller's own
+        // exports, and every list they could export is already behind its own
+        // permission. Guarding it would hide the way to a file they were
+        // invited to collect.
+        path: 'exports',
+        title: 'Exports',
+        loadComponent: () =>
+          import('@features/exports/exports.component').then((m) => m.ExportsComponent),
+      },
       { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
     ],
   },
@@ -533,6 +543,26 @@ export const routes: Routes = [
           import('@features/notifications/notifications.component').then(
             (m) => m.NotificationsComponent,
           ),
+      },
+      {
+        /*
+         * The export centre, for the workspace side as well.
+         *
+         * It was only ever registered under the Super Admin portal, while the
+         * sidebar offered it to everybody and Settings now links to it — so an
+         * Admin clicking Exports or Downloads fell through to `**` and landed
+         * on the dashboard, which reads as the link being wrong rather than
+         * missing.
+         *
+         * No permission guard, for the reason given on the Super Admin copy:
+         * the page only ever lists the caller's own exports, and every list
+         * they could export is already behind its own permission. Guarding it
+         * would hide the way to a file they were invited to collect.
+         */
+        path: 'exports',
+        title: 'Exports',
+        loadComponent: () =>
+          import('@features/exports/exports.component').then((m) => m.ExportsComponent),
       },
       {
         path: 'upgrade',

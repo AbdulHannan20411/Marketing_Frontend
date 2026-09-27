@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { map, type Observable } from 'rxjs';
+import { map, tap, type Observable } from 'rxjs';
 
 import type { PagedResult } from '@core/models/api.model';
 import type { AdminAccount, PlatformOverview } from '@core/models/admin-account.model';
@@ -10,10 +10,17 @@ import type {
   TenantPlan,
   TenantStatus,
 } from '@core/models/platform.model';
-import { toAdaptivePage, type AdaptivePage, type ListQuery } from '@core/http/adaptive-page';
+import {
+  pagingParams,
+  toAdaptivePage,
+  type AdaptivePage,
+  type ListQuery,
+  type ServerListSupport,
+} from '@core/http/adaptive-page';
 import { comparatorFor } from '@core/services/contacts.service';
 import { sortParams, type SortColumn, type SortDirection } from '@shared/ui/data-table/sort';
 import { ApiService } from './api.service';
+import { saveBlob } from './contacts.service';
 
 /**
  * The whole payload. No password — the owner sets their own through the
@@ -31,6 +38,15 @@ export interface UpdateAdminAccountRequest {
   readonly organisation?: string;
   readonly plan?: TenantPlan;
 }
+
+/*
+ * What `/superadmin/admins` does for itself.
+ *
+ * It searches — `WhereMatchesAdminSearch` — and filters by status, both
+ * alongside the paging. It does not sort: the query ends `OrderBy(displayName)`
+ * whatever `sortBy` says, so a sorted request has to be answered here.
+ */
+const ADMINS_SERVER_SUPPORT: ServerListSupport = { search: true, sort: false };
 
 /** What the admin-account list can be ordered by. */
 export const ADMIN_SORT_COLUMNS: readonly SortColumn<AdminAccount>[] = [
@@ -76,6 +92,19 @@ export const ADMIN_SORT_COLUMNS: readonly SortColumn<AdminAccount>[] = [
   },
 ];
 
+/** What the audit screen can narrow by. Every field optional. */
+export interface AuditLogFilters {
+  /** Free text over the actor, the action and the record. */
+  readonly search?: string;
+  /** Exact actor name, as the entries report it. */
+  readonly actor?: string | null;
+  /** `critical` | `warning` | `info`, or null for every severity. */
+  readonly severity?: string | null;
+  /** Inclusive ISO instants. */
+  readonly from?: string | null;
+  readonly to?: string | null;
+}
+
 @Injectable({ providedIn: 'root' })
 export class PlatformService {
   private readonly api = inject(ApiService);
@@ -105,10 +134,19 @@ export class PlatformService {
   ): Observable<AdaptivePage<AdminAccount>> {
     return this.api
       .get<PagedResult<AdminAccount> | readonly AdminAccount[]>('/superadmin/admins', {
-        page: query.page,
-        pageSize: query.pageSize,
-        search: query.search ?? '',
-        status: query.status ?? 'all',
+        ...pagingParams(query, ADMINS_SERVER_SUPPORT),
+        /*
+         * Both omitted rather than sent empty.
+         *
+         * `status` binds to a nullable `TenantAccountStatus` on the API, where
+         * **absent means every state** — there is no `all` member, so sending
+         * the screen's own word for it was a 400: "The value 'all' is not
+         * valid for Status."
+         */
+        ...(query.search?.trim() ? { search: query.search.trim() } : {}),
+        ...(query.status !== undefined && query.status !== 'all'
+          ? { status: query.status }
+          : {}),
         ...sortParams(query.sortBy, query.sortDirection),
       })
       .pipe(
@@ -156,26 +194,77 @@ export class PlatformService {
     return this.api.delete(`/superadmin/admins/${id}`);
   }
 
+  /**
+   * A page of workspaces.
+   *
+   * `search` is sent and, today, dropped: `PageRequest` carries it and
+   * `PlatformService.GetTenantsAsync` never reads it. Unlike `/groups` this
+   * endpoint has no unpaged form to fall back to, so there is nothing the
+   * client can do about it — see `docs/API-LIST-PAGINATION-BACKEND.md` §9.
+   * Sorting, by contrast, is applied by the API.
+   */
   listTenants(
     page: number,
     pageSize: number,
     sortBy: string | null = null,
     sortDirection: SortDirection = 'asc',
+    search = '',
   ): Observable<PagedResult<Tenant>> {
     return this.api.get<PagedResult<Tenant>>('/admin/tenants', {
       page,
       pageSize,
+      ...(search.trim() ? { search: search.trim() } : {}),
       ...sortParams(sortBy, sortDirection),
     });
   }
 
+  /**
+   * Downloads the audit log the filters select, as one request.
+   *
+   * The client used to build this file itself, paging the list endpoint a
+   * hundred rows at a time and giving up at five thousand — sixty-eight
+   * requests for a sixty-eight page log. The API streams it now, with the same
+   * filters and the same sort, so the file matches the screen.
+   */
+  exportAuditLogs(
+    sortBy: string | null,
+    sortDirection: SortDirection,
+    filters: AuditLogFilters = {},
+  ): Observable<Blob> {
+    return this.api
+      .download('/admin/audit/export', {
+        ...(filters.search?.trim() ? { search: filters.search.trim() } : {}),
+        ...(filters.actor ? { actor: filters.actor } : {}),
+        ...(filters.severity ? { severity: filters.severity } : {}),
+        ...(filters.from ? { from: filters.from } : {}),
+        ...(filters.to ? { to: filters.to } : {}),
+        ...sortParams(sortBy, sortDirection),
+      })
+      .pipe(tap((blob) => saveBlob(blob, 'audit-log.csv')));
+  }
+
+  /**
+   * A page of audit entries.
+   *
+   * `search`, `actor`, `from` and `to` are sent and, today, dropped:
+   * `PlatformService.GetAuditLogAsync` takes a bare `PageRequest` and applies
+   * only paging and sorting. Asked for in
+   * `docs/API-AUDIT-LOG-FILTERS-BACKEND.md`; until then the filter bar narrows
+   * nothing and says so.
+   */
   listAuditLogs(
     page: number,
     pageSize: number,
     sortBy: string | null = null,
     sortDirection: SortDirection = 'asc',
+    filters: AuditLogFilters = {},
   ): Observable<PagedResult<AuditLogEntry>> {
     return this.api.get<PagedResult<AuditLogEntry>>('/admin/audit', {
+      ...(filters.search?.trim() ? { search: filters.search.trim() } : {}),
+      ...(filters.actor ? { actor: filters.actor } : {}),
+      ...(filters.severity ? { severity: filters.severity } : {}),
+      ...(filters.from ? { from: filters.from } : {}),
+      ...(filters.to ? { to: filters.to } : {}),
       page,
       pageSize,
       ...sortParams(sortBy, sortDirection),

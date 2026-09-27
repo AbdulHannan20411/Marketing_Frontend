@@ -70,7 +70,8 @@
 
   <app-search-box
     class="ml-auto min-w-0 max-w-xs flex-1"
-    [(value)]="search"
+    [value]="search()"
+    (valueChange)="onSearch($event)"
     label="Search your team"
     placeholder="Search name, email or job title"
   />
@@ -94,9 +95,22 @@
 } @else {
   <!-- Team -->
   @if (tab() === 'team') {
+    @if (state() === 'empty') {
+      <app-card class="mt-5 block" [padded]="false">
+        <app-empty-state
+          icon="search"
+          [title]="searching() ? 'Nobody matches that search' : 'No one here yet'"
+          [description]="
+            searching()
+              ? 'Clear the search to see the whole team.'
+              : 'Invite a teammate to get started.'
+          "
+        />
+      </app-card>
+    } @else {
     <app-card class="mt-5 block" [padded]="false">
       <ul class="divide-y divide-line">
-        @for (employee of pager.items(); track employee.id) {
+        @for (employee of team(); track employee.id) {
           <li
             class="flex flex-wrap items-center gap-4 px-5 py-4 transition-colors hover:bg-surface-muted"
           >
@@ -270,7 +284,8 @@
       </ul>
     </app-card>
     <app-paginator class="mt-5" [pager]="pager" />
-}
+    }
+  }
 
   <!-- Permission matrix -->
   @if (tab() === 'matrix') {

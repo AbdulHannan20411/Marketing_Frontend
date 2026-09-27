@@ -65,6 +65,29 @@ export interface SecurityEmployee {
   readonly canSuspend?: boolean;
 }
 
+/**
+ * One workspace's posture, as the platform list shows it.
+ *
+ * Served by `GET /superadmin/security/summary`, paged and ordered riskiest
+ * first **across the platform** — which is the part that could never be done
+ * from here. The index used to build this itself, one request per row, and
+ * could then only rank the ten rows it happened to have.
+ *
+ * Nobody is named: which individual is the problem is a question for
+ * `GET /superadmin/security/tenants/{tenantId}`, behind the Open button.
+ */
+export interface WorkspaceSecuritySummary {
+  readonly tenantId: string;
+  readonly organizationName: string;
+  /** Active members, platform staff excluded. */
+  readonly people: number;
+  readonly activeSessions: number;
+  readonly highRisk: number;
+  readonly mediumRisk: number;
+  /** Over a device or displacement threshold. */
+  readonly needsAttention: number;
+}
+
 export interface SecurityOverview {
   readonly organizationId: string;
   readonly organizationName: string;

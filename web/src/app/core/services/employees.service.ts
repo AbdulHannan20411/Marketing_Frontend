@@ -1,10 +1,53 @@
 import { Injectable, inject } from '@angular/core';
-import type { Observable } from 'rxjs';
+import { map, type Observable } from 'rxjs';
 
+import {
+  pagingParams,
+  toAdaptivePage,
+  type AdaptivePage,
+  type ListQuery,
+  type ServerListSupport,
+} from '@core/http/adaptive-page';
+import type { PagedResult } from '@core/models/api.model';
 import type { Employee, EmployeeStatus, PermissionSet } from '@core/models/employee.model';
 import type { Permission } from '@core/models/permission.model';
 import type { WhatsAppAccess, WhatsAppAccessUpdate } from '@core/models/whatsapp-account.model';
+import { comparatorFor } from './contacts.service';
+import { sortParams, type SortColumn } from '@shared/ui/data-table/sort';
 import { ApiService } from './api.service';
+
+/**
+ * What `/employees` does for itself.
+ *
+ * It pages and it searches — `EmployeeService.GetEmployeesAsync` applies
+ * `query.Search` to the name and the email before counting and slicing. It
+ * does not sort: the query ends `OrderBy(displayName)`, so a sorted request is
+ * answered from the whole team here. See `docs/API-LIST-PAGINATION-BACKEND.md`.
+ */
+const EMPLOYEES_SERVER_SUPPORT: ServerListSupport = { search: true, sort: false };
+
+/** What the team table can be ordered by. */
+export const EMPLOYEE_SORT_COLUMNS: readonly SortColumn<Employee>[] = [
+  { key: 'id', label: 'ID', kind: 'text', value: (employee) => employee.id },
+  { key: 'name', label: 'Name', kind: 'text', value: (employee) => employee.name },
+  { key: 'email', label: 'Email', kind: 'text', value: (employee) => employee.email },
+  { key: 'role', label: 'Role', kind: 'text', value: (employee) => employee.role },
+  { key: 'status', label: 'Status', kind: 'text', value: (employee) => employee.status },
+  {
+    key: 'invitedAt',
+    label: 'Invited',
+    kind: 'date',
+    value: (employee) => employee.invitedAt,
+    initialDirection: 'desc',
+  },
+  {
+    key: 'lastActiveAt',
+    label: 'Last active',
+    kind: 'date',
+    value: (employee) => employee.lastActiveAt,
+    initialDirection: 'desc',
+  },
+];
 
 export interface InviteEmployeeRequest {
   readonly email: string;
@@ -27,8 +70,38 @@ export interface PermissionSetDraft {
 export class EmployeesService {
   private readonly api = inject(ApiService);
 
+  /**
+   * The whole team.
+   *
+   * Still needed beside {@link page}: the permission matrix picks anyone from
+   * a dropdown, the "last administrator" rule counts administrators across the
+   * workspace, and the team counts describe everybody. A page of ten cannot
+   * answer any of those, and a roster is bounded by the plan's seat limit.
+   */
   list(): Observable<readonly Employee[]> {
     return this.api.get<readonly Employee[]>('/employees');
+  }
+
+  /** One page of the team, searched by the API. */
+  page(query: ListQuery): Observable<AdaptivePage<Employee>> {
+    return this.api
+      .get<PagedResult<Employee> | readonly Employee[]>('/employees', {
+        ...pagingParams(query, EMPLOYEES_SERVER_SUPPORT),
+        ...(query.search?.trim() ? { search: query.search.trim() } : {}),
+        ...sortParams(query.sortBy, query.sortDirection),
+      })
+      .pipe(
+        map((response) =>
+          toAdaptivePage(response, query, {
+            matches: (employee, term) =>
+              term === '' ||
+              employee.name.toLowerCase().includes(term) ||
+              employee.email.toLowerCase().includes(term) ||
+              employee.jobTitle.toLowerCase().includes(term),
+            compare: (current) => comparatorFor(EMPLOYEE_SORT_COLUMNS, current),
+          }),
+        ),
+      );
   }
 
   invite(request: InviteEmployeeRequest): Observable<Employee> {

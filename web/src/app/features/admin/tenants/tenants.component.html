@@ -3,14 +3,14 @@
   description="Every workspace on the platform, with plan, seats and quota consumption."
   [breadcrumbs]="[{ label: 'Platform', route: null }, { label: 'Tenants', route: null }]"
 >
-  <button appButton variant="outline" size="md">
-    <app-icon name="download" [size]="16" />
-    Export
-  </button>
-  <button appButton size="md">
-    <app-icon name="plus" [size]="16" />
-    New workspace
-  </button>
+  <!--
+    No Export and no New workspace.
+
+    Both were here with no click handler at all — they looked like features and
+    did nothing, which is worse than their absence. Provisioning a workspace has
+    no endpoint (an Admin account is created from Customers), and there is no
+    tenant export route. They come back when there is something behind them.
+  -->
 </app-page-header>
 
 <section class="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Platform totals">
@@ -47,15 +47,29 @@
   [state]="state()"
   [pager]="pager"
   [sorter]="sorter"
-  emptyTitle="No workspaces yet"
-  emptyDescription="Workspaces appear here as soon as they are provisioned."
+  [emptyTitle]="search().trim() ? 'No workspaces match that search' : 'No workspaces yet'"
+  [emptyDescription]="
+    search().trim()
+      ? 'Clear the search to see every workspace.'
+      : 'Workspaces appear here as soon as they are provisioned.'
+  "
   (retry)="load()"
 >
-  <div tableToolbar class="flex w-full items-center justify-between gap-3">
+  <div tableToolbar class="flex w-full flex-wrap items-center justify-between gap-3">
     <div>
       <h2 class="text-sm font-semibold text-ink">All workspaces</h2>
-      <p class="mt-0.5 text-xs text-ink-muted">Sorted by creation date</p>
+      <p class="mt-0.5 text-xs text-ink-muted">
+        {{ pager.total() }} {{ pager.total() === 1 ? 'workspace' : 'workspaces' }}
+      </p>
     </div>
+
+    <app-search-box
+      class="min-w-0 max-w-xs flex-1"
+      [value]="search()"
+      (valueChange)="onSearch($event)"
+      label="Search workspaces"
+      placeholder="Search name or contact email"
+    />
   </div>
 
   <ng-template [appTableRow]="tenants()" let-tenant>

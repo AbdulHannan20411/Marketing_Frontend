@@ -13,6 +13,7 @@ import type { ImportProgressEvent } from '@core/models/contact-import.model';
 import type { AppNotification, AppNotificationDto } from '@core/models/notification.model';
 import { toNotification } from '@core/models/notification.model';
 import type { PaymentRequestEvent } from '@core/models/payment-request.model';
+import type { ExportProgressEvent } from '@core/models/export.model';
 import type { Conversation, InboundMessageEvent } from '@core/models/whatsapp.model';
 
 export type RealtimeState = 'disconnected' | 'connecting' | 'connected';
@@ -71,6 +72,7 @@ export class RealtimeService {
   private readonly notifications = new Subject<AppNotification>();
   private readonly inboundMessages = new Subject<InboundMessageEvent>();
   private readonly conversationAssignments = new Subject<Conversation>();
+  private readonly exportProgress = new Subject<ExportProgressEvent>();
   /** Fires after a reconnect: events missed while offline are never replayed. */
   private readonly resynced = new Subject<void>();
 
@@ -89,6 +91,14 @@ export class RealtimeService {
   readonly inboundMessages$: Observable<InboundMessageEvent> = this.inboundMessages.asObservable();
   /** Someone assigned or unassigned a conversation; carries the updated thread. */
   readonly conversationAssignments$: Observable<Conversation> = this.conversationAssignments.asObservable();
+  /**
+   * An export was queued, advanced, finished or failed.
+   *
+   * Sent to this user's group alone — an export names a file and a row count
+   * for data they chose to extract, and a colleague has no business hearing
+   * about it. One event for the whole lifecycle; `status` says which it is.
+   */
+  readonly exportProgress$: Observable<ExportProgressEvent> = this.exportProgress.asObservable();
   /**
    * Throttled: see {@link RESYNC_MIN_GAP_MS}. Leading edge, so the first
    * reconnect refetches at once and the rest of a storm is dropped.
@@ -165,6 +175,9 @@ export class RealtimeService {
     // Both are delivered per user, only to people who may view that number.
     connection.on('inboundMessage', (event: InboundMessageEvent) =>
       this.inboundMessages.next(event),
+    );
+    connection.on('exportProgress', (event: ExportProgressEvent) =>
+      this.exportProgress.next(event),
     );
     connection.on('conversationAssigned', (conversation: Conversation) =>
       this.conversationAssignments.next(conversation),

@@ -1,0 +1,146 @@
+<app-page-header
+  title="Exports"
+  description="Files you have asked for. Exports run in the background, so you can leave this page."
+  [breadcrumbs]="[{ label: 'Home', route: '/dashboard' }, { label: 'Exports', route: null }]"
+>
+  @if (!isLive()) {
+    <!-- Said out loud rather than implied. With the hub down the list still
+         updates, just on a slower timer, and "why is this not moving" is a
+         worse experience than a line explaining it. -->
+    <span class="inline-flex items-center gap-1.5 text-xs text-gray-500">
+      <app-icon name="clock" [size]="14" />
+      Live updates unavailable — checking periodically
+    </span>
+  }
+</app-page-header>
+
+<div class="rounded-xl border border-line bg-surface shadow-sm transition-shadow hover:shadow-md">
+  @if (loading()) {
+    <!-- Skeleton, not a spinner: the shape of what is coming, so the page does
+         not jump when it arrives. -->
+    <div class="divide-y divide-line">
+      @for (row of [1, 2, 3]; track row) {
+        <div class="flex items-center gap-4 p-4">
+          <div class="h-9 w-9 animate-pulse rounded-lg bg-gray-100"></div>
+          <div class="flex-1 space-y-2">
+            <div class="h-3.5 w-40 animate-pulse rounded bg-gray-100"></div>
+            <div class="h-3 w-64 animate-pulse rounded bg-gray-100"></div>
+          </div>
+        </div>
+      }
+    </div>
+  } @else if (failed()) {
+    <div class="flex flex-col items-center gap-3 p-12 text-center">
+      <app-icon name="xCircle" [size]="32" class="text-red-500" />
+      <p class="text-sm font-medium text-ink">We could not load your exports</p>
+      <p class="max-w-sm text-sm text-gray-500">
+        This does not affect any export that is already running — they will still finish.
+      </p>
+    </div>
+  } @else if (jobs().length === 0) {
+    <div class="flex flex-col items-center gap-3 p-12 text-center">
+      <app-icon name="download" [size]="32" class="text-gray-400" />
+      <p class="text-sm font-medium text-ink">No exports yet</p>
+      <p class="max-w-sm text-sm text-gray-500">
+        Use Export on any list — contacts, delivery failures — and the file will appear here when
+        it is ready.
+      </p>
+    </div>
+  } @else {
+    <ul class="divide-y divide-line">
+      @for (job of jobs(); track job.id) {
+        <li class="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4">
+          <div
+            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-green-50 text-primary"
+          >
+            <app-icon name="download" [size]="18" />
+          </div>
+
+          <div class="min-w-0 flex-1">
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="truncate text-sm font-medium text-ink">{{ job.datasetName }}</span>
+              <span
+                class="rounded-full px-2 py-0.5 text-[11px] font-medium capitalize ring-1 ring-inset"
+                [class]="tone(job)"
+                >{{ job.status }}</span
+              >
+              <span class="text-[11px] uppercase text-gray-400">{{ job.format }}</span>
+            </div>
+
+            @if (job.status === 'processing' || job.status === 'queued') {
+              <!-- A determinate bar only when the total is known. Null means the
+                   count was not worth taking, and a bar stuck at 0% for four
+                   minutes reads as broken. -->
+              @if (job.percentage !== null) {
+                <div class="mt-2 flex items-center gap-2">
+                  <div class="h-1.5 w-40 overflow-hidden rounded-full bg-gray-100">
+                    <div
+                      class="h-full rounded-full bg-primary transition-[width] duration-300"
+                      [style.width.%]="job.percentage"
+                    ></div>
+                  </div>
+                  <span class="text-xs text-gray-500">
+                    {{ job.processedRecords | number }} / {{ job.totalRecords | number }}
+                  </span>
+                </div>
+              } @else {
+                <p class="mt-1 text-xs text-gray-500">
+                  Working… {{ job.processedRecords | number }} rows so far
+                </p>
+              }
+            } @else if (job.status === 'failed') {
+              <p class="mt-1 text-xs text-red-600">
+                {{ job.errorMessage ?? 'We could not finish this export.' }}
+              </p>
+            } @else {
+              <p class="mt-1 text-xs text-gray-500">
+                @if (job.totalRecords !== null) {
+                  {{ job.totalRecords | number }} records · {{ size(job) }} ·
+                }
+                {{ job.requestedAt | date: 'd MMM y, HH:mm' }}
+                @if (job.status === 'completed' && job.expiresAt !== null) {
+                  · available until {{ job.expiresAt | date: 'd MMM y' }}
+                }
+              </p>
+            }
+          </div>
+
+          <div class="flex shrink-0 items-center gap-2">
+            @if (job.isDownloadable) {
+              <button
+                type="button"
+                class="inline-flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-sm font-medium text-ink transition-colors hover:bg-green-50 disabled:opacity-50"
+                [disabled]="isBusy(job)"
+                (click)="download(job)"
+              >
+                <app-icon name="download" [size]="14" />
+                Download
+              </button>
+            } @else if (job.status === 'failed') {
+              <button
+                type="button"
+                class="inline-flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-sm font-medium text-ink transition-colors hover:bg-green-50 disabled:opacity-50"
+                [disabled]="isBusy(job)"
+                (click)="retry(job)"
+              >
+                <app-icon name="refresh" [size]="14" />
+                Retry
+              </button>
+            } @else if (job.status === 'queued' || job.status === 'processing') {
+              <button
+                type="button"
+                class="rounded-lg border border-line px-3 py-1.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 disabled:opacity-50"
+                [disabled]="isBusy(job)"
+                (click)="cancel(job)"
+              >
+                Cancel
+              </button>
+            } @else if (job.status === 'expired') {
+              <span class="text-xs text-gray-400">File removed</span>
+            }
+          </div>
+        </li>
+      }
+    </ul>
+  }
+</div>

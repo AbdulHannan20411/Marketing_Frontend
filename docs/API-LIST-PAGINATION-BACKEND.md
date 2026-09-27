@@ -118,3 +118,199 @@ rather leave it, say so and I will stop asking.
 | Nothing | Everything keeps working exactly as it does now |
 
 That last row is the point: none of this is blocking, and none of it needs a coordinated release.
+
+---
+
+## 6. Update — paging landed, search and sort did not
+
+Reported by the user as "search in Tags and Groups is not working". It is not the client; the
+parameter is sent and dropped.
+
+`/groups`, `/tags` and `/superadmin/admins` now page, which is most of §2 and it works. But
+`OptionalPageRequest` carries a `Search` that two of the three never read:
+
+```csharp
+// ContactService.GetGroupsAsync — query.Search is never touched
+var projected = _groups.Query()
+    .OrderBy(group => group.Name)          // …and sortBy is never read either
+    .Select(group => new { … });
+
+if (query.WantsPage) projected = projected.Skip((page - 1) * size).Take(size);
+```
+
+| Endpoint | Pages | Searches | Sorts |
+| --- | --- | --- | --- |
+| `GET /superadmin/admins` | ✅ | ✅ `WhereMatchesAdminSearch` | ❌ `OrderBy(displayName)` |
+| `GET /groups` | ✅ | ❌ accepted, ignored | ❌ `OrderBy(name)` |
+| `GET /tags` | ✅ | ❌ accepted, ignored | ❌ `OrderBy(name)` |
+
+**Accepting a parameter and ignoring it is worse than rejecting it.** A 400 saying "this endpoint
+does not search" would have been visible in an afternoon. A 200 carrying page one of *everything*
+is indistinguishable from a correct answer — the list simply never narrows, and the client cannot
+tell, because twenty-five rows out of four hundred is exactly what a correct search would also
+look like.
+
+### What the client does in the meantime
+
+It asks for a page only when the endpoint can answer the whole question:
+
+```ts
+const GROUPS_SERVER_SUPPORT: ServerListSupport = { search: false, sort: false };
+// → a search or a sort omits page/pageSize entirely, the endpoint answers with
+//   the collection as it does for the pickers, and the browser filters, orders
+//   and slices it.
+```
+
+So a plain first load of Groups is still one page from the server, and only a search or a sort
+falls back to the whole collection. Admins keeps server paging for search — which it performs —
+and falls back only for sort.
+
+This is a workaround, not the answer: it means the very lists that are long enough to need
+searching are the ones that get fetched whole in order to search them.
+
+### What is needed
+
+1. **Apply `Search` in `GetGroupsAsync` and `GetTagsAsync`** — group name and description, tag
+   name, case-insensitive contains, applied to `projected` *before* `Skip`/`Take` **and** before
+   the `CountAsync`. Note the count is currently taken from the unfiltered `_groups.Query()`, so it
+   needs to move inside the filter too or `totalItems` will describe rows the search removed.
+2. **Honour `sortBy` / `sortDirection` on all three**, through the same `ApplySort` +
+   `SortableColumns` allow-list the contacts list already uses. Keys as listed in §2 of this
+   document — they are what the client sends today.
+3. Then tell me, and the three flags above flip to `{ search: true, sort: true }`. That is the
+   entire client change.
+
+Worth a test on your side that a search returns *fewer* rows than no search, on a dataset larger
+than one page. That is the assertion that would have caught this.
+
+---
+
+## 7. Employees and plans — wired, and what each still needs
+
+Both asked for by the user. The state of play, checked against your code rather than guessed:
+
+| Endpoint | Pages | Searches | Sorts | Client sends |
+| --- | --- | --- | --- | --- |
+| `GET /employees` | ✅ | ✅ name + email | ❌ `OrderBy(displayName)` | page, pageSize, search, sortBy, sortDirection |
+| `GET /admin/plans` | ❌ | ❌ | ❌ | the same five, plus `status` |
+
+### `/employees` — only the sort is missing
+
+Paging and search both work, so the team table now reads one page and searches on the server. The
+only gap is ordering: `sortBy` is sent and dropped, so a sorted request falls back to the whole
+roster. `ApplySort` with the keys in §2 closes it.
+
+**The summary question from §4 answered itself.** Seat usage comes from `/subscription/entitlements`,
+not from counting the array, so paging the list did not break it. What does still need the whole
+roster is the permission matrix's employee picker, the team counts, and the rule that the last
+administrator cannot be demoted — a page of ten cannot answer any of those. So this screen makes two
+reads: one page for the table, one unpaged roster for the rest. That is fine while a roster is
+bounded by the plan's seat limit.
+
+If you would rather it were one read, send `activeCount` and `invitedCount` beside `totalItems`, plus
+an `adminCount`, and the roster read goes. Not urgent.
+
+### `/admin/plans` — nothing yet
+
+`PlanAdministrationController.GetAsync` is `_plans.GetAllAsync(cancellationToken)`: no paging, no
+search, no ordering. The client now sends the full parameter set anyway and applies it to the
+collection you return, so the screen already pages and searches — in the browser.
+
+What would make it real, in priority order:
+
+1. **`page` / `pageSize`**, returning `PagedResult`, with absent paging still returning the array —
+   the same optional shape as `/groups` and `/employees`.
+2. **`search`** over plan **name and tagline**. The tagline matters: it is what tells two similarly
+   named plans apart and it is on the card.
+3. **`status`** — `active` / `inactive` / `archived`, absent meaning every state. This is the
+   screen's own tab and it is already being sent. Bind it as a nullable enum and **do not add an
+   `all` member**: absent is how "every state" is said, which is what `/superadmin/admins` does.
+4. **`sortBy` / `sortDirection`** — `id`, `name`, `status`, `monthlyPrice`, `yearlyPrice`,
+   `sortOrder`, `updatedAt`. Default remains `sortOrder`, which is the order the pricing page uses.
+5. **Header counts.** The screen shows "N plans · N active · N promotional" across every plan, not
+   this page. While the endpoint returns everything the client computes them for free; the moment it
+   pages, they become `—` until the API sends `activeCount` and `promotionalCount` beside
+   `totalItems`. Worth including in the same change as (1) so the figures never go blank.
+
+This reverses §3, which listed plans as deliberately unpaged. That was written on the basis that a
+platform has a handful of them; the user wants it paged and searched regardless, so it is here.
+
+## 8. One bug, already fixed on the client
+
+`GET /superadmin/admins?status=all` was answering:
+
+```
+400  ["The value 'all' is not valid for Status."]
+```
+
+Mine: `AdminAccountQuery.Status` is a nullable `TenantAccountStatus` where **absent means every
+state**, and the screen was sending its own word for that. It now omits the parameter instead.
+Flagged only because the same trap is waiting in `/admin/plans` if `status` gets added there — hence
+point (3) above.
+
+---
+
+## 9. Tenants, and the Security index
+
+Two more, both asked for by the user.
+
+### `GET /admin/tenants` — search
+
+Sorting works (`ApplySort` + `SortableTenantColumns`). Search does not: `PageRequest.Search` is
+carried and `GetTenantsAsync` never reads it. The screen now has a search box and sends the term.
+
+```csharp
+source = source.WhereMatchesTenantSearch(request.Search);   // name, contact email
+```
+
+**Unlike `/groups`, there is no client-side fallback here.** That endpoint answers with the whole
+collection when no paging is asked for, so the browser can filter it; `/admin/tenants` is always a
+`PagedResult`, so an ignored `search` returns page one of everything and nothing can be done about
+it here. Until this lands the box is live and the term has no effect.
+
+While there: the **New workspace** and **Export** buttons have been removed from that screen. Both
+were rendered with no click handler — provisioning has no endpoint (an Admin account is created from
+Customers) and there is no tenant export route. Say if either should exist and I will build the
+client half.
+
+### `GET /security/workspaces` — one call instead of eleven
+
+The platform Security index draws one row per workspace with that workspace's people, sessions and
+risk counts. There is no endpoint for it, so it is assembled: the admin list, then
+`GET /security/overview?tenantId=` **once per row on the page**. Ten workspaces on screen is eleven
+requests, and each overview loads every employee and every session of a workspace in order to
+produce five numbers.
+
+The list half is now fixed on the client — it reads one page of `/superadmin/admins`, searched and
+sorted by the API, instead of every admin account. The fan-out is what is left.
+
+```
+GET /security/workspaces?page=1&pageSize=10&search=&sortBy=high&sortDirection=descending
+→ 200 { "data": { "items": [
+      { "tenantId": "tnt_1", "organisation": "Glow Studio", "admin": "Ayesha Khan",
+        "people": 14, "signedIn": 9, "high": 2, "medium": 3, "attention": 4 } ],
+    "page": 1, "pageSize": 10, "totalItems": 24, "totalPages": 3 } }
+```
+
+Five aggregates per workspace, computed in the database rather than by materialising every session.
+`search` over organisation and admin name; sorting by `high`, `attention`, `signedIn` and
+`organisation` — **sorting by risk is the point of the screen**, and it is the one thing the current
+shape cannot do at all, because the numbers it would sort by arrive after the page has been chosen.
+Today the client can only re-order the ten rows it already has, which ranks a page rather than the
+platform.
+
+**The fan-out is now gone, ahead of that endpoint.** The index makes exactly one request — one page
+of `/superadmin/admins` — and the People / Signed in / Indicators columns and the per-page summary
+cards have been removed with it. Opening a workspace still loads its full overview, which is one
+request for the one workspace somebody actually asked about.
+
+So the screen currently lists workspaces without their security numbers. That is the honest state
+until `/superadmin/security/workspaces` exists; it is not a good screen for security review without
+them, and it is the strongest reason to build that endpoint.
+
+Note also: the sort menu has been removed from the index. `/superadmin/admins` ends
+`OrderBy(displayName)` whatever `sortBy` says, and asking for a sort the API cannot do made the
+client fall back to fetching every account — which is what produced
+`GET /superadmin/admins?sortBy=id&sortDirection=ascending` with no paging on it at all. Sorting
+comes back with the new endpoint, where it can be done properly, over the whole platform rather than
+over ten rows.

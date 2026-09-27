@@ -21,7 +21,13 @@ import type {
   MergeContactsRequest,
   UpdateContactRequest,
 } from '@core/models/contact.model';
-import { toAdaptivePage, type AdaptivePage, type ListQuery } from '@core/http/adaptive-page';
+import {
+  pagingParams,
+  toAdaptivePage,
+  type AdaptivePage,
+  type ListQuery,
+  type ServerListSupport,
+} from '@core/http/adaptive-page';
 import { rowComparator, sortParams, type SortColumn } from '@shared/ui/data-table/sort';
 import { ApiService } from './api.service';
 
@@ -87,6 +93,22 @@ export function comparatorFor<T>(
   const column = columns.find((entry) => entry.key === query.sortBy);
   return column === undefined ? null : rowComparator(column, query.sortDirection ?? 'asc');
 }
+
+/*
+ * What `/groups` and `/tags` do for themselves today.
+ *
+ * Both page. Neither searches and neither sorts: `OptionalPageRequest` carries
+ * a `Search`, and `ContactService.GetGroupsAsync` never reads it — the query is
+ * `OrderBy(name)` and nothing else. Accepting a parameter and dropping it is
+ * worse than rejecting it, because a paged answer to an unperformed search
+ * looks exactly like a correct one.
+ *
+ * So while these are false the screens ask for the whole collection and filter
+ * and order it here. Flip each to true as the API lands it — see
+ * `docs/API-LIST-PAGINATION-BACKEND.md` §6 — and nothing else changes.
+ */
+const GROUPS_SERVER_SUPPORT: ServerListSupport = { search: false, sort: false };
+const TAGS_SERVER_SUPPORT: ServerListSupport = { search: false, sort: false };
 
 @Injectable({ providedIn: 'root' })
 export class ContactsService {
@@ -155,8 +177,7 @@ export class ContactsService {
   pageGroups(query: ListQuery): Observable<AdaptivePage<ContactGroup>> {
     return this.api
       .get<PagedResult<ContactGroup> | readonly ContactGroup[]>('/groups', {
-        page: query.page,
-        pageSize: query.pageSize,
+        ...pagingParams(query, GROUPS_SERVER_SUPPORT),
         search: query.search ?? '',
         ...sortParams(query.sortBy, query.sortDirection),
       })
@@ -176,8 +197,7 @@ export class ContactsService {
   pageTags(query: ListQuery): Observable<AdaptivePage<ContactTag>> {
     return this.api
       .get<PagedResult<ContactTag> | readonly ContactTag[]>('/tags', {
-        page: query.page,
-        pageSize: query.pageSize,
+        ...pagingParams(query, TAGS_SERVER_SUPPORT),
         search: query.search ?? '',
         ...sortParams(query.sortBy, query.sortDirection),
       })

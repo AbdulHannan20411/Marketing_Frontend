@@ -1,5 +1,9 @@
 import { RouterLink } from '@angular/router';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Subject, debounceTime, distinctUntilChanged } from 'rxjs';
+
+import { latestRequest } from '@core/http/latest-request';
 
 import type { LoadState } from '@core/models/api.model';
 import type { Tenant, TenantPlan, TenantStatus } from '@core/models/platform.model';
@@ -13,6 +17,10 @@ import { IconComponent } from '@shared/ui/icon/icon.component';
 import { serverSorter } from '@shared/ui/data-table/sort';
 import { serverPager } from '@shared/ui/pagination/pager';
 import { PageHeaderComponent } from '@shared/ui/page-header/page-header.component';
+import {
+  SearchBoxComponent,
+  SEARCH_DEBOUNCE_MS,
+} from '@shared/ui/search-box/search-box.component';
 import { StatCardComponent } from '@shared/ui/stat-card/stat-card.component';
 
 const STATUS_TONE: Readonly<Record<TenantStatus, BadgeTone>> = {
@@ -39,6 +47,7 @@ const PLAN_TONE: Readonly<Record<TenantPlan, BadgeTone>> = {
     DataTableComponent,
     TableRowDirective,
     StatCardComponent,
+    SearchBoxComponent,
     BadgeComponent,
     ButtonDirective,
     IconComponent,
@@ -52,6 +61,11 @@ export class TenantsComponent {
   protected readonly state = signal<LoadState>('loading');
   protected readonly tenants = signal<readonly Tenant[]>([]);
   protected readonly totalItems = signal(0);
+  protected readonly search = signal('');
+
+  /** Keystrokes, before debouncing: one request per pause, not per letter. */
+  private readonly searchInput = new Subject<string>();
+  private readonly listRequest = latestRequest();
 
   /** The API pages tenants; `load()` reads the page and size from here. */
   protected readonly pager = serverPager({
@@ -113,6 +127,14 @@ export class TenantsComponent {
   });
 
   constructor() {
+    this.searchInput
+      .pipe(debounceTime(SEARCH_DEBOUNCE_MS), distinctUntilChanged(), takeUntilDestroyed())
+      .subscribe((term) => {
+        this.search.set(term);
+        this.pager.reset();
+        this.load();
+      });
+
     this.load();
   }
 
@@ -124,15 +146,21 @@ export class TenantsComponent {
         this.pager.pageSize(),
         this.sorter.key(),
         this.sorter.direction(),
+        this.search(),
       )
+      .pipe(this.listRequest.only())
       .subscribe({
-      next: (result) => {
-        this.tenants.set(result.items);
-        this.totalItems.set(result.totalItems);
-        this.state.set(result.totalItems === 0 ? 'empty' : 'ready');
-      },
-      error: () => this.state.set('error'),
-    });
+        next: (result) => {
+          this.tenants.set(result.items);
+          this.totalItems.set(result.totalItems);
+          this.state.set(result.totalItems === 0 ? 'empty' : 'ready');
+        },
+        error: () => this.state.set('error'),
+      });
+  }
+
+  protected onSearch(term: string): void {
+    this.searchInput.next(term);
   }
 
   protected quotaPercent(tenant: Tenant): number {

@@ -12,6 +12,7 @@ import { AdminScopeService } from '@core/scope/admin-scope.service';
 import { latestRequest } from '@core/http/latest-request';
 import { ADMIN_SORT_COLUMNS, PlatformService } from '@core/services/platform.service';
 import { ToastService } from '@core/services/toast.service';
+import { SEARCH_DEBOUNCE_MS } from '@shared/ui/search-box/search-box.component';
 import { TimeAgoPipe } from '@shared/pipes/time-ago.pipe';
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
 import { BadgeComponent, type BadgeTone } from '@shared/ui/badge/badge.component';
@@ -158,7 +159,7 @@ export class SuperAdminAdminsComponent {
 
   constructor() {
     this.searchInput
-      .pipe(debounceTime(300), distinctUntilChanged(), takeUntilDestroyed())
+      .pipe(debounceTime(SEARCH_DEBOUNCE_MS), distinctUntilChanged(), takeUntilDestroyed())
       .subscribe((term) => {
         this.search.set(term);
         this.pager.reset();

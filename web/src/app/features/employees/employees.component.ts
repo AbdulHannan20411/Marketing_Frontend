@@ -1,5 +1,8 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import type { Observable } from 'rxjs';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Subject, debounceTime, distinctUntilChanged, type Observable } from 'rxjs';
+
+import { latestRequest } from '@core/http/latest-request';
 
 import type { ApiError, LoadState } from '@core/models/api.model';
 import { Router } from '@angular/router';
@@ -13,7 +16,7 @@ import {
   type PermissionCategory,
 } from '@core/models/permission.model';
 import { PlanGateService } from '@core/services/plan-gate.service';
-import { EmployeesService } from '@core/services/employees.service';
+import { EMPLOYEE_SORT_COLUMNS, EmployeesService } from '@core/services/employees.service';
 import { EntitlementService } from '@core/services/entitlement.service';
 import { ToastService } from '@core/services/toast.service';
 import { TimeAgoPipe } from '@shared/pipes/time-ago.pipe';
@@ -24,12 +27,16 @@ import { CardComponent } from '@shared/ui/card/card.component';
 import { HistoryButtonComponent } from '@shared/audit/history-button.component';
 import { IconComponent } from '@shared/ui/icon/icon.component';
 import { PageHeaderComponent } from '@shared/ui/page-header/page-header.component';
-import { clientSorter, type SortColumn } from '@shared/ui/data-table/sort';
-import { SearchBoxComponent } from '@shared/ui/search-box/search-box.component';
+import { serverSorter } from '@shared/ui/data-table/sort';
+import {
+  SearchBoxComponent,
+  SEARCH_DEBOUNCE_MS,
+} from '@shared/ui/search-box/search-box.component';
 import { SortMenuComponent } from '@shared/ui/data-table/sort-menu.component';
-import { clientPager } from '@shared/ui/pagination/pager';
+import { serverPager } from '@shared/ui/pagination/pager';
 import { PaginatorComponent } from '@shared/ui/pagination/paginator.component';
 import { SkeletonComponent } from '@shared/ui/skeleton/skeleton.component';
+import { EmptyStateComponent } from '@shared/ui/state/empty-state.component';
 import { ErrorStateComponent } from '@shared/ui/state/error-state.component';
 import { ToggleComponent } from '@shared/ui/toggle/toggle.component';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
@@ -61,28 +68,6 @@ const ROLE_TONE: Readonly<Record<UserRole, BadgeTone>> = {
 const PERMISSION_FLOOR: readonly Permission[] = ['dashboard.view'];
 
 /** What an employee row can be ordered by. */
-const EMPLOYEE_SORT_COLUMNS: readonly SortColumn<Employee>[] = [
-  { key: 'id', label: 'ID', kind: 'text', value: (employee) => employee.id },
-  { key: 'name', label: 'Name', kind: 'text', value: (employee) => employee.name },
-  { key: 'email', label: 'Email', kind: 'text', value: (employee) => employee.email },
-  { key: 'role', label: 'Role', kind: 'text', value: (employee) => employee.role },
-  { key: 'status', label: 'Status', kind: 'text', value: (employee) => employee.status },
-  {
-    key: 'invitedAt',
-    label: 'Invited',
-    kind: 'date',
-    value: (employee) => employee.invitedAt,
-    initialDirection: 'desc',
-  },
-  {
-    key: 'lastActiveAt',
-    label: 'Last active',
-    kind: 'date',
-    value: (employee) => employee.lastActiveAt,
-    initialDirection: 'desc',
-  },
-];
-
 @Component({
   selector: 'app-employees',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -100,6 +85,7 @@ const EMPLOYEE_SORT_COLUMNS: readonly SortColumn<Employee>[] = [
     ButtonDirective,
     IconComponent,
     SkeletonComponent,
+    EmptyStateComponent,
     ErrorStateComponent,
     ToggleComponent,
     UsageBarComponent,
@@ -118,6 +104,9 @@ export class EmployeesComponent {
   private readonly gate = inject(PlanGateService);
 
   protected readonly state = signal<LoadState>('loading');
+  /** True until the first page arrives, so the toolbar is not built early. */
+  protected readonly firstLoad = signal(true);
+  /** The whole roster. The table renders {@link team}. */
   protected readonly employees = signal<readonly Employee[]>([]);
   /** The API returns the whole team; the table renders one page of it. */
   /**
@@ -128,23 +117,40 @@ export class EmployeesComponent {
    * those are the two time columns offered.
    */
   protected readonly search = signal('');
+  /** Whether a term is narrowing the table. Decides which empty state is right. */
+  protected readonly searching = computed(() => this.search().trim() !== '');
+  protected readonly totalItems = signal(0);
 
-  /** Matched on name, email and job title — the three things on the row. */
-  private readonly matching = computed(() => {
-    const term = this.search().trim().toLowerCase();
-    return term === ''
-      ? this.employees()
-      : this.employees().filter(
-          (employee) =>
-            employee.name.toLowerCase().includes(term) ||
-            employee.email.toLowerCase().includes(term) ||
-            employee.jobTitle.toLowerCase().includes(term),
-        );
+  /**
+   * The rows the team table renders — one page, from the API.
+   *
+   * Separate from {@link employees}, which is the whole roster. The table
+   * pages; the permission matrix's picker, the team counts and the "last
+   * administrator" rule all describe the workspace and cannot be answered from
+   * ten rows.
+   */
+  protected readonly team = signal<readonly Employee[]>([]);
+
+  /** Keystrokes, before debouncing: one request per pause, not per letter. */
+  private readonly searchInput = new Subject<string>();
+  private readonly teamRequest = latestRequest();
+
+  protected readonly pager = serverPager({
+    total: this.totalItems,
+    load: () => this.loadTeam(),
   });
 
-  protected readonly sorter = clientSorter(this.matching, EMPLOYEE_SORT_COLUMNS);
-
-  protected readonly pager = clientPager(this.sorter.rows);
+  protected readonly sorter = serverSorter({
+    columns: EMPLOYEE_SORT_COLUMNS.map(({ key, label, initialDirection }) => ({
+      key,
+      label,
+      initialDirection,
+    })),
+    load: () => {
+      this.pager.reset();
+      this.loadTeam();
+    },
+  });
   protected readonly permissionSets = signal<readonly PermissionSet[]>([]);
   protected readonly tab = signal<EmployeeTab>('team');
   protected readonly selectedId = signal<string | null>(null);
@@ -239,11 +245,30 @@ export class EmployeesComponent {
   protected readonly grantedCount = computed(() => this.effectivePermissions().size);
 
   constructor() {
+    this.searchInput
+      .pipe(debounceTime(SEARCH_DEBOUNCE_MS), distinctUntilChanged(), takeUntilDestroyed())
+      .subscribe((term) => {
+        this.search.set(term);
+        this.pager.reset();
+        this.loadTeam();
+      });
+
     this.load();
   }
 
+  /**
+   * Two reads, deliberately.
+   *
+   * The table wants a page, searched by the API. Everything else on this
+   * screen — the permission matrix's employee picker, the team counts, the
+   * rule that the last administrator cannot be demoted — describes the whole
+   * workspace, and a page of ten would answer all three wrongly. A roster is
+   * bounded by the plan's seat limit, so the second read is small and does not
+   * grow. When the API can send those counts beside the page, the roster read
+   * goes; see `docs/API-LIST-PAGINATION-BACKEND.md`.
+   */
   protected load(): void {
-    this.state.set('loading');
+    this.loadTeam();
 
     this.employeesService.list().subscribe({
       next: (employees) => {
@@ -253,14 +278,55 @@ export class EmployeesComponent {
             employees[0]?.id ??
             null,
         );
-        this.state.set(employees.length === 0 ? 'empty' : 'ready');
       },
-      error: () => this.state.set('error'),
     });
 
     this.employeesService.listPermissionSets().subscribe({
       next: (sets) => this.permissionSets.set(sets),
     });
+  }
+
+  /** One page of the team table. */
+  protected loadTeam(): void {
+    this.state.set('loading');
+
+    this.employeesService
+      .page({
+        page: this.pager.page(),
+        pageSize: this.pager.pageSize(),
+        search: this.search(),
+        sortBy: this.sorter.key(),
+        sortDirection: this.sorter.direction(),
+      })
+      .pipe(this.teamRequest.only())
+      .subscribe({
+        next: (page) => {
+          this.team.set(page.items);
+          this.totalItems.set(page.totalItems);
+          this.state.set(page.totalItems === 0 ? 'empty' : 'ready');
+          this.firstLoad.set(false);
+        },
+        error: () => {
+          this.state.set('error');
+          this.firstLoad.set(false);
+        },
+      });
+  }
+
+  protected onSearch(term: string): void {
+    this.searchInput.next(term);
+  }
+
+  /**
+   * Applies a change to the roster and to the page on screen at once.
+   *
+   * They hold the same rows, and a change written to only one of them is the
+   * kind of bug where a rename shows in the table and not in the matrix
+   * picker, or the other way round.
+   */
+  private patchRoster(change: (rows: readonly Employee[]) => readonly Employee[]): void {
+    this.employees.update(change);
+    this.team.update(change);
   }
 
   /**
@@ -393,7 +459,7 @@ export class EmployeesComponent {
     this.employeesService.updatePermissions(employee.id, granted).subscribe({
       next: (updated) => {
         this.saving.set(false);
-        this.employees.update((current) =>
+        this.patchRoster((current) =>
           current.map((candidate) => (candidate.id === updated.id ? updated : candidate)),
         );
         this.draftPermissions.update((current) => {
@@ -435,7 +501,7 @@ export class EmployeesComponent {
 
   /** Folds a saved employee back into the list, so every view agrees. */
   protected onEmployeeUpdated(updated: Employee): void {
-    this.employees.update((current) => current.map((entry) => (entry.id === updated.id ? updated : entry)));
+    this.patchRoster((current) => current.map((entry) => (entry.id === updated.id ? updated : entry)));
   }
 
   /* ------------------------------ invitation ------------------------------ */
@@ -481,7 +547,7 @@ export class EmployeesComponent {
         next: (employee) => {
           this.saving.set(false);
           this.inviting.set(false);
-          this.employees.update((current) => [employee, ...current]);
+          this.patchRoster((current) => [employee, ...current]);
           this.entitlements.load();
           this.toast.success(
             'Invitation sent',
@@ -539,7 +605,7 @@ export class EmployeesComponent {
   /* ------------------------------ lifecycle ------------------------------ */
 
   private applyUpdate(updated: Employee): void {
-    this.employees.update((current) =>
+    this.patchRoster((current) =>
       current.map((candidate) => (candidate.id === updated.id ? updated : candidate)),
     );
   }
@@ -603,7 +669,7 @@ export class EmployeesComponent {
   protected revokeInvite(event: Event, employee: Employee): void {
     event.stopPropagation();
     this.runAction(employee, this.employeesService.revokeInvite(employee.id), () => {
-      this.employees.update((current) => current.filter((c) => c.id !== employee.id));
+      this.patchRoster((current) => current.filter((c) => c.id !== employee.id));
       this.entitlements.load();
       this.toast.success('Invitation revoked', `${employee.name} can no longer join.`);
     });
@@ -652,7 +718,7 @@ export class EmployeesComponent {
 
     this.runAction(employee, this.employeesService.remove(employee.id), () => {
       this.removing.set(null);
-      this.employees.update((current) => current.filter((c) => c.id !== employee.id));
+      this.patchRoster((current) => current.filter((c) => c.id !== employee.id));
       if (this.selectedId() === employee.id) {
         this.selectedId.set(null);
       }

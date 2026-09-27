@@ -9,6 +9,45 @@ export interface ListQuery {
   readonly sortDirection?: 'asc' | 'desc';
 }
 
+/** What a list endpoint applies for itself, as opposed to accepting and ignoring. */
+export interface ServerListSupport {
+  /** The endpoint narrows by `search`. */
+  readonly search: boolean;
+  /** The endpoint orders by `sortBy` and `sortDirection`. */
+  readonly sort: boolean;
+}
+
+/**
+ * The paging parameters to send — which is sometimes none of them.
+ *
+ * Asking for page one of a search the server does not perform returns the
+ * first page of *everything*, and the client cannot make up the difference
+ * because it only ever received twenty-five of four hundred rows. The same
+ * goes for an ordering the server ignores: page one of the wrong order.
+ *
+ * So the page is only requested when the endpoint can answer the whole
+ * question. When it cannot, this sends nothing and the endpoint answers with
+ * the collection — which these endpoints still do, by design, for the pickers
+ * — and {@link toAdaptivePage} filters, orders and slices it here.
+ *
+ * Every parameter is still sent either way. The only thing that changes when
+ * the API catches up is a `false` becoming `true` in the caller's
+ * {@link ServerListSupport}; see `docs/API-LIST-PAGINATION-BACKEND.md`.
+ */
+export function pagingParams(
+  query: ListQuery,
+  supports: ServerListSupport,
+): Record<string, number> {
+  const needsSearch = (query.search ?? '').trim() !== '';
+  const needsSort = (query.sortBy ?? null) !== null;
+
+  if ((needsSearch && !supports.search) || (needsSort && !supports.sort)) {
+    return {};
+  }
+
+  return { page: query.page, pageSize: query.pageSize };
+}
+
 export interface AdaptivePage<T> extends PagedResult<T> {
   /**
    * Whether the API did the filtering, ordering and slicing.
@@ -18,6 +57,17 @@ export interface AdaptivePage<T> extends PagedResult<T> {
    * can say so where the difference matters.
    */
   readonly pagedByServer: boolean;
+  /**
+   * Every row the endpoint returned, before filtering — or `null` when it
+   * answered with a page and there is no such thing.
+   *
+   * For the screens whose header counts describe the whole collection rather
+   * than the page ("12 plans · 8 active · 2 promotional"). While an endpoint
+   * still answers with everything, those counts are free and exact; the day it
+   * pages, this is `null` and the counts have to come from the API instead,
+   * which is the honest signal that they now need asking for.
+   */
+  readonly all: readonly T[] | null;
 }
 
 export interface AdaptOptions<T> {
@@ -60,7 +110,7 @@ export function toAdaptivePage<T>(
   options: AdaptOptions<T> = {},
 ): AdaptivePage<T> {
   if (!Array.isArray(response)) {
-    return { ...(response as PagedResult<T>), pagedByServer: true };
+    return { ...(response as PagedResult<T>), pagedByServer: true, all: null };
   }
 
   const all = response as readonly T[];
@@ -82,5 +132,6 @@ export function toAdaptivePage<T>(
     totalItems: ordered.length,
     totalPages: Math.max(1, Math.ceil(ordered.length / pageSize)),
     pagedByServer: false,
+    all,
   };
 }

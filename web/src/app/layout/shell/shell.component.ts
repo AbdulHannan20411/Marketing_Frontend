@@ -15,6 +15,7 @@ import { LayoutService } from '@core/services/layout.service';
 import { NotificationPreferencesService } from '@core/services/notification-preferences.service';
 import { NotificationsService } from '@core/services/notifications.service';
 import { OnboardingService } from '@core/services/onboarding.service';
+import { ExportNotificationService } from '@core/services/export-notification.service';
 import { RealtimeService } from '@core/services/realtime.service';
 import { WhatsAppContextService } from '@core/services/whatsapp-context.service';
 import { SessionHeartbeatService } from '@core/services/session-heartbeat.service';
@@ -74,6 +75,7 @@ export class ShellComponent {
   private readonly notifications = inject(NotificationsService);
   private readonly notificationPrefs = inject(NotificationPreferencesService);
   private readonly realtime = inject(RealtimeService);
+  private readonly exportNotifications = inject(ExportNotificationService);
   private readonly onboarding = inject(OnboardingService);
   private readonly whatsAppContext = inject(WhatsAppContextService);
   private readonly heartbeat = inject(SessionHeartbeatService);
@@ -164,6 +166,10 @@ export class ShellComponent {
     // Campaign progress and notifications arrive by push; the reports endpoints
     // are rate limited to 4 per window, so polling is not an option.
     this.realtime.connect();
+    // Started at the shell rather than on the export page, because the point of
+    // an asynchronous export is that the user walked away from it: the toast has
+    // to find them wherever they are.
+    this.exportNotifications.start();
     // Keeps this device marked active, and is how a session ended elsewhere is
     // noticed within a minute even on a screen that makes no other requests.
     this.heartbeat.start();

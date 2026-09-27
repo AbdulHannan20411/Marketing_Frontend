@@ -1,15 +1,28 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Subject, debounceTime, distinctUntilChanged } from 'rxjs';
+
+import { latestRequest } from '@core/http/latest-request';
 
 import type { ApiError, LoadState } from '@core/models/api.model';
 import { FEATURE_MODULE_LABEL, type FeatureModule } from '@core/models/permission.model';
 import type { PlanStatus, SubscriptionPlan } from '@core/models/subscription.model';
-import { PlanAdminService, type PlanDraft } from '@core/services/plan-admin.service';
+import {
+  PlanAdminService,
+  PLAN_SORT_COLUMNS,
+  type PlanDraft,
+} from '@core/services/plan-admin.service';
 import { ToastService } from '@core/services/toast.service';
 import { TimeAgoPipe } from '@shared/pipes/time-ago.pipe';
 import { BadgeComponent, type BadgeTone } from '@shared/ui/badge/badge.component';
 import { ButtonDirective } from '@shared/ui/button/button.directive';
-import { clientSorter, type SortColumn } from '@shared/ui/data-table/sort';
-import { SearchBoxComponent } from '@shared/ui/search-box/search-box.component';
+import { serverSorter } from '@shared/ui/data-table/sort';
+import { serverPager } from '@shared/ui/pagination/pager';
+import { PaginatorComponent } from '@shared/ui/pagination/paginator.component';
+import {
+  SearchBoxComponent,
+  SEARCH_DEBOUNCE_MS,
+} from '@shared/ui/search-box/search-box.component';
 import { SortMenuComponent } from '@shared/ui/data-table/sort-menu.component';
 import { HistoryButtonComponent } from '@shared/audit/history-button.component';
 import { CardComponent } from '@shared/ui/card/card.component';
@@ -28,35 +41,12 @@ const STATUS_TONE: Readonly<Record<PlanStatus, BadgeTone>> = {
 
 type StatusFilter = PlanStatus | 'all';
 
-/**
- * What a plan can be ordered by.
- *
- * `SubscriptionPlan` carries `updatedAt` and nothing else from the audit set —
- * no created pair, no "by" fields — so Modified is the only audit column here.
- * `sortOrder` is the display order the platform set by hand, which is what the
- * default ordering already uses.
- */
-const PLAN_SORT_COLUMNS: readonly SortColumn<SubscriptionPlan>[] = [
-  { key: 'id', label: 'ID', kind: 'text', value: (plan) => plan.id },
-  { key: 'name', label: 'Name', kind: 'text', value: (plan) => plan.name },
-  { key: 'status', label: 'Status', kind: 'text', value: (plan) => plan.status },
-  { key: 'monthlyPrice', label: 'Monthly price', kind: 'number', value: (plan) => plan.monthlyPrice },
-  { key: 'yearlyPrice', label: 'Yearly price', kind: 'number', value: (plan) => plan.yearlyPrice },
-  { key: 'sortOrder', label: 'Display order', kind: 'number', value: (plan) => plan.sortOrder },
-  {
-    key: 'updatedAt',
-    label: 'Modified',
-    kind: 'date',
-    value: (plan) => plan.updatedAt,
-    initialDirection: 'desc',
-  },
-];
-
 @Component({
   selector: 'app-plans',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     SearchBoxComponent,
+    PaginatorComponent,
     SortMenuComponent,
     HistoryButtonComponent,
     TimeAgoPipe,
@@ -102,37 +92,51 @@ export class PlansComponent {
   });
 
   protected readonly search = signal('');
+  /** Whether a term is narrowing the list. Decides which empty state is right. */
+  protected readonly searching = computed(() => this.search().trim() !== '');
+  /** True until the first answer arrives, so the toolbar is not built early. */
+  protected readonly firstLoad = signal(true);
+  protected readonly totalItems = signal(0);
 
-  private readonly filteredPlans = computed(() => {
-    const filter = this.statusFilter();
-    const term = this.search().trim().toLowerCase();
-    const sorted = [...this.plans()].sort((a, b) => a.sortOrder - b.sortOrder);
-    const byStatus = filter === 'all' ? sorted : sorted.filter((plan) => plan.status === filter);
+  /** Keystrokes, before debouncing: one request per pause, not per letter. */
+  private readonly searchInput = new Subject<string>();
+  private readonly listRequest = latestRequest();
 
-    // Name and tagline: the tagline is what distinguishes two plans with
-    // similar names, and it is on the card.
-    return term === ''
-      ? byStatus
-      : byStatus.filter(
-          (plan) =>
-            plan.name.toLowerCase().includes(term) || plan.tagline.toLowerCase().includes(term),
-        );
+  /** What the cards render: one page, as the API returned it. */
+  protected readonly visiblePlans = this.plans;
+
+  protected readonly pager = serverPager({
+    total: this.totalItems,
+    load: () => this.load(),
+  });
+
+  protected readonly sorter = serverSorter({
+    columns: PLAN_SORT_COLUMNS.map(({ key, label, initialDirection }) => ({
+      key,
+      label,
+      initialDirection,
+    })),
+    load: () => {
+      this.pager.reset();
+      this.load();
+    },
   });
 
   /**
-   * Ordering in the browser.
+   * The header figures, which describe every plan rather than this page.
    *
-   * `GET /plans` answers with every plan and the screen renders them all, so
-   * the whole set is in hand and this is the complete ordering, not a page of
-   * one.
+   * Taken from the whole collection while `/admin/plans` still answers with
+   * it. When it starts paging, `all` is null and these fall back to the page
+   * total alone — the point at which the API needs to send the counts, which
+   * is asked for in `docs/API-LIST-PAGINATION-BACKEND.md`.
    */
-  protected readonly sorter = clientSorter(this.filteredPlans, PLAN_SORT_COLUMNS);
-
-  /** What the cards render, filtered then sorted. */
-  protected readonly visiblePlans = this.sorter.rows;
+  private readonly everyPlan = signal<readonly SubscriptionPlan[] | null>(null);
 
   protected readonly counts = computed(() => {
-    const all = this.plans();
+    const all = this.everyPlan();
+    if (all === null) {
+      return { total: this.totalItems(), active: null, promotional: null };
+    }
     return {
       total: all.length,
       active: all.filter((plan) => plan.status === 'active').length,
@@ -141,18 +145,61 @@ export class PlansComponent {
   });
 
   constructor() {
+    this.searchInput
+      .pipe(debounceTime(SEARCH_DEBOUNCE_MS), distinctUntilChanged(), takeUntilDestroyed())
+      .subscribe((term) => {
+        this.search.set(term);
+        this.pager.reset();
+        this.load();
+      });
+
     this.load();
   }
 
+  /**
+   * One page, from the API.
+   *
+   * The page, the search, the status tab and the order all go to the server.
+   * `/admin/plans` honours none of them yet, so the service applies them to
+   * the collection it answers with — the screen reads the same either way.
+   */
   protected load(): void {
     this.state.set('loading');
-    this.planAdmin.list().subscribe({
-      next: (plans) => {
-        this.plans.set(plans);
-        this.state.set(plans.length === 0 ? 'empty' : 'ready');
-      },
-      error: () => this.state.set('error'),
-    });
+
+    this.planAdmin
+      .page({
+        page: this.pager.page(),
+        pageSize: this.pager.pageSize(),
+        search: this.search(),
+        status: this.statusFilter(),
+        sortBy: this.sorter.key(),
+        sortDirection: this.sorter.direction(),
+      })
+      .pipe(this.listRequest.only())
+      .subscribe({
+        next: (page) => {
+          this.plans.set(page.items);
+          this.everyPlan.set(page.all);
+          this.totalItems.set(page.totalItems);
+          this.state.set(page.totalItems === 0 ? 'empty' : 'ready');
+          this.firstLoad.set(false);
+        },
+        error: () => {
+          this.state.set('error');
+          this.firstLoad.set(false);
+        },
+      });
+  }
+
+  /** The status tab is a filter the API applies, so it re-reads page one. */
+  protected setStatusFilter(value: StatusFilter): void {
+    this.statusFilter.set(value);
+    this.pager.reset();
+    this.load();
+  }
+
+  protected onSearch(term: string): void {
+    this.searchInput.next(term);
   }
 
   protected enabledModules(plan: SubscriptionPlan): readonly FeatureModule[] {

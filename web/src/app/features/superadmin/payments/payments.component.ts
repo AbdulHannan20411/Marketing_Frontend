@@ -1,6 +1,7 @@
 import { DecimalPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Subject, debounceTime, distinctUntilChanged } from 'rxjs';
 
 import type { ApiError, LoadState } from '@core/models/api.model';
 import type { PaymentRequest, PaymentRequestStatus } from '@core/models/payment-request.model';
@@ -11,11 +12,14 @@ import {
 } from '@core/services/payment-request.service';
 import { RealtimeService } from '@core/services/realtime.service';
 import { ToastService } from '@core/services/toast.service';
+import {
+  SearchBoxComponent,
+  SEARCH_DEBOUNCE_MS,
+} from '@shared/ui/search-box/search-box.component';
 import { TimeAgoPipe } from '@shared/pipes/time-ago.pipe';
 import { BadgeComponent, type BadgeTone } from '@shared/ui/badge/badge.component';
 import { ButtonDirective } from '@shared/ui/button/button.directive';
 import { CardComponent } from '@shared/ui/card/card.component';
-import { IconComponent } from '@shared/ui/icon/icon.component';
 import { PageHeaderComponent } from '@shared/ui/page-header/page-header.component';
 import { serverSorter } from '@shared/ui/data-table/sort';
 import { SortHeaderComponent } from '@shared/ui/data-table/sort-header.component';
@@ -59,8 +63,8 @@ const FILTERS: readonly { value: PaymentStatusFilter; label: string }[] = [
     PageHeaderComponent,
     CardComponent,
     BadgeComponent,
+    SearchBoxComponent,
     ButtonDirective,
-    IconComponent,
     PaginatorComponent,
     SkeletonComponent,
     EmptyStateComponent,
@@ -91,6 +95,8 @@ export class SuperAdminPaymentsComponent {
   protected readonly requests = signal<readonly PaymentRequest[]>([]);
   protected readonly filter = signal<PaymentStatusFilter>('pending');
   protected readonly search = signal('');
+  /** Keystrokes, before debouncing. */
+  private readonly searchInput = new Subject<string>();
   protected readonly totalItems = signal(0);
   /** The API pages this list; `load()` reads the page and size from here. */
   protected readonly pager = serverPager({
@@ -108,6 +114,14 @@ export class SuperAdminPaymentsComponent {
   );
 
   constructor() {
+    this.searchInput
+      .pipe(debounceTime(SEARCH_DEBOUNCE_MS), distinctUntilChanged(), takeUntilDestroyed())
+      .subscribe((term) => {
+        this.search.set(term);
+        this.pager.reset();
+        this.load();
+      });
+
     this.load();
 
     // A submission or a decision elsewhere should surface here without a reload.
@@ -173,10 +187,15 @@ export class SuperAdminPaymentsComponent {
     this.load();
   }
 
+  /**
+   * A keystroke, not a submission.
+   *
+   * This was bound to `(change)`, which only fires on blur or Enter — so the
+   * field looked like every other search on the platform and behaved like a
+   * form. Debounced here instead: one request per pause in typing.
+   */
   protected onSearch(value: string): void {
-    this.search.set(value);
-    this.pager.reset();
-    this.load();
+    this.searchInput.next(value);
   }
 
 

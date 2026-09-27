@@ -34,6 +34,8 @@ import {
 } from '@core/models/phone.model';
 import { latestRequest } from '@core/http/latest-request';
 import { ContactsService } from '@core/services/contacts.service';
+import { ExportNotificationService } from '@core/services/export-notification.service';
+import { ExportsService } from '@core/services/exports.service';
 import { PlanGateService } from '@core/services/plan-gate.service';
 import { ToastService } from '@core/services/toast.service';
 import { TimeAgoPipe } from '@shared/pipes/time-ago.pipe';
@@ -82,6 +84,8 @@ const STATUS_TONE: Readonly<Record<ContactStatus, BadgeTone>> = {
 })
 export class ContactsComponent {
   private readonly contactsService = inject(ContactsService);
+  private readonly exports = inject(ExportsService);
+  private readonly exportNotifications = inject(ExportNotificationService);
   private readonly toast = inject(ToastService);
   private readonly gate = inject(PlanGateService);
   private readonly auth = inject(AuthService);
@@ -601,15 +605,41 @@ export class ContactsComponent {
       });
   }
 
-  /** Exports the current filter, or just the selection when rows are ticked. */
+  /**
+   * Exports the current filter, or just the selection when rows are ticked.
+   *
+   * Two paths, chosen by whether the export is bounded:
+   *
+   * - **A selection** is however many rows the operator ticked, which is a
+   *   screenful. That still streams straight back, because waiting two hundred
+   *   milliseconds beats a toast and a trip to the export centre.
+   * - **A filter** is unbounded — it can be every contact in the workspace —
+   *   so it goes through the asynchronous pipeline and the user carries on
+   *   working while a worker writes it.
+   *
+   * The dividing line is "can this time out", not "is this large today". A
+   * filtered export of a workspace with four hundred contacts is fast; the
+   * same code on the workspace that grows to four hundred thousand is the one
+   * that breaks, and it breaks on their data rather than ours.
+   */
   protected exportCsv(): void {
     if (this.busy()) {
       return;
     }
-    this.busy.set(true);
-    // A selection wins over the filters on the API side, so the toast can say
-    // exactly which rows the file holds.
+
     const selected = [...this.selected().keys()];
+
+    if (selected.length > 0) {
+      this.exportSelection(selected);
+      return;
+    }
+
+    this.queueFilteredExport();
+  }
+
+  /** The ticked rows, streamed straight back. */
+  private exportSelection(selected: readonly string[]): void {
+    this.busy.set(true);
 
     this.contactsService
       .exportCsv({
@@ -624,10 +654,41 @@ export class ContactsComponent {
           this.busy.set(false);
           this.toast.success(
             'Export ready',
-            selected.length > 0
-              ? `Downloaded the ${selected.length} selected ${selected.length === 1 ? 'contact' : 'contacts'}.`
-              : 'Downloaded every contact matching your filters.',
+            `Downloaded the ${selected.length} selected ${selected.length === 1 ? 'contact' : 'contacts'}.`,
           );
+        },
+        error: () => this.failBulk('Export'),
+      });
+  }
+
+  /**
+   * Everything matching the filters, as a background job.
+   *
+   * The list view's state goes with it — search, status, group, tag and the
+   * current sort — so the file is of what is on screen rather than of the
+   * whole table.
+   */
+  private queueFilteredExport(): void {
+    this.busy.set(true);
+
+    this.exports
+      .create({
+        dataset: 'contacts',
+        format: 'csv',
+        search: this.search(),
+        filters: {
+          status: this.status(),
+          groupId: this.groupId(),
+          tagId: this.tagId(),
+        },
+        // The view's own sort, so the file comes out in the order on screen.
+        sortBy: this.sorter.key(),
+        sortDirection: this.sorter.direction(),
+      })
+      .subscribe({
+        next: (accepted) => {
+          this.busy.set(false);
+          this.exportNotifications.announceQueued('Contacts', accepted.reused, accepted.jobId);
         },
         error: () => this.failBulk('Export'),
       });

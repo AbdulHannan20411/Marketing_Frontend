@@ -25,7 +25,10 @@ import { CardComponent } from '@shared/ui/card/card.component';
 import { IconComponent } from '@shared/ui/icon/icon.component';
 import { PageHeaderComponent } from '@shared/ui/page-header/page-header.component';
 import { serverSorter } from '@shared/ui/data-table/sort';
-import { SearchBoxComponent } from '@shared/ui/search-box/search-box.component';
+import {
+  SearchBoxComponent,
+  SEARCH_DEBOUNCE_MS,
+} from '@shared/ui/search-box/search-box.component';
 import { SortMenuComponent } from '@shared/ui/data-table/sort-menu.component';
 import { TimeAgoPipe } from '@shared/pipes/time-ago.pipe';
 import { serverPager } from '@shared/ui/pagination/pager';
@@ -67,8 +70,15 @@ export class TagsComponent {
   private readonly auth = inject(AuthService);
 
   protected readonly state = signal<LoadState>('loading');
+  /**
+   * True until the first answer arrives — see the same signal on Groups.
+   * `state` alone cannot tell "nothing yet" from "nothing matching".
+   */
+  protected readonly firstLoad = signal(true);
   protected readonly tags = signal<readonly ContactTag[]>([]);
   protected readonly search = signal('');
+  /** Whether a term is narrowing the list. Decides which empty state is right. */
+  protected readonly searching = computed(() => this.search().trim() !== '');
   protected readonly totalItems = signal(0);
   /** False while `/tags` still answers with the whole collection. */
   protected readonly pagedByServer = signal(false);
@@ -154,7 +164,7 @@ export class TagsComponent {
 
   constructor() {
     this.searchInput
-      .pipe(debounceTime(300), distinctUntilChanged(), takeUntilDestroyed())
+      .pipe(debounceTime(SEARCH_DEBOUNCE_MS), distinctUntilChanged(), takeUntilDestroyed())
       .subscribe((term) => {
         this.search.set(term);
         this.pager.reset();
@@ -190,8 +200,12 @@ export class TagsComponent {
           this.totalItems.set(page.totalItems);
           this.pagedByServer.set(page.pagedByServer);
           this.state.set(page.totalItems === 0 ? 'empty' : 'ready');
+          this.firstLoad.set(false);
         },
-        error: () => this.state.set('error'),
+        error: () => {
+          this.state.set('error');
+          this.firstLoad.set(false);
+        },
       });
   }
 

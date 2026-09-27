@@ -50,21 +50,13 @@
         }
       </div>
 
-      <div class="relative">
-        <app-icon
-          name="search"
-          [size]="15"
-          class="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-ink-muted"
-        />
-        <input
-          type="search"
-          [value]="search()"
-          (change)="onSearch($any($event.target).value)"
-          placeholder="Organisation or email"
-          aria-label="Search payments"
-          class="h-9 w-56 rounded-lg border-0 bg-surface-sunken py-2 pr-3 pl-9 text-sm text-ink ring-1 ring-line ring-inset transition-all placeholder:text-ink-muted focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
-        />
-      </div>
+      <app-search-box
+        class="w-56"
+        [value]="search()"
+        (valueChange)="onSearch($event)"
+        label="Search payments"
+        placeholder="Organisation or email"
+      />
     </div>
 
     @switch (state()) {
@@ -105,8 +97,6 @@
           <table class="w-full min-w-[56rem] text-sm">
             <thead>
               <tr class="border-b border-line text-left text-xs tracking-wide text-ink-muted uppercase">
-                <!-- Paged by the API with a fixed order and no sort allow-list
-                     yet, so every header here is a label. -->
                 <th scope="col" class="px-5 py-3 font-medium" [attr.aria-sort]="sorter.ariaSort('id')">
                   <app-sort-header [sorter]="sorter" sortKey="id" headerLabel="ID">ID</app-sort-header>
                 </th>

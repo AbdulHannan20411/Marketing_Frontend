@@ -11,21 +11,12 @@
   }
 </app-page-header>
 
-@if (state() === 'loading') {
-  <div class="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-    @for (item of skeletons; track item) {
-      <div class="rounded-xl bg-surface p-5 ring-1 ring-line shadow-card">
-        <app-skeleton width="50%" height="1.25rem" />
-        <div class="mt-4"><app-skeleton width="35%" height="1.5rem" /></div>
-        <div class="mt-4"><app-skeleton height="0.375rem" /></div>
-      </div>
-    }
-  </div>
-} @else if (state() === 'error') {
+@if (state() === 'error') {
   <app-card class="mt-6 block" [padded]="false">
     <app-error-state (retry)="load()" />
   </app-card>
-} @else if (state() === 'empty') {
+} @else if (state() === 'empty' && !searching() && !firstLoad()) {
+  <!-- Nothing here at all, as opposed to nothing matching a search. -->
   <app-card class="mt-6 block" [padded]="false">
     <app-empty-state
       icon="tag"
@@ -41,19 +32,51 @@
     </app-empty-state>
   </app-card>
 } @else {
-  <div class="mt-6 flex flex-wrap items-center gap-3">
-    <app-search-box
-      class="min-w-0 flex-1 sm:max-w-xs"
-      [value]="search()" (valueChange)="onSearch($event)"
-      label="Search tags"
-      placeholder="Search tags"
-    />
-    <p class="text-xs text-ink-muted">
-      {{ pager.total() }} {{ pager.total() === 1 ? 'tag' : 'tags' }}
-    </p>
-    <app-sort-menu class="ml-auto" [sorter]="sorter" defaultLabel="Default order" />
-  </div>
+  <!--
+    The toolbar stays mounted across loading and empty — see the same note on
+    the Groups screen. Searching sets the state back to `loading`, and while
+    this row lived inside that branch it was destroyed on every pause in
+    typing, taking the focus and the next keystrokes with it.
+  -->
+  @if (!firstLoad()) {
+    <div class="mt-6 flex flex-wrap items-center gap-3">
+      <app-search-box
+        class="min-w-0 flex-1 sm:max-w-xs"
+        [value]="search()"
+        (valueChange)="onSearch($event)"
+        label="Search tags"
+        placeholder="Search tags"
+      />
+      <p class="text-xs text-ink-muted">
+        {{ pager.total() }} {{ pager.total() === 1 ? 'tag' : 'tags' }}
+      </p>
+      <app-sort-menu class="ml-auto" [sorter]="sorter" defaultLabel="Default order" />
+    </div>
+  }
 
+  @if (state() === 'loading') {
+  <div class="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    @for (item of skeletons; track item) {
+      <div class="rounded-xl bg-surface p-5 ring-1 ring-line shadow-card">
+        <app-skeleton width="50%" height="1.25rem" />
+        <div class="mt-4"><app-skeleton width="35%" height="1.5rem" /></div>
+        <div class="mt-4"><app-skeleton height="0.375rem" /></div>
+      </div>
+    }
+  </div>
+  } @else if (state() === 'empty') {
+    <app-card class="mt-3 block" [padded]="false">
+      <app-empty-state
+        icon="search"
+        title="No tags match that search"
+        [description]="
+          'Nothing here is called &quot;' +
+          search().trim() +
+          '&quot;. Clear the search to see every tag.'
+        "
+      />
+    </app-card>
+  } @else {
   <div class="mt-3 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
     @for (tag of tags(); track tag.id) {
       <app-card [interactive]="true">
@@ -117,6 +140,7 @@
       </app-card>
     }
   </div>
+  }
 }
 
 @if (viewingMembers(); as tag) {

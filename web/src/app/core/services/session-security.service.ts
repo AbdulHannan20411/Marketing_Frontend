@@ -1,12 +1,14 @@
 import { Injectable, inject } from '@angular/core';
 import type { Observable } from 'rxjs';
 
+import type { PagedResult } from '@core/models/api.model';
 import type {
   DeviceSession,
   SecurityEmployee,
   SecurityOverview,
   SecurityScope,
   SuspendAccountRequest,
+  WorkspaceSecuritySummary,
 } from '@core/models/session-security.model';
 import { ApiService } from './api.service';
 
@@ -36,6 +38,19 @@ export class SessionSecurityService {
   }
 
   /* --------------------------- workspace / platform --------------------------- */
+
+  /**
+   * Every workspace's posture, one page at a time — and one request.
+   *
+   * The API orders it riskiest first across the whole platform, so page one is
+   * the page worth reading. Drawing this screen used to cost a request per row.
+   */
+  platformSummary(page: number, pageSize: number): Observable<PagedResult<WorkspaceSecuritySummary>> {
+    return this.api.get<PagedResult<WorkspaceSecuritySummary>>('/superadmin/security/summary', {
+      page,
+      pageSize,
+    });
+  }
 
   overview(scope: SecurityScope): Observable<SecurityOverview> {
     return this.api.get<SecurityOverview>(

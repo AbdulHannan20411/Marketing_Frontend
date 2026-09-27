@@ -1,4 +1,4 @@
-import { toAdaptivePage } from './adaptive-page';
+import { pagingParams, toAdaptivePage } from './adaptive-page';
 
 interface Row {
   readonly id: number;
@@ -71,10 +71,65 @@ describe('toAdaptivePage', () => {
     expect(page.items.map((row) => row.name)).toEqual(['Alpha', 'alpine']);
   });
 
+  it('hands back the whole collection only when the endpoint sent one', () => {
+    // A screen whose header counts describe every row ("12 plans, 8 active")
+    // can answer them for free while the endpoint still returns everything —
+    // and gets `null`, rather than a wrong number, the day it pages.
+    expect(toAdaptivePage(ALL, { page: 1, pageSize: 2 }).all).toEqual(ALL);
+    expect(
+      toAdaptivePage({ items: [], page: 1, pageSize: 2, totalItems: 5, totalPages: 3 }, {
+        page: 1,
+        pageSize: 2,
+      }).all,
+    ).toBeNull();
+  });
+
   it('never leaves the caller on an empty page it cannot understand', () => {
     const page = toAdaptivePage(ALL, { page: 1, pageSize: 0 });
 
     expect(page.pageSize).toBe(1);
     expect(page.items.length).toBe(1);
+  });
+});
+
+/**
+ * Reported as "search in Tags and Groups is not working". `/groups` pages but
+ * ignores `search`, so asking for a page of a search returned the first
+ * twenty-five of everything — and the client, holding only those, had no way
+ * to filter its way back to the right answer.
+ */
+describe('pagingParams', () => {
+  const FULL = { search: true, sort: true };
+  const NEITHER = { search: false, sort: false };
+
+  it('asks for a page when the endpoint can answer the whole question', () => {
+    expect(pagingParams({ page: 2, pageSize: 25, search: 'win', sortBy: 'name' }, FULL)).toEqual({
+      page: 2,
+      pageSize: 25,
+    });
+  });
+
+  it('asks for a page when there is nothing to search or sort', () => {
+    expect(pagingParams({ page: 2, pageSize: 25 }, NEITHER)).toEqual({ page: 2, pageSize: 25 });
+    // An empty term is not a search.
+    expect(pagingParams({ page: 1, pageSize: 25, search: '  ' }, NEITHER)).toEqual({
+      page: 1,
+      pageSize: 25,
+    });
+  });
+
+  it('asks for the whole collection when the endpoint would ignore the search', () => {
+    expect(pagingParams({ page: 1, pageSize: 25, search: 'win' }, NEITHER)).toEqual({});
+  });
+
+  it('asks for the whole collection when the endpoint would ignore the sort', () => {
+    // An endpoint that searches but does not sort — `/superadmin/admins`.
+    expect(
+      pagingParams({ page: 1, pageSize: 25, sortBy: 'contactCount' }, { search: true, sort: false }),
+    ).toEqual({});
+    // …and still pages a plain search, which is the common case there.
+    expect(
+      pagingParams({ page: 3, pageSize: 25, search: 'acme' }, { search: true, sort: false }),
+    ).toEqual({ page: 3, pageSize: 25 });
   });
 });

@@ -111,6 +111,15 @@ export const NAVIGATION: readonly NavSection[] = [
         permissions: ['reports.view'],
         module: 'reporting',
       },
+      {
+        // No permissions and no module: this lists the user's own exports, and
+        // each list they can export is gated where it lives. Hiding the centre
+        // would hide finished files from the person who asked for them.
+        label: 'Exports',
+        route: '/exports',
+        icon: 'download',
+        permissions: [],
+      },
     ],
   },
   {

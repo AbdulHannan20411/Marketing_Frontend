@@ -2,6 +2,15 @@ import { ChangeDetectionStrategy, Component, input, model } from '@angular/core'
 
 import { IconComponent } from '@shared/ui/icon/icon.component';
 
+/**
+ * How long to wait after the last keystroke before asking the API.
+ *
+ * Shared so every list searches at the same pace: a screen that fires per
+ * keystroke and one that waits for Enter feel like different products, and
+ * both have been reported as bugs.
+ */
+export const SEARCH_DEBOUNCE_MS = 300;
+
 let nextId = 0;
 
 /**
