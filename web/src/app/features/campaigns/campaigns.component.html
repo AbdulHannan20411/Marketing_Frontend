@@ -102,6 +102,79 @@
 
   <ng-template [appTableRow]="visibleCampaigns()" let-campaign>
     <td class="px-4 py-3.5">
+      <!--
+        Send stays out of the menu; everything else goes in.
+
+        Send is the decision this screen exists for and it is the one that
+        cannot be undone, so it should be deliberate and visible rather than
+        one of eight rows in a list. The row used to carry up to seven buttons
+        and wrapped onto two lines, with Delete sitting beside Resume.
+      -->
+      <div class="flex items-center justify-start gap-1.5">
+        <app-row-actions [label]="'Actions for ' + campaign.name">
+          <button appMenuItem (click)="open(campaign)">
+            <app-icon name="eye" [size]="15" />
+            View
+          </button>
+
+          @if (canEdit(campaign)) {
+            <button appMenuItem (click)="edit(campaign)">
+              <app-icon name="pencil" [size]="15" />
+              Edit
+            </button>
+          }
+
+          <button appMenuItem [disabled]="busyId() !== null" (click)="duplicate(campaign)">
+            <app-icon name="duplicate" [size]="15" />
+            Duplicate
+          </button>
+
+          @if (canPause(campaign)) {
+            <button appMenuItem [disabled]="busyId() !== null" (click)="pause(campaign)">
+              <app-icon name="clock" [size]="15" />
+              Pause
+            </button>
+          }
+          @if (canResume(campaign)) {
+            <button appMenuItem [disabled]="busyId() !== null" (click)="resume(campaign)">
+              <app-icon name="send" [size]="15" />
+              Resume
+            </button>
+          }
+
+          <app-history-button
+            entityName="Campaign"
+            [entityId]="campaign.id"
+            [recordName]="campaign.name"
+            [menuItem]="true"
+          />
+
+          <button
+            appMenuItem
+            tone="danger"
+            [disabled]="busyId() !== null"
+            (click)="ask(campaign, 'delete')"
+          >
+            <app-icon name="trash" [size]="15" />
+            Delete
+          </button>
+        </app-row-actions>
+
+        @if (canSend(campaign)) {
+          <button
+            appButton
+            variant="outline"
+            size="sm"
+            [disabled]="busyId() !== null"
+            (click)="ask(campaign, 'send')"
+          >
+            <app-icon name="send" [size]="14" />
+            Send
+          </button>
+        }
+      </div>
+    </td>
+    <td class="px-4 py-3.5">
       <span class="block max-w-[7rem] truncate font-mono text-xs text-ink-muted" [title]="campaign.id">
         {{ campaign.id }}
       </span>
@@ -161,77 +234,6 @@
       {{ campaign.updatedAt ? (campaign.updatedAt | timeAgo) : '—' }}
     </td>
 
-    <td class="px-4 py-3.5 text-right">
-      <div class="flex flex-wrap items-center justify-end gap-1">
-        <button appButton variant="ghost" size="sm" (click)="open(campaign)">View</button>
-
-        <app-history-button
-          entityName="Campaign"
-          [entityId]="campaign.id"
-          [recordName]="campaign.name"
-          [showLabel]="false"
-        />
-
-        @if (canEdit(campaign)) {
-          <button appButton variant="ghost" size="sm" (click)="edit(campaign)">Edit</button>
-        }
-
-        <button
-          appButton
-          variant="ghost"
-          size="sm"
-          [disabled]="busyId() !== null"
-          (click)="duplicate(campaign)"
-        >
-          Duplicate
-        </button>
-
-        @if (canSend(campaign)) {
-          <button
-            appButton
-            variant="outline"
-            size="sm"
-            [disabled]="busyId() !== null"
-            (click)="ask(campaign, 'send')"
-          >
-            <app-icon name="send" [size]="14" />
-            Send
-          </button>
-        }
-        @if (canPause(campaign)) {
-          <button
-            appButton
-            variant="ghost"
-            size="sm"
-            [disabled]="busyId() !== null"
-            (click)="pause(campaign)"
-          >
-            Pause
-          </button>
-        }
-        @if (canResume(campaign)) {
-          <button
-            appButton
-            variant="ghost"
-            size="sm"
-            [disabled]="busyId() !== null"
-            (click)="resume(campaign)"
-          >
-            Resume
-          </button>
-        }
-        <button
-          appButton
-          variant="ghost"
-          size="sm"
-          [disabled]="busyId() !== null"
-          [attr.aria-label]="'Delete ' + campaign.name"
-          (click)="ask(campaign, 'delete')"
-        >
-          <app-icon name="trash" [size]="14" class="text-danger" />
-        </button>
-      </div>
-    </td>
   </ng-template>
 </app-data-table>
 

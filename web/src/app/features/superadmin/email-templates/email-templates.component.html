@@ -177,7 +177,7 @@
                     @if (!isLayout()) {
                       <div>
                         <div class="flex items-baseline justify-between gap-3">
-                          <label for="email-subject" class="text-sm font-medium text-ink">Subject</label>
+                          <label for="email-subject" class="text-sm font-medium text-ink">Subject<span class="text-danger" aria-hidden="true">*</span><span class="sr-only">(required)</span></label>
                           <span
                             class="text-xs tabular-nums"
                             [class]="subject().length > subjectMax ? 'text-danger' : 'text-ink-muted'"
@@ -195,6 +195,7 @@
                           [value]="subject()"
                           (input)="subject.set($any($event.target).value)"
                           (focus)="lastField = 'subject'"
+      maxlength="200"
                         />
                       </div>
                     }

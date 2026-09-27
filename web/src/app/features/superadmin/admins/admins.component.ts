@@ -19,6 +19,8 @@ import { BadgeComponent, type BadgeTone } from '@shared/ui/badge/badge.component
 import { ButtonDirective } from '@shared/ui/button/button.directive';
 import { CardComponent } from '@shared/ui/card/card.component';
 import { IconComponent } from '@shared/ui/icon/icon.component';
+import { MenuItemDirective } from '@shared/ui/menu/menu-item.directive';
+import { RowActionsComponent } from '@shared/ui/menu/row-actions.component';
 import { serverSorter } from '@shared/ui/data-table/sort';
 import { SortMenuComponent } from '@shared/ui/data-table/sort-menu.component';
 import { serverPager } from '@shared/ui/pagination/pager';
@@ -63,6 +65,8 @@ const PLAN_TONE: Readonly<Record<TenantPlan, BadgeTone>> = {
     BadgeComponent,
     ButtonDirective,
     IconComponent,
+    RowActionsComponent,
+    MenuItemDirective,
     SkeletonComponent,
     EmptyStateComponent,
     ErrorStateComponent,

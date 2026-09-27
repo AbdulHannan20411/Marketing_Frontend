@@ -282,6 +282,7 @@
             type="date"
             formControlName="endDate"
             aria-label="End date"
+            [attr.min]="form.controls.startDate.value || null"
             [disabled]="form.controls.endCondition.value !== 'onDate'"
             class="h-8 rounded-lg border-0 bg-surface-sunken px-2.5 text-sm text-ink ring-1 ring-line ring-inset focus:ring-2 focus:ring-brand-500 focus:outline-none disabled:cursor-not-allowed disabled:text-ink-muted"
           />

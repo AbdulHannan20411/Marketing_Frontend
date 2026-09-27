@@ -81,7 +81,7 @@
           <form [formGroup]="form" class="max-w-xl space-y-4">
             <div>
               <label for="campaign-name" class="block text-sm font-medium text-ink-soft">
-                Campaign name
+                Campaign name<span class="text-danger" aria-hidden="true">*</span><span class="sr-only">(required)</span>
               </label>
               <input
                 id="campaign-name"
@@ -90,6 +90,7 @@
                 placeholder="e.g. October launch"
                 class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink ring-1 ring-line ring-inset placeholder:text-ink-muted focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
                 [class.ring-red-400]="showErrors() && nameProblem() !== null"
+      maxlength="120"
               />
               @if (showErrors() && nameProblem() !== null) {
                 <p class="mt-1 text-xs text-danger">{{ nameProblem() }}</p>
@@ -153,6 +154,7 @@
                 formControlName="description"
                 placeholder="What this campaign is for, so the next person knows."
                 class="mt-1.5 w-full resize-y rounded-lg border-0 bg-surface-sunken px-3 py-2 text-sm leading-relaxed text-ink ring-1 ring-line ring-inset placeholder:text-ink-muted focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
+      maxlength="500"
               ></textarea>
             </div>
           </form>

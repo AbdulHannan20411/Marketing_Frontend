@@ -23,6 +23,8 @@ import { HistoryButtonComponent } from '@shared/audit/history-button.component';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
 import { CardComponent } from '@shared/ui/card/card.component';
 import { IconComponent } from '@shared/ui/icon/icon.component';
+import { MenuItemDirective } from '@shared/ui/menu/menu-item.directive';
+import { RowActionsComponent } from '@shared/ui/menu/row-actions.component';
 import { PageHeaderComponent } from '@shared/ui/page-header/page-header.component';
 import { serverSorter } from '@shared/ui/data-table/sort';
 import {
@@ -47,6 +49,8 @@ import { GroupEditorComponent } from './group-editor.component';
     ContactListComponent,
     ModalComponent,
     HistoryButtonComponent,
+    RowActionsComponent,
+    MenuItemDirective,
     PaginatorComponent,
     DecimalPipe,
     TimeAgoPipe,

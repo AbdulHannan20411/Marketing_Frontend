@@ -176,70 +176,69 @@
           </div>
         </dl>
 
-        <div class="mt-4 flex flex-wrap items-center gap-1.5 border-t border-line pt-3.5">
+        <!--
+          View as stays out of the menu: opening a customer's workspace is what
+          platform staff come to this card to do. Activating, suspending,
+          editing and deleting are rarer, and two of them are the ones worth
+          making somebody open a menu for.
+        -->
+        <div class="mt-4 flex items-center gap-2 border-t border-line pt-3.5">
+          <app-row-actions [label]="'Actions for ' + admin.organisation">
+            @if (admin.tenantId) {
+              <a
+                appMenuItem
+                [routerLink]="['/superadmin/tenants', admin.tenantId, 'security']"
+                (click)="$event.stopPropagation()"
+              >
+                <app-icon name="lock" [size]="15" />
+                Security
+              </a>
+            }
+
+            <!-- "trialing" is how a pending organisation is reported on the wire -->
+            @if (admin.status === 'trialing') {
+              <button
+                appMenuItem
+                [disabled]="busyId() !== null"
+                (click)="setStatus($event, admin, 'active')"
+              >
+                <app-icon name="checkCircle" [size]="15" />
+                Activate
+              </button>
+            } @else if (admin.status === 'suspended') {
+              <button
+                appMenuItem
+                [disabled]="busyId() !== null"
+                (click)="setStatus($event, admin, 'active')"
+              >
+                <app-icon name="checkCircle" [size]="15" />
+                Reinstate
+              </button>
+            } @else {
+              <button
+                appMenuItem
+                [disabled]="busyId() !== null"
+                (click)="setStatus($event, admin, 'suspended')"
+              >
+                <app-icon name="lock" [size]="15" />
+                Suspend
+              </button>
+            }
+
+            <button appMenuItem (click)="openEdit($event, admin)">
+              <app-icon name="pencil" [size]="15" />
+              Edit
+            </button>
+
+            <button appMenuItem tone="danger" (click)="askDelete($event, admin)">
+              <app-icon name="trash" [size]="15" />
+              Delete
+            </button>
+          </app-row-actions>
+
           <button appButton variant="outline" size="sm" (click)="viewDashboard($event, admin)">
             <app-icon name="eye" [size]="14" />
             View as
-          </button>
-          @if (admin.tenantId) {
-            <a
-              appButton
-              variant="outline"
-              size="sm"
-              [routerLink]="['/superadmin/tenants', admin.tenantId, 'security']"
-              [attr.aria-label]="'Security for ' + admin.organisation"
-              (click)="$event.stopPropagation()"
-            >
-              <app-icon name="lock" [size]="14" />
-              Security
-            </a>
-          }
-
-          <!-- "trialing" is how a pending organisation is reported on the wire -->
-          @if (admin.status === 'trialing') {
-            <button
-              appButton
-              size="sm"
-              [disabled]="busyId() !== null"
-              (click)="setStatus($event, admin, 'active')"
-            >
-              <app-icon name="checkCircle" [size]="14" />
-              Activate
-            </button>
-          } @else if (admin.status === 'suspended') {
-            <button
-              appButton
-              size="sm"
-              [disabled]="busyId() !== null"
-              (click)="setStatus($event, admin, 'active')"
-            >
-              Reinstate
-            </button>
-          } @else {
-            <button
-              appButton
-              variant="ghost"
-              size="sm"
-              [disabled]="busyId() !== null"
-              (click)="setStatus($event, admin, 'suspended')"
-            >
-              Suspend
-            </button>
-          }
-
-          <button appButton variant="ghost" size="sm" (click)="openEdit($event, admin)">
-            <app-icon name="pencil" [size]="14" />
-            Edit
-          </button>
-          <button
-            appButton
-            variant="ghost"
-            size="sm"
-            class="ml-auto text-danger"
-            (click)="askDelete($event, admin)"
-          >
-            <app-icon name="trash" [size]="14" />
-            Delete
           </button>
         </div>
       </div>

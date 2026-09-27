@@ -13,6 +13,8 @@ import {
   DIALLING_COUNTRIES,
   MIN_PHONE_DIGITS,
   NATIONAL_FORMAT_WARNING,
+  countryConflict,
+  describeCountries,
   findCountry,
   hasExitPrefix,
   formatInternational,
@@ -169,6 +171,24 @@ export class ContactEditorComponent {
     return converted === null ? null : formatInternational(converted);
   });
 
+  /**
+   * The number's own country code against the country that was chosen.
+   *
+   * Reported here rather than left to the API, because there is nothing for
+   * the API to reject: `+92…` filed under the United States is two valid
+   * fields that happen to contradict each other, and it saves cleanly. The
+   * cost lands later, on every audience and report built by country.
+   */
+  protected readonly countryConflict = computed(() =>
+    countryConflict(this.phoneNumber(), this.country()),
+  );
+
+  /** "Pakistan", or "the United States or Canada" where a code is shared. */
+  protected readonly conflictCountryName = computed(() => {
+    const conflict = this.countryConflict();
+    return conflict === null ? '' : describeCountries(conflict.countries);
+  });
+
   protected readonly emailInvalid = computed(() => {
     const value = this.email().trim();
     return value.length > 0 && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
@@ -179,11 +199,25 @@ export class ContactEditorComponent {
       this.nameInvalid() ||
       this.phoneInvalid() ||
       this.emailInvalid() ||
-      this.countryRequired(),
+      this.countryRequired() ||
+      this.countryConflict() !== null,
   );
 
   protected errorFor(field: string): string | null {
     return this.fieldErrors()[field]?.[0] ?? null;
+  }
+
+  /**
+   * Takes the country from the number, which is the likelier of the two to be
+   * right: a pasted number is what somebody was given, while the country is
+   * often left at whatever the last contact used.
+   */
+  protected adoptNumberCountry(): void {
+    const conflict = this.countryConflict();
+    if (conflict === null) {
+      return;
+    }
+    this.country.set(conflict.countries[0].iso);
   }
 
   protected toggleTag(id: string): void {

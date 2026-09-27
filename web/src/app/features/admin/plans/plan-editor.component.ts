@@ -40,10 +40,6 @@ const LIMIT_FIELDS: readonly LimitField[] = [
   { key: 'maxContacts', label: 'Max contacts', hint: 'Stored contacts' },
   { key: 'maxCampaigns', label: 'Max campaigns', hint: 'Per billing cycle' },
   { key: 'maxWhatsAppAccounts', label: 'Max WhatsApp accounts', hint: 'Connected numbers' },
-  { key: 'maxEmailAccounts', label: 'Max email accounts', hint: 'Sending identities' },
-  { key: 'maxSocialAccounts', label: 'Max social accounts', hint: 'Connected profiles' },
-  { key: 'maxApiCallsPerMonth', label: 'Max API calls', hint: 'Requests per month' },
-  { key: 'maxStorageMb', label: 'Max storage (MB)', hint: 'Media and exports' },
   { key: 'dailyMessageLimit', label: 'Daily message limit', hint: 'Rolling 24 hours' },
   { key: 'monthlyMessageLimit', label: 'Monthly message limit', hint: 'Per billing cycle' },
   { key: 'monthlyAiReplyLimit', label: 'Monthly AI replies', hint: 'Automatic replies per cycle' },
@@ -60,10 +56,6 @@ const EMPTY_LIMITS: PlanLimits = {
   maxContacts: 5_000,
   maxCampaigns: 25,
   maxWhatsAppAccounts: 1,
-  maxEmailAccounts: 1,
-  maxSocialAccounts: 0,
-  maxApiCallsPerMonth: 10_000,
-  maxStorageMb: 5_120,
   dailyMessageLimit: 2_000,
   monthlyMessageLimit: 50_000,
   monthlyAiReplyLimit: 500,
@@ -78,12 +70,9 @@ const EMPTY_AUTO_REPLY_TRIGGERS: AutoReplyTriggerMap = {
 
 const EMPTY_MODULES: PlanModules = {
   whatsapp: true,
-  email: false,
-  social: false,
   crm: true,
   reporting: false,
   ai: false,
-  api: false,
   employees: false,
 };
 

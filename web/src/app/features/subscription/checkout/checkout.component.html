@@ -304,7 +304,7 @@
               <div class="mt-5 grid gap-4 sm:grid-cols-2">
                 <div>
                   <label for="reference" class="block text-sm font-medium text-ink-soft">
-                    Transaction ID <span class="font-normal text-ink-muted">(optional)</span>
+                    Transaction ID <span class="font-normal text-ink-muted">(optional)</span><span class="text-danger" aria-hidden="true">*</span><span class="sr-only">(required)</span>
                   </label>
                   <input
                     id="reference"
@@ -313,6 +313,7 @@
                     (input)="reference.set($any($event.target).value)"
                     placeholder="e.g. TXN-84920113"
                     class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink ring-1 ring-line ring-inset transition-all placeholder:text-ink-muted focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
+      maxlength="80"
                   />
                   <p class="mt-1 text-xs text-ink-muted">Speeds up the review.</p>
                 </div>
@@ -328,6 +329,7 @@
                     (input)="note.set($any($event.target).value)"
                     placeholder="Anything we should know"
                     class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink ring-1 ring-line ring-inset transition-all placeholder:text-ink-muted focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
+      maxlength="500"
                   />
                 </div>
               </div>

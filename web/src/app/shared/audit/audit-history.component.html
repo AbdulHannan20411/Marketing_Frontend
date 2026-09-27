@@ -49,24 +49,9 @@
       </label>
     }
 
-    <label class="flex items-center gap-1.5 text-xs text-ink-muted">
-      From
-      <input
-        type="date"
-        [value]="from()"
-        (change)="setFrom($any($event.target).value)"
-        class="h-8 rounded-lg border-0 bg-surface px-2 text-xs text-ink ring-1 ring-line ring-inset focus:ring-2 focus:ring-brand-500 focus:outline-none"
-      />
-    </label>
-    <label class="flex items-center gap-1.5 text-xs text-ink-muted">
-      to
-      <input
-        type="date"
-        [value]="to()"
-        (change)="setTo($any($event.target).value)"
-        class="h-8 rounded-lg border-0 bg-surface px-2 text-xs text-ink ring-1 ring-line ring-inset focus:ring-2 focus:ring-brand-500 focus:outline-none"
-      />
-    </label>
+    <!-- The pair validates itself: From cannot be set past To, and a range that
+         runs backwards never becomes a request. -->
+    <app-date-range [(from)]="from" [(to)]="to" />
 
     @if (hasFilters()) {
       <button appButton variant="ghost" size="sm" (click)="clearFilters()">Clear</button>

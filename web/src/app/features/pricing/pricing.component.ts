@@ -106,16 +106,6 @@ export class PricingComponent {
       { label: 'Employees', value: format(plan.limits.maxEmployees) },
       { label: 'Campaigns', value: format(plan.limits.maxCampaigns) },
       { label: 'WhatsApp accounts', value: format(plan.limits.maxWhatsAppAccounts) },
-      { label: 'Email accounts', value: format(plan.limits.maxEmailAccounts) },
-      { label: 'Social accounts', value: format(plan.limits.maxSocialAccounts) },
-      {
-        label: 'Storage',
-        value:
-          plan.limits.maxStorageMb === null
-            ? 'Unlimited'
-            : `${Math.round(plan.limits.maxStorageMb / 1024).toLocaleString()} GB`,
-      },
-      { label: 'API requests', value: format(plan.limits.maxApiCallsPerMonth, ' / mo') },
       { label: 'Daily messages', value: format(plan.limits.dailyMessageLimit) },
       { label: 'Monthly messages', value: format(plan.limits.monthlyMessageLimit) },
     ];

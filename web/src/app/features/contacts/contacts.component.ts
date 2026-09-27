@@ -20,7 +20,6 @@ import type {
 } from '@core/models/api.model';
 import { AuthService } from '@core/auth/auth.service';
 import type {
-  BulkMode,
   Contact,
   ContactGroup,
   ContactStatus,
@@ -52,6 +51,8 @@ import {
 import { TableRowDirective } from '@shared/ui/data-table/table-row.directive';
 import { HistoryButtonComponent } from '@shared/audit/history-button.component';
 import { IconComponent } from '@shared/ui/icon/icon.component';
+import { MenuItemDirective } from '@shared/ui/menu/menu-item.directive';
+import { RowActionsComponent } from '@shared/ui/menu/row-actions.component';
 import { serverPager } from '@shared/ui/pagination/pager';
 import { serverSorter } from '@shared/ui/data-table/sort';
 import { PageHeaderComponent } from '@shared/ui/page-header/page-header.component';
@@ -68,6 +69,8 @@ const STATUS_TONE: Readonly<Record<ContactStatus, BadgeTone>> = {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     HistoryButtonComponent,
+    RowActionsComponent,
+    MenuItemDirective,
     DecimalPipe,
     RouterLink,
     TimeAgoPipe,
@@ -129,28 +132,12 @@ export class ContactsComponent {
     Readonly<Record<string, readonly string[]>>
   >({});
 
-  /**
-   * Selected rows, keyed by id and holding the whole contact.
-   *
-   * The contact is kept — not just the id — because selection survives paging,
-   * and the tag and group pickers need to know what each selected contact
-   * already carries even after the user has moved to another page.
-   */
-  protected readonly selected = signal<ReadonlyMap<string, Contact>>(new Map());
   protected readonly busy = signal(false);
 
-  /** Whether the tag and group pickers apply or strip the chosen value. */
-  protected readonly bulkMode = signal<BulkMode>('add');
-
-  protected readonly tagPickerLabel = computed(() =>
-    this.bulkMode() === 'add' ? 'Add tag…' : 'Remove tag…',
-  );
-
-  protected readonly groupPickerLabel = computed(() =>
-    this.bulkMode() === 'add' ? 'Add to group…' : 'Remove from group…',
-  );
-
   /** The API rejects a create the user lacks the permission for; hide the button too. */
+  protected readonly canEdit = computed(() => this.auth.hasPermission('contacts.edit'));
+  protected readonly canDelete = computed(() => this.auth.hasPermission('contacts.delete'));
+
   protected readonly canCreate = computed(() =>
     this.auth.hasPermission('contacts.create'),
   );
@@ -163,7 +150,9 @@ export class ContactsComponent {
   protected readonly statusTone = STATUS_TONE;
 
   protected readonly columns: readonly TableColumn[] = [
-    { key: 'select', header: '', widthClass: 'w-10' },
+    // The actions menu, first and headerless. It used to be a checkbox column
+    // here and a History button at the far end; both are now this.
+    { key: 'actions', header: '', widthClass: 'w-12' },
     // `sortKey` only where the API's allow-list accepts it: this list is paged
     // by the server, so ordering one page in the browser would reorder the
     // page and nothing else.
@@ -189,8 +178,6 @@ export class ContactsComponent {
       hideOnMobile: true,
       sortKey: 'createdAt',
     },
-    // The History button. Headerless: the icon says what it is.
-    { key: 'history', header: '', align: 'right', widthClass: 'w-12' },
   ];
 
   /**
@@ -217,57 +204,6 @@ export class ContactsComponent {
       this.load();
     },
   });
-
-  protected readonly selectedCount = computed(() => this.selected().size);
-  private readonly selectedList = computed(() => [...this.selected().values()]);
-
-  protected readonly allOnPageSelected = computed(() => {
-    const rows = this.contacts();
-    const selected = this.selected();
-    return rows.length > 0 && rows.every((contact) => selected.has(contact.id));
-  });
-
-  /**
-   * Only offer what the action can actually change: tags at least one selected
-   * contact already has when removing, and tags at least one still lacks when
-   * adding. Offering the rest invites clicks that quietly do nothing.
-   */
-  protected readonly tagOptions = computed(() => {
-    const rows = this.selectedList();
-    const all = this.tags();
-    if (rows.length === 0) {
-      return all;
-    }
-    return this.bulkMode() === 'remove'
-      ? all.filter((tag) =>
-          rows.some((contact) => contact.tagIds.includes(tag.id)),
-        )
-      : all.filter((tag) =>
-          rows.some((contact) => !contact.tagIds.includes(tag.id)),
-        );
-  });
-
-  protected readonly groupOptions = computed(() => {
-    const rows = this.selectedList();
-    const all = this.groups();
-    if (rows.length === 0) {
-      return all;
-    }
-    return this.bulkMode() === 'remove'
-      ? all.filter((group) =>
-          rows.some((contact) => contact.groupIds.includes(group.id)),
-        )
-      : all.filter((group) =>
-          rows.some((contact) => !contact.groupIds.includes(group.id)),
-        );
-  });
-
-  protected readonly tagPickerEmpty = computed(
-    () => this.tagOptions().length === 0,
-  );
-  protected readonly groupPickerEmpty = computed(
-    () => this.groupOptions().length === 0,
-  );
 
   protected readonly hasFilters = computed(
     () =>
@@ -406,37 +342,15 @@ export class ContactsComponent {
     this.load();
   }
 
-  protected toggleRow(contact: Contact): void {
-    this.selected.update((current) => {
-      const next = new Map(current);
-      if (next.has(contact.id)) {
-        next.delete(contact.id);
-      } else {
-        next.set(contact.id, contact);
-      }
-      return next;
-    });
+  /** The names of the groups a contact belongs to, for its Groups cell. */
+  protected groupNames(contact: Contact): readonly string[] {
+    const lookup = this.groupNameById();
+    return contact.groupIds
+      .map((groupId) => lookup.get(groupId)?.name)
+      .filter((name): name is string => name !== undefined);
   }
 
-  protected toggleAllOnPage(): void {
-    const shouldClear = this.allOnPageSelected();
-    this.selected.update((current) => {
-      const next = new Map(current);
-      for (const contact of this.contacts()) {
-        if (shouldClear) {
-          next.delete(contact.id);
-        } else {
-          next.set(contact.id, contact);
-        }
-      }
-      return next;
-    });
-  }
-
-  protected clearSelection(): void {
-    this.selected.set(new Map());
-  }
-
+  /** Saves the contact open in the editor. */
   protected updateContact(request: UpdateContactRequest): void {
     if (this.saving()) {
       return;
@@ -462,7 +376,6 @@ export class ContactsComponent {
           `${updatedContact.fullName} has been updated.`,
         );
 
-        this.clearSelection();
         this.load();
       },
 
@@ -479,20 +392,8 @@ export class ContactsComponent {
     });
   }
 
-  protected isSelected(id: string): boolean {
-    return this.selected().has(id);
-  }
-
   protected tagFor(tagId: string): ContactTag | undefined {
     return this.tagNameById().get(tagId);
-  }
-
-  /** The names of the groups a contact belongs to, for its Groups cell. */
-  protected groupNames(contact: Contact): readonly string[] {
-    const lookup = this.groupNameById();
-    return contact.groupIds
-      .map((groupId) => lookup.get(groupId)?.name)
-      .filter((name): name is string => name !== undefined);
   }
 
   /**
@@ -512,10 +413,14 @@ export class ContactsComponent {
     return this.allTagNames(contact).join(', ');
   }
 
-  /** Applies a bulk result: report it, drop the selection, refresh the page. */
+  /**
+   * Applies a bulk result: report it and refresh the page.
+   *
+   * Still used by the row menu's Delete, which goes through the bulk endpoint
+   * with one id so the server's rules live in one place.
+   */
   private applyBulkResult(result: BulkOperationResult, outcome: string): void {
     this.busy.set(false);
-    this.clearSelection();
 
     if (result.failed.length > 0) {
       this.toast.warning(
@@ -537,128 +442,21 @@ export class ContactsComponent {
     );
   }
 
-  protected bulkDelete(): void {
-    if (!this.gate.allow({ action: 'Deleting contacts', module: 'crm' })) {
-      return;
-    }
-    const ids = [...this.selected().keys()];
-    if (ids.length === 0 || this.busy()) {
-      return;
-    }
-    this.busy.set(true);
-
-    this.contactsService.bulkDelete(ids).subscribe({
-      next: (result) => this.applyBulkResult(result, 'Contacts deleted'),
-      error: () => this.failBulk('delete those contacts'),
-    });
-  }
-
   /**
-   * Applies or strips a tag across the selection. Removing a tag a contact does
-   * not carry is a no-op server-side, so the whole selection can be sent.
-   */
-  protected bulkApplyTag(tagId: string): void {
-    if (!this.gate.allow({ action: 'Tagging contacts', module: 'crm' })) {
-      return;
-    }
-    const ids = [...this.selected().keys()];
-    if (tagId === '' || ids.length === 0 || this.busy()) {
-      return;
-    }
-    this.busy.set(true);
-    const mode = this.bulkMode();
-
-    this.contactsService.bulkTag({ ids, tagIds: [tagId], mode }).subscribe({
-      next: (result) =>
-        this.applyBulkResult(
-          result,
-          mode === 'add' ? 'Tag added' : 'Tag removed',
-        ),
-      error: () =>
-        this.failBulk(mode === 'add' ? 'add the tag' : 'remove the tag'),
-    });
-  }
-
-  protected bulkApplyGroup(groupId: string): void {
-    if (!this.gate.allow({ action: 'Changing group membership', module: 'crm' })) {
-      return;
-    }
-    const ids = [...this.selected().keys()];
-    if (groupId === '' || ids.length === 0 || this.busy()) {
-      return;
-    }
-    this.busy.set(true);
-    const mode = this.bulkMode();
-
-    this.contactsService
-      .bulkGroup({ ids, groupIds: [groupId], mode })
-      .subscribe({
-        next: (result) =>
-          this.applyBulkResult(
-            result,
-            mode === 'add' ? 'Added to group' : 'Removed from group',
-          ),
-        error: () =>
-          this.failBulk(
-            mode === 'add' ? 'assign the group' : 'remove from the group',
-          ),
-      });
-  }
-
-  /**
-   * Exports the current filter, or just the selection when rows are ticked.
+   * Exports what the filters currently select.
    *
-   * Two paths, chosen by whether the export is bounded:
-   *
-   * - **A selection** is however many rows the operator ticked, which is a
-   *   screenful. That still streams straight back, because waiting two hundred
-   *   milliseconds beats a toast and a trip to the export centre.
-   * - **A filter** is unbounded — it can be every contact in the workspace —
-   *   so it goes through the asynchronous pipeline and the user carries on
-   *   working while a worker writes it.
-   *
-   * The dividing line is "can this time out", not "is this large today". A
-   * filtered export of a workspace with four hundred contacts is fast; the
-   * same code on the workspace that grows to four hundred thousand is the one
-   * that breaks, and it breaks on their data rather than ours.
+   * One path now that rows cannot be ticked. There used to be two: a ticked
+   * selection streamed straight back, and a filter went through the
+   * asynchronous pipeline because it is unbounded — it can be every contact in
+   * the workspace. The unbounded one is the case that has to work, so it is
+   * the one that remains.
    */
   protected exportCsv(): void {
     if (this.busy()) {
       return;
     }
 
-    const selected = [...this.selected().keys()];
-
-    if (selected.length > 0) {
-      this.exportSelection(selected);
-      return;
-    }
-
     this.queueFilteredExport();
-  }
-
-  /** The ticked rows, streamed straight back. */
-  private exportSelection(selected: readonly string[]): void {
-    this.busy.set(true);
-
-    this.contactsService
-      .exportCsv({
-        search: this.search(),
-        status: this.status(),
-        groupId: this.groupId(),
-        tagId: this.tagId(),
-        ids: selected,
-      })
-      .subscribe({
-        next: () => {
-          this.busy.set(false);
-          this.toast.success(
-            'Export ready',
-            `Downloaded the ${selected.length} selected ${selected.length === 1 ? 'contact' : 'contacts'}.`,
-          );
-        },
-        error: () => this.failBulk('Export'),
-      });
   }
 
   /**
@@ -746,21 +544,49 @@ export class ContactsComponent {
     });
   }
 
-  /* ------------------------------ edit ------------------------------ */
+  /* ---------------------------- one row ---------------------------- */
 
-  protected openEdit(): void {
+  /**
+   * Edits the row whose menu was opened.
+   *
+   * Separate from {@link openEdit}, which acts on the selection. Editing one
+   * contact used to mean ticking its box, reading the bar that appeared at the
+   * bottom of the screen, and pressing Edit there — three steps and a mode,
+   * for the most ordinary thing anybody does on this screen.
+   */
+  protected editRow(contact: Contact): void {
     if (!this.gate.allow({ action: 'Editing a contact', module: 'crm' })) {
       return;
     }
-    const contacts = this.selectedList();
-
-    if (contacts.length !== 1 || this.saving()) {
+    if (this.saving()) {
       return;
     }
 
     this.editFieldErrors.set({});
-    this.editingContact.set(contacts[0]);
+    this.editingContact.set(contact);
     this.editing.set(true);
+  }
+
+  /**
+   * Deletes the row whose menu was opened.
+   *
+   * Goes through the same bulk endpoint with one id: the server's rules about
+   * what deleting a contact means are worth having in one place, and a
+   * single-row route would be a second copy of them.
+   */
+  protected deleteRow(contact: Contact): void {
+    if (!this.gate.allow({ action: 'Deleting contacts', module: 'crm' })) {
+      return;
+    }
+    if (this.busy()) {
+      return;
+    }
+    this.busy.set(true);
+
+    this.contactsService.bulkDelete([contact.id]).subscribe({
+      next: (result) => this.applyBulkResult(result, `${contact.fullName} deleted`),
+      error: () => this.failBulk('delete that contact'),
+    });
   }
 
   protected closeEdit(): void {

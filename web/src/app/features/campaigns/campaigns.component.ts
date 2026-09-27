@@ -19,6 +19,8 @@ import { ButtonDirective } from '@shared/ui/button/button.directive';
 import { DataTableComponent, type TableColumn } from '@shared/ui/data-table/data-table.component';
 import { TableRowDirective } from '@shared/ui/data-table/table-row.directive';
 import { IconComponent } from '@shared/ui/icon/icon.component';
+import { MenuItemDirective } from '@shared/ui/menu/menu-item.directive';
+import { RowActionsComponent } from '@shared/ui/menu/row-actions.component';
 import { serverPager } from '@shared/ui/pagination/pager';
 import { PageHeaderComponent } from '@shared/ui/page-header/page-header.component';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
@@ -37,6 +39,8 @@ const SEARCH_DEBOUNCE_MS = 300;
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     HistoryButtonComponent,
+    RowActionsComponent,
+    MenuItemDirective,
     TimeAgoPipe,
     PageHeaderComponent,
     DataTableComponent,
@@ -72,6 +76,9 @@ export class CampaignsComponent {
   protected readonly statusLabel = CAMPAIGN_STATUS_LABEL;
 
   protected readonly columns: readonly TableColumn[] = [
+    // Actions first: the row scrolls sideways on a laptop, and the menu
+    // should be where the eye starts rather than past the fold.
+    { key: 'actions', header: '', widthClass: 'w-28' },
     { key: 'id', header: 'ID', widthClass: 'w-28', sortKey: 'id' },
     { key: 'name', header: 'Campaign', sortKey: 'name' },
     { key: 'status', header: 'Status', sortKey: 'status' },
@@ -108,7 +115,6 @@ export class CampaignsComponent {
       hideOnMobile: true,
       sortKey: 'updatedAt',
     },
-    { key: 'actions', header: '', align: 'right' },
   ];
 
   /**

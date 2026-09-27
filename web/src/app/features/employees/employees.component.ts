@@ -26,6 +26,8 @@ import { ButtonDirective } from '@shared/ui/button/button.directive';
 import { CardComponent } from '@shared/ui/card/card.component';
 import { HistoryButtonComponent } from '@shared/audit/history-button.component';
 import { IconComponent } from '@shared/ui/icon/icon.component';
+import { MenuItemDirective } from '@shared/ui/menu/menu-item.directive';
+import { RowActionsComponent } from '@shared/ui/menu/row-actions.component';
 import { PageHeaderComponent } from '@shared/ui/page-header/page-header.component';
 import { serverSorter } from '@shared/ui/data-table/sort';
 import {
@@ -75,6 +77,8 @@ const PERMISSION_FLOOR: readonly Permission[] = ['dashboard.view'];
     SearchBoxComponent,
     SortMenuComponent,
     HistoryButtonComponent,
+    RowActionsComponent,
+    MenuItemDirective,
     PaginatorComponent,
     EmployeeWhatsAppAccessComponent,
     TimeAgoPipe,

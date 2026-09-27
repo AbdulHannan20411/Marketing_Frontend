@@ -1,7 +1,7 @@
 <app-modal [title]="title()" [subtitle]="subtitle()" size="lg" (closed)="cancel.emit()">
   <div class="grid gap-4 sm:grid-cols-2">
     <div class="sm:col-span-2">
-      <label for="admin-org" class="block text-sm font-medium text-ink-soft">Organisation</label>
+      <label for="admin-org" class="block text-sm font-medium text-ink-soft">Organisation<span class="text-danger" aria-hidden="true">*</span><span class="sr-only">(required)</span></label>
       <input
         id="admin-org"
         type="text"
@@ -10,7 +10,8 @@
         placeholder="e.g. Northwind Retail"
         class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink ring-1 ring-line ring-inset transition-all placeholder:text-ink-muted focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
         [class.ring-red-400]="orgInvalid()"
-      />
+      maxlength="120"
+    />
       @if (orgInvalid()) {
         <p class="mt-1 text-xs text-danger">An organisation name is required.</p>
       } @else if (!isEdit()) {
@@ -22,7 +23,7 @@
 
     <div>
       <label for="admin-name" class="block text-sm font-medium text-ink-soft">
-        Administrator name
+        Administrator name<span class="text-danger" aria-hidden="true">*</span><span class="sr-only">(required)</span>
       </label>
       <input
         id="admin-name"
@@ -31,14 +32,16 @@
         (ngModelChange)="name.set($event)"
         class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink ring-1 ring-line ring-inset transition-all focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
         [class.ring-red-400]="nameInvalid()"
-      />
+      maxlength="120"
+      placeholder="e.g. Ayesha Khan"
+    />
       @if (nameInvalid()) {
         <p class="mt-1 text-xs text-danger">A name is required.</p>
       }
     </div>
 
     <div>
-      <label for="admin-email" class="block text-sm font-medium text-ink-soft">Email</label>
+      <label for="admin-email" class="block text-sm font-medium text-ink-soft">Email<span class="text-danger" aria-hidden="true">*</span><span class="sr-only">(required)</span></label>
       <input
         id="admin-email"
         type="email"
@@ -47,7 +50,9 @@
         [disabled]="isEdit()"
         class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink ring-1 ring-line ring-inset transition-all focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none disabled:cursor-not-allowed disabled:text-ink-muted"
         [class.ring-red-400]="emailInvalid()"
-      />
+      maxlength="254"
+      placeholder="name@company.com"
+    />
       @if (emailInvalid()) {
         <p class="mt-1 text-xs text-danger">Enter a valid email address.</p>
       } @else if (isEdit()) {

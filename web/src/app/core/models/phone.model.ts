@@ -188,6 +188,86 @@ export function formatInternational(digits: string): string {
 }
 
 /**
+ * The country a written-out international number belongs to, by its code.
+ *
+ * Longest match wins, the same way {@link formatInternational} groups: `1`
+ * would otherwise claim every `+1x…` number away from a longer code that
+ * starts with the same digit.
+ */
+export function countryOfNumber(value: string): DiallingCountry | null {
+  let digits = digitsOf(value);
+  if (digits.startsWith('00')) {
+    digits = digits.slice(2);
+  }
+  if (digits === '' || digits.startsWith('0')) {
+    // National, or nothing. The number carries no country of its own.
+    return null;
+  }
+
+  return (
+    DIALLING_COUNTRIES.filter((entry) => digits.startsWith(entry.dial)).sort(
+      (a, b) => b.dial.length - a.dial.length,
+    )[0] ?? null
+  );
+}
+
+/** A number whose own country code contradicts the country that was chosen. */
+export interface CountryConflict {
+  /** The code the number opens with, no plus. */
+  readonly dial: string;
+  /** Every country that uses that code — `+1` is both the US and Canada. */
+  readonly countries: readonly DiallingCountry[];
+  readonly selected: DiallingCountry;
+}
+
+/**
+ * Whether the number's own country code disagrees with the chosen country.
+ *
+ * The mistake this catches: picking **United States (+1)** and then pasting
+ * `+923365471147`. Both fields are individually valid, the number saves
+ * exactly as typed, and the contact ends up filed under a country it has
+ * nothing to do with — so every audience built by country, and every report
+ * broken down by it, is quietly wrong. Nothing downstream can detect it,
+ * because there is no contradiction left in the stored row: the country says
+ * one thing and the digits say another, and both are plausible.
+ *
+ * Compared by **dialling code, not by country**, which is what makes `+1`
+ * work: the United States and Canada share it, so a Canadian number with the
+ * United States selected is not a conflict this can see — and guessing between
+ * them from the digits alone is not possible.
+ *
+ * Returns null for every case that is not a genuine contradiction: a national
+ * number (the country supplies the code, which is the normal flow), a country
+ * that is not in the list, and a code that is not in the list.
+ */
+export function countryConflict(value: string, country: string): CountryConflict | null {
+  const selected = findCountry(country);
+  if (selected === null) {
+    return null;
+  }
+
+  const detected = countryOfNumber(value);
+  if (detected === null || detected.dial === selected.dial) {
+    return null;
+  }
+
+  return {
+    dial: detected.dial,
+    countries: DIALLING_COUNTRIES.filter((entry) => entry.dial === detected.dial),
+    selected,
+  };
+}
+
+/** "Pakistan", or "the United States or Canada" when a code is shared. */
+export function describeCountries(countries: readonly DiallingCountry[]): string {
+  const names = countries.map((entry) => entry.name);
+  if (names.length <= 1) {
+    return names[0] ?? 'another country';
+  }
+  return `${names.slice(0, -1).join(', ')} or ${names[names.length - 1]}`;
+}
+
+/**
  * Whether a **stored** number is not in international form.
  *
  * Used to surface contacts saved before the API started converting. Anything

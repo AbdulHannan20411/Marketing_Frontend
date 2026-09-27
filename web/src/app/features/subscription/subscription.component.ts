@@ -37,7 +37,7 @@ const STATUS_LABEL: Readonly<Record<SubscriptionStatus, string>> = {
 };
 
 /** Metrics promoted to circular indicators; the rest render as bars. */
-const HEADLINE_METRICS = ['contacts', 'campaigns', 'employees', 'storage'] as const;
+const HEADLINE_METRICS = ['contacts', 'campaigns', 'employees'] as const;
 
 @Component({
   selector: 'app-subscription',
@@ -142,10 +142,9 @@ export class SubscriptionComponent {
     ),
   );
 
+  /** Message allowances. There is no API or storage meter to sit beside them. */
   protected readonly platformUsage = computed(() =>
-    this.usage().filter(
-      (metric) => metric.key === 'apiCalls' || metric.key.startsWith('messages'),
-    ),
+    this.usage().filter((metric) => metric.key.startsWith('messages')),
   );
 
   protected readonly channelUsage = computed(() =>

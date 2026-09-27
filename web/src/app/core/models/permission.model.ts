@@ -41,19 +41,8 @@ export const PERMISSIONS = [
   'whatsapp.inbox.reply',
 
   // Email marketing
-  'email.connect',
-  'email.templates.manage',
-  'email.campaigns.create',
-  'email.campaigns.send',
-  'email.analytics.view',
 
   // Social media automation
-  'social.accounts.connect',
-  'social.posts.create',
-  'social.posts.schedule',
-  'social.posts.publish',
-  'social.posts.delete',
-  'social.analytics.view',
 
   // Reports
   'reports.view',
@@ -87,8 +76,6 @@ export type PermissionCategoryKey =
   | 'dashboard'
   | 'contacts'
   | 'whatsapp'
-  | 'email'
-  | 'social'
   | 'reports'
   | 'ai'
   | 'settings'
@@ -112,12 +99,9 @@ export interface PermissionCategory {
 /** Subscription-gated modules. A plan turns each of these on or off. */
 export const FEATURE_MODULES = [
   'whatsapp',
-  'email',
-  'social',
   'crm',
   'reporting',
   'ai',
-  'api',
   'employees',
 ] as const;
 
@@ -125,12 +109,9 @@ export type FeatureModule = (typeof FEATURE_MODULES)[number];
 
 export const FEATURE_MODULE_LABEL: Readonly<Record<FeatureModule, string>> = {
   whatsapp: 'WhatsApp Marketing',
-  email: 'Email Marketing',
-  social: 'Social Media Automation',
   crm: 'CRM',
   reporting: 'Reporting',
   ai: 'AI Features',
-  api: 'API Access',
   employees: 'Employee Management',
 };
 
@@ -238,49 +219,6 @@ export const PERMISSION_CATALOGUE: readonly PermissionCategory[] = [
         key: 'whatsapp.campaigns.reports',
         label: 'View campaign reports',
         description: 'See delivery analytics.',
-      },
-    ],
-  },
-  {
-    key: 'email',
-    label: 'Email Marketing',
-    description: 'Providers, templates and email campaigns.',
-    module: 'email',
-    permissions: [
-      { key: 'email.connect', label: 'Connect provider', description: 'Link an email provider.' },
-      {
-        key: 'email.templates.manage',
-        label: 'Manage templates',
-        description: 'Create and edit email templates.',
-      },
-      {
-        key: 'email.campaigns.create',
-        label: 'Create campaign',
-        description: 'Draft an email campaign.',
-      },
-      { key: 'email.campaigns.send', label: 'Send campaign', description: 'Dispatch an email send.' },
-      { key: 'email.analytics.view', label: 'View analytics', description: 'Opens, clicks, bounces.' },
-    ],
-  },
-  {
-    key: 'social',
-    label: 'Social Media Automation',
-    description: 'Facebook, Instagram, LinkedIn and X.',
-    module: 'social',
-    permissions: [
-      {
-        key: 'social.accounts.connect',
-        label: 'Connect account',
-        description: 'Link a social profile.',
-      },
-      { key: 'social.posts.create', label: 'Create posts', description: 'Draft social posts.' },
-      { key: 'social.posts.schedule', label: 'Schedule posts', description: 'Queue for later.' },
-      { key: 'social.posts.publish', label: 'Publish posts', description: 'Post immediately.' },
-      { key: 'social.posts.delete', label: 'Delete posts', description: 'Remove published posts.' },
-      {
-        key: 'social.analytics.view',
-        label: 'View analytics',
-        description: 'Reach and engagement.',
       },
     ],
   },

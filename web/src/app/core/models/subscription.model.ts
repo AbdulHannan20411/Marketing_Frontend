@@ -14,10 +14,6 @@ export interface PlanLimits {
   readonly maxContacts: number | null;
   readonly maxCampaigns: number | null;
   readonly maxWhatsAppAccounts: number | null;
-  readonly maxEmailAccounts: number | null;
-  readonly maxSocialAccounts: number | null;
-  readonly maxApiCallsPerMonth: number | null;
-  readonly maxStorageMb: number | null;
   readonly dailyMessageLimit: number | null;
   readonly monthlyMessageLimit: number | null;
   /** AI auto-replies included per billing cycle. `null` means no ceiling. */
@@ -111,10 +107,6 @@ export type UsageMetricKey =
   | 'contacts'
   | 'campaigns'
   | 'whatsAppAccounts'
-  | 'emailAccounts'
-  | 'socialAccounts'
-  | 'apiCalls'
-  | 'storage'
   | 'messagesDaily'
   | 'messagesMonthly';
 

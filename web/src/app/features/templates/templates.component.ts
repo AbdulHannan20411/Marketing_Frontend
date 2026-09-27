@@ -31,6 +31,8 @@ import { TEMPLATE_STATUS_TONE } from '@shared/ui/badge/campaign-status';
 import { ButtonDirective } from '@shared/ui/button/button.directive';
 import { CardComponent } from '@shared/ui/card/card.component';
 import { IconComponent } from '@shared/ui/icon/icon.component';
+import { MenuItemDirective } from '@shared/ui/menu/menu-item.directive';
+import { RowActionsComponent } from '@shared/ui/menu/row-actions.component';
 import { PageHeaderComponent } from '@shared/ui/page-header/page-header.component';
 import { serverPager } from '@shared/ui/pagination/pager';
 import { HistoryButtonComponent } from '@shared/audit/history-button.component';
@@ -56,6 +58,8 @@ const STATUS_ORDER: readonly TemplateStatus[] = ['approved', 'pending', 'rejecte
     RouterLink,
     SortMenuComponent,
     HistoryButtonComponent,
+    RowActionsComponent,
+    MenuItemDirective,
     TimeAgoPipe,
     TemplateSegmentsPipe,
     PageHeaderComponent,

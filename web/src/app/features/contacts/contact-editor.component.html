@@ -10,7 +10,7 @@
   <div class="grid gap-4 sm:grid-cols-2">
     <!-- Name -->
     <div class="sm:col-span-2">
-      <label for="contact-name" class="block text-sm font-medium text-ink-soft">Full name</label>
+      <label for="contact-name" class="block text-sm font-medium text-ink-soft">Full name<span class="text-danger" aria-hidden="true">*</span><span class="sr-only">(required)</span></label>
       <input
         id="contact-name"
         type="text"
@@ -20,7 +20,8 @@
         autocomplete="off"
         class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink ring-1 ring-line ring-inset transition-all placeholder:text-ink-muted focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
         [class.ring-red-400]="nameInvalid() || errorFor('fullName')"
-      />
+      maxlength="120"
+    />
       @if (errorFor('fullName'); as message) {
         <p class="mt-1 text-xs text-danger">{{ message }}</p>
       } @else if (nameInvalid()) {
@@ -42,7 +43,7 @@
         [ngModel]="country()"
         (ngModelChange)="country.set($event)"
         class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink ring-1 ring-line ring-inset focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
-        [class.ring-red-400]="errorFor('country') || countryRequired()"
+        [class.ring-red-400]="errorFor('country') || countryRequired() || countryConflict() !== null"
       >
         <option value="">Detect from the number</option>
         @for (option of countries; track option.iso) {
@@ -61,7 +62,7 @@
     <!-- Phone -->
     <div>
       <label for="contact-phone" class="block text-sm font-medium text-ink-soft">
-        Phone number
+        Phone number<span class="text-danger" aria-hidden="true">*</span><span class="sr-only">(required)</span>
       </label>
       <input
         id="contact-phone"
@@ -71,9 +72,27 @@
         placeholder="+44 7700 900123"
         autocomplete="off"
         class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink tabular-nums ring-1 ring-line ring-inset transition-all placeholder:text-ink-muted focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
-        [class.ring-red-400]="phoneInvalid() || errorFor('phoneNumber')"
-      />
-      @if (errorFor('phoneNumber'); as message) {
+        [class.ring-red-400]="phoneInvalid() || countryConflict() !== null || errorFor('phoneNumber')"
+      maxlength="32"
+    />
+      @if (countryConflict(); as conflict) {
+        <!-- Both fields are valid on their own; it is the pair that is wrong,
+             so the message names both and offers the likelier correction. -->
+        <p class="mt-1 text-xs font-medium text-danger" role="alert">
+          This number starts with +{{ conflict.dial }} ({{ conflictCountryName() }}), but the
+          country is {{ conflict.selected.name }} (+{{ conflict.selected.dial }}).
+        </p>
+        <button
+          type="button"
+          class="mt-1.5 rounded-md text-xs font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none"
+          (click)="adoptNumberCountry()"
+        >
+          Change the country to {{ conflictCountryName() }}
+        </button>
+      } @else {
+        <!-- Nested rather than chained: `as` is only allowed on a primary
+             `@if`, and both branches below need it. -->
+        @if (errorFor('phoneNumber'); as message) {
         <p class="mt-1 text-xs text-danger">{{ message }}</p>
       } @else if (phoneInvalid()) {
         <p class="mt-1 text-xs text-danger">
@@ -94,6 +113,7 @@
       } @else {
         <p class="mt-1 text-xs text-ink-muted">Must be unique within this workspace.</p>
       }
+      }
     </div>
 
     <!-- Email -->
@@ -110,7 +130,8 @@
         autocomplete="off"
         class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink ring-1 ring-line ring-inset transition-all placeholder:text-ink-muted focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
         [class.ring-red-400]="emailInvalid() || errorFor('email')"
-      />
+      maxlength="254"
+    />
       @if (errorFor('email'); as message) {
         <p class="mt-1 text-xs text-danger">{{ message }}</p>
       } @else if (emailInvalid()) {

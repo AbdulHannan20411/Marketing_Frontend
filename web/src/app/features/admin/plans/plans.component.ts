@@ -27,6 +27,8 @@ import { SortMenuComponent } from '@shared/ui/data-table/sort-menu.component';
 import { HistoryButtonComponent } from '@shared/audit/history-button.component';
 import { CardComponent } from '@shared/ui/card/card.component';
 import { IconComponent } from '@shared/ui/icon/icon.component';
+import { MenuItemDirective } from '@shared/ui/menu/menu-item.directive';
+import { RowActionsComponent } from '@shared/ui/menu/row-actions.component';
 import { PageHeaderComponent } from '@shared/ui/page-header/page-header.component';
 import { SkeletonComponent } from '@shared/ui/skeleton/skeleton.component';
 import { EmptyStateComponent } from '@shared/ui/state/empty-state.component';
@@ -49,6 +51,8 @@ type StatusFilter = PlanStatus | 'all';
     PaginatorComponent,
     SortMenuComponent,
     HistoryButtonComponent,
+    RowActionsComponent,
+    MenuItemDirective,
     TimeAgoPipe,
     PageHeaderComponent,
     CardComponent,

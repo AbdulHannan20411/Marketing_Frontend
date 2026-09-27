@@ -10,6 +10,8 @@ import {
   type AuditEntry,
 } from '@core/models/audit-history.model';
 import { AuditHistoryService } from '@core/services/audit-history.service';
+import { DateRangeComponent } from '@shared/forms/date-range.component';
+import { dateRangeError } from '@shared/forms/validation';
 import { TimeAgoPipe } from '@shared/pipes/time-ago.pipe';
 import { ButtonDirective } from '@shared/ui/button/button.directive';
 import { IconComponent } from '@shared/ui/icon/icon.component';
@@ -42,6 +44,7 @@ interface ActorOption {
   host: { class: 'block' },
   imports: [
     DatePipe,
+    DateRangeComponent,
     TimeAgoPipe,
     ButtonDirective,
     IconComponent,
@@ -83,6 +86,15 @@ export class AuditHistoryComponent {
   protected readonly from = signal<string>('');
   protected readonly to = signal<string>('');
 
+  /**
+   * True while the two dates describe no period.
+   *
+   * Checked before loading rather than only shown: a backwards range used to
+   * go to the API and come back empty, which reads as "this record has no
+   * history" — the opposite of what it means.
+   */
+  private readonly rangeInvalid = computed(() => dateRangeError(this.from(), this.to()) !== null);
+
   protected readonly pager = serverPager({
     total: this.totalItems,
     pageSize: 10,
@@ -122,9 +134,39 @@ export class AuditHistoryComponent {
         this.load();
       });
     });
+
+    /*
+     * Re-read when the date range changes.
+     *
+     * The pair is two-way bound rather than driven through a setter, so there
+     * is no handler to hang this on — and without it the dates would change on
+     * screen and the list would not move, which is worse than the backwards
+     * range this replaced.
+     */
+    effect(() => {
+      const range = `${this.from()}..${this.to()}`;
+      untracked(() => {
+        if (range === this.loadedRange) {
+          return;
+        }
+        this.loadedRange = range;
+        this.pager.reset();
+        this.load();
+      });
+    });
   }
 
+  /** The range the current page was read for, so an effect does not loop. */
+  private loadedRange = '..';
+
   protected load(): void {
+    // A range that runs backwards describes no period, so there is nothing to
+    // ask for. The pair says so on screen; this keeps it from also returning
+    // an empty page that looks like "no history".
+    if (this.rangeInvalid()) {
+      return;
+    }
+
     if (this.entries().length > 0) {
       this.refreshing.set(true);
     } else {
@@ -169,17 +211,6 @@ export class AuditHistoryComponent {
     this.load();
   }
 
-  protected setFrom(value: string): void {
-    this.from.set(value);
-    this.pager.reset();
-    this.load();
-  }
-
-  protected setTo(value: string): void {
-    this.to.set(value);
-    this.pager.reset();
-    this.load();
-  }
 
   protected clearFilters(): void {
     this.action.set('all');

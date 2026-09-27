@@ -162,6 +162,54 @@
 
           <!-- Actions -->
           <div class="mt-auto flex flex-wrap items-center gap-1.5 border-t border-line pt-3 [&:not(:first-child)]:mt-4">
+            <app-row-actions [label]="'Actions for ' + account.label">
+              <button
+                appMenuItem
+                [disabled]="busyId() === account.id"
+                (click)="refresh(account)"
+              >
+                <app-icon
+                  name="refresh"
+                  [size]="15"
+                  [class.animate-spin]="busyId() === account.id"
+                />
+                Refresh from Meta
+              </button>
+
+              @if (canManage()) {
+                @if (!account.isDefault && account.status === 'connected') {
+                  <button
+                    appMenuItem
+                    [disabled]="busyId() === account.id"
+                    (click)="makeDefault(account)"
+                  >
+                    <app-icon name="checkCircle" [size]="15" />
+                    Make default
+                  </button>
+
+                  <!-- Hidden until the API registers this record type for history. -->
+                  <app-history-button
+                    entityName="WhatsAppAccount"
+                    [entityId]="account.id"
+                    [recordName]="account.label"
+                    [menuItem]="true"
+                  />
+                }
+
+                @if (account.status === 'connected') {
+                  <button appMenuItem tone="danger" (click)="confirm('disconnect', account)">
+                    <app-icon name="close" [size]="15" />
+                    Disconnect
+                  </button>
+                } @else if (canRemove()) {
+                  <button appMenuItem tone="danger" (click)="confirm('remove', account)">
+                    <app-icon name="trash" [size]="15" />
+                    Remove
+                  </button>
+                }
+              }
+            </app-row-actions>
+
             @if (!isSelected(account)) {
               <button appButton variant="outline" size="sm" (click)="open(account)">
                 <app-icon name="eye" [size]="13" />
@@ -174,42 +222,6 @@
               </span>
             }
 
-            <button
-              appButton
-              variant="ghost"
-              size="sm"
-              [disabled]="busyId() === account.id"
-              [attr.aria-label]="'Refresh ' + account.label + ' from Meta'"
-              (click)="refresh(account)"
-            >
-              <app-icon name="refresh" [size]="13" [class.animate-spin]="busyId() === account.id" />
-            </button>
-
-            @if (canManage()) {
-              @if (!account.isDefault && account.status === 'connected') {
-                <!-- Hidden until the API registers this record type for history. -->
-                <app-history-button
-                  entityName="WhatsAppAccount"
-                  [entityId]="account.id"
-                  [recordName]="account.label"
-                  [showLabel]="false"
-                />
-                <button appButton variant="ghost" size="sm" [disabled]="busyId() === account.id" (click)="makeDefault(account)">
-                  Make default
-                </button>
-              }
-              <span class="flex-1"></span>
-              @if (account.status === 'connected') {
-                <button appButton variant="ghost" size="sm" class="text-danger" (click)="confirm('disconnect', account)">
-                  Disconnect
-                </button>
-              } @else if (canRemove()) {
-                <button appButton variant="ghost" size="sm" class="text-danger" (click)="confirm('remove', account)">
-                  <app-icon name="trash" [size]="13" />
-                  Remove
-                </button>
-              }
-            }
           </div>
         </li>
       }

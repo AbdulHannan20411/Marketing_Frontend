@@ -548,7 +548,7 @@
   >
     <form [formGroup]="manualForm" class="space-y-4">
       <div>
-        <label for="manual-token" class="block text-sm font-medium text-ink">Access token</label>
+        <label for="manual-token" class="block text-sm font-medium text-ink">Access token<span class="text-danger" aria-hidden="true">*</span><span class="sr-only">(required)</span></label>
         <input
           id="manual-token"
           type="password"
@@ -557,6 +557,7 @@
           formControlName="accessToken"
           placeholder="EAAN…"
           class="mt-1.5 h-10 w-full rounded-lg border-0 bg-surface-sunken px-3 font-mono text-sm text-ink ring-1 ring-line ring-inset transition-all focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
+      maxlength="500"
         />
         <p class="mt-1.5 text-xs text-ink-muted">
           Sent straight to the server and never stored in this browser. Masked because it is a
@@ -567,7 +568,7 @@
       <div class="grid gap-4 sm:grid-cols-2">
         <div>
           <label for="manual-waba" class="block text-sm font-medium text-ink">
-            WhatsApp Business account ID
+            WhatsApp Business account ID<span class="text-danger" aria-hidden="true">*</span><span class="sr-only">(required)</span>
           </label>
           <input
             id="manual-waba"
@@ -576,11 +577,13 @@
             spellcheck="false"
             formControlName="wabaId"
             class="mt-1.5 h-10 w-full rounded-lg border-0 bg-surface-sunken px-3 font-mono text-sm text-ink ring-1 ring-line ring-inset transition-all focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
+      maxlength="32"
+      placeholder="e.g. 102938475610293"
           />
         </div>
         <div>
           <label for="manual-phone" class="block text-sm font-medium text-ink">
-            Phone number ID
+            Phone number ID<span class="text-danger" aria-hidden="true">*</span><span class="sr-only">(required)</span>
           </label>
           <input
             id="manual-phone"
@@ -589,6 +592,8 @@
             spellcheck="false"
             formControlName="phoneNumberId"
             class="mt-1.5 h-10 w-full rounded-lg border-0 bg-surface-sunken px-3 font-mono text-sm text-ink ring-1 ring-line ring-inset transition-all focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
+      maxlength="32"
+      placeholder="e.g. 109283746510293"
           />
         </div>
       </div>

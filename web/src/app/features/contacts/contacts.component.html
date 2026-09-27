@@ -32,129 +32,6 @@
   }
 </app-page-header>
 
-<!-- Bulk action bar: appears only when rows are selected -->
-@if (selectedCount() > 0) {
-  <div
-    class="mt-5 flex flex-wrap items-center gap-3 rounded-xl bg-brand-50 px-4 py-3 ring-1 ring-brand-200 animate-rise"
-    role="region"
-    aria-label="Bulk actions"
-  >
-    <p class="text-sm font-medium text-brand-800">
-      {{ selectedCount() }} selected
-    </p>
-    <div class="ml-auto flex flex-wrap items-center gap-2">
-      <!-- Governs both pickers below, so one control covers apply and strip -->
-      <div
-        class="inline-flex rounded-lg bg-surface p-0.5 ring-1 ring-brand-200"
-        role="radiogroup"
-        aria-label="Whether the pickers add or remove"
-      >
-        <button
-          type="button"
-          role="radio"
-          [attr.aria-checked]="bulkMode() === 'add'"
-          class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors duration-150"
-          [class]="
-            bulkMode() === 'add'
-              ? 'bg-brand-600 text-white'
-              : 'text-ink-soft hover:bg-surface-muted'
-          "
-          (click)="bulkMode.set('add')"
-        >
-          Add
-        </button>
-        <button
-          type="button"
-          role="radio"
-          [attr.aria-checked]="bulkMode() === 'remove'"
-          class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors duration-150"
-          [class]="
-            bulkMode() === 'remove'
-              ? 'bg-brand-600 text-white'
-              : 'text-ink-soft hover:bg-surface-muted'
-          "
-          (click)="bulkMode.set('remove')"
-        >
-          Remove
-        </button>
-      </div>
-
-      <!-- Options are limited to what the chosen mode can actually change -->
-      <label for="bulk-tag" class="sr-only">{{ tagPickerLabel() }}</label>
-      <select
-        id="bulk-tag"
-        [disabled]="busy() || tagPickerEmpty()"
-        (change)="
-          bulkApplyTag($any($event.target).value);
-          $any($event.target).value = ''
-        "
-        class="h-8 rounded-lg border-0 bg-surface px-2.5 text-xs text-ink-soft ring-1 ring-brand-200 ring-inset focus:ring-2 focus:ring-brand-500 focus:outline-none disabled:opacity-50"
-      >
-        <option value="" selected>
-          {{
-            tagPickerEmpty()
-              ? bulkMode() === "remove"
-                ? "No tags to remove"
-                : "All tags applied"
-              : tagPickerLabel()
-          }}
-        </option>
-        @for (tag of tagOptions(); track tag.id) {
-          <option [value]="tag.id">{{ tag.name }}</option>
-        }
-      </select>
-
-      <label for="bulk-group" class="sr-only">{{ groupPickerLabel() }}</label>
-      <select
-        id="bulk-group"
-        [disabled]="busy() || groupPickerEmpty()"
-        (change)="
-          bulkApplyGroup($any($event.target).value);
-          $any($event.target).value = ''
-        "
-        class="h-8 rounded-lg border-0 bg-surface px-2.5 text-xs text-ink-soft ring-1 ring-brand-200 ring-inset focus:ring-2 focus:ring-brand-500 focus:outline-none disabled:opacity-50"
-      >
-        <option value="" selected>
-          {{
-            groupPickerEmpty()
-              ? bulkMode() === "remove"
-                ? "Not in any group"
-                : "In every group"
-              : groupPickerLabel()
-          }}
-        </option>
-        @for (group of groupOptions(); track group.id) {
-          <option [value]="group.id">{{ group.name }}</option>
-        }
-      </select>
-
-      <button
-        appButton
-        variant="danger"
-        size="sm"
-        [disabled]="busy()"
-        (click)="bulkDelete()"
-      >
-        <app-icon name="trash" [size]="15" />
-        Delete
-      </button>
-      <button appButton variant="ghost" size="sm" (click)="clearSelection()">
-        Clear
-      </button>
-      <button
-        appButton
-        variant="outline"
-        size="sm"
-        [disabled]="selectedCount() !== 1 || busy() || saving()"
-        (click)="openEdit()"
-      >
-        <app-icon name="tag" [size]="15" />
-        Edit
-      </button>
-    </div>
-  </div>
-}
-
 <app-data-table
   class="mt-5 block"
   [columns]="columns"
@@ -260,14 +137,29 @@
 
   <!-- Rows -->
   <ng-template [appTableRow]="contacts()" let-contact>
+    <!-- First cell, so the menu is where the eye starts rather than at the end
+         of a row that scrolls sideways on a laptop. -->
     <td class="px-4 py-3">
-      <input
-        type="checkbox"
-        [checked]="isSelected(contact.id)"
-        (change)="toggleRow(contact)"
-        [attr.aria-label]="'Select ' + contact.fullName"
-        class="h-4 w-4 rounded border-line-strong text-brand-600 focus:ring-2 focus:ring-brand-500"
-      />
+      <app-row-actions [label]="'Actions for ' + contact.fullName">
+        @if (canEdit()) {
+          <button appMenuItem (click)="editRow(contact)">
+            <app-icon name="pencil" [size]="15" />
+            Edit
+          </button>
+        }
+        <app-history-button
+          entityName="Contact"
+          [entityId]="contact.id"
+          [recordName]="contact.fullName"
+          [menuItem]="true"
+        />
+        @if (canDelete()) {
+          <button appMenuItem tone="danger" (click)="deleteRow(contact)">
+            <app-icon name="trash" [size]="15" />
+            Delete
+          </button>
+        }
+      </app-row-actions>
     </td>
 
     <!-- The identifier the API and support both use. Monospace so a column of
@@ -404,14 +296,6 @@
       {{ contact.createdAt | timeAgo }}
     </td>
 
-    <td class="px-4 py-3 text-right">
-      <app-history-button
-        entityName="Contact"
-        [entityId]="contact.id"
-        [recordName]="contact.fullName"
-        [showLabel]="false"
-      />
-    </td>
   </ng-template>
 </app-data-table>
 

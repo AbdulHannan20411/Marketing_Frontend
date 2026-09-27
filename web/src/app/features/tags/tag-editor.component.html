@@ -5,7 +5,7 @@
   (closed)="cancel.emit()"
 >
   <div>
-    <label for="tag-name" class="block text-sm font-medium text-ink-soft">Name</label>
+    <label for="tag-name" class="block text-sm font-medium text-ink-soft">Name<span class="text-danger" aria-hidden="true">*</span><span class="sr-only">(required)</span></label>
     <input
       id="tag-name"
       type="text"
@@ -15,6 +15,7 @@
       autocomplete="off"
       class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink ring-1 ring-line ring-inset transition-all placeholder:text-ink-muted focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
       [class.ring-red-400]="nameInvalid() || nameError() !== null"
+      maxlength="{{ nameMax }}"
     />
     @if (nameError(); as message) {
       <p class="mt-1 text-xs text-danger">{{ message }}</p>

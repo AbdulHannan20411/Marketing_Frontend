@@ -113,28 +113,23 @@
         </div>
 
         @if (canManage()) {
-          <div class="mt-4 flex items-center gap-1.5 border-t border-line pt-3">
-            <button appButton variant="ghost" size="sm" (click)="openEdit(tag)">
-              <app-icon name="pencil" [size]="14" />
-              Edit
-            </button>
-            <app-history-button
-              class="ml-auto"
-              entityName="Tag"
-              [entityId]="tag.id"
-              [recordName]="tag.name"
-              [showLabel]="false"
-            />
-            <button
-              appButton
-              variant="ghost"
-              size="sm"
-              class="text-danger"
-              (click)="askDelete(tag)"
-            >
-              <app-icon name="trash" [size]="14" />
-              Delete
-            </button>
+          <div class="mt-4 flex items-center justify-start border-t border-line pt-3">
+            <app-row-actions [label]="'Actions for ' + tag.name">
+              <button appMenuItem (click)="openEdit(tag)">
+                <app-icon name="pencil" [size]="15" />
+                Edit
+              </button>
+              <app-history-button
+                entityName="Tag"
+                [entityId]="tag.id"
+                [recordName]="tag.name"
+                [menuItem]="true"
+              />
+              <button appMenuItem tone="danger" (click)="askDelete(tag)">
+                <app-icon name="trash" [size]="15" />
+                Delete
+              </button>
+            </app-row-actions>
           </div>
         }
       </app-card>

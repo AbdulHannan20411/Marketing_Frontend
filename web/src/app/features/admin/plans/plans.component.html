@@ -187,49 +187,61 @@
           </div>
         </div>
 
-        <!-- Actions -->
-        <div class="mt-4 flex flex-wrap items-center gap-1.5 border-t border-line pt-4">
-          <!-- Hidden until the API registers this record type for history. -->
-          <app-history-button entityName="Plan" [entityId]="plan.id" [recordName]="plan.name" [showLabel]="false" />
+        <!--
+          Actions.
+
+          Edit stays out of the menu: it is the one people came here to do, and
+          burying the primary action of a screen behind a menu trades a click
+          for a guess. Everything rarer, and everything destructive, is inside.
+        -->
+        <div class="mt-4 flex items-center gap-2 border-t border-line pt-4">
+          <app-row-actions [label]="'Actions for ' + plan.name">
+            <button appMenuItem (click)="duplicate(plan)">
+              <app-icon name="duplicate" [size]="15" />
+              Duplicate
+            </button>
+
+            @if (plan.status === 'active') {
+              <button appMenuItem (click)="setStatus(plan, 'inactive')">
+                <app-icon name="eye" [size]="15" />
+                Deactivate
+              </button>
+            } @else if (plan.status === 'inactive') {
+              <button appMenuItem (click)="setStatus(plan, 'active')">
+                <app-icon name="checkCircle" [size]="15" />
+                Activate
+              </button>
+            }
+
+            @if (plan.status !== 'archived') {
+              <button appMenuItem (click)="setStatus(plan, 'archived')">
+                <app-icon name="archive" [size]="15" />
+                Archive
+              </button>
+            } @else {
+              <button appMenuItem (click)="setStatus(plan, 'inactive')">
+                <app-icon name="refresh" [size]="15" />
+                Restore
+              </button>
+            }
+
+            <!-- Hidden until the API registers this record type for history. -->
+            <app-history-button
+              entityName="Plan"
+              [entityId]="plan.id"
+              [recordName]="plan.name"
+              [menuItem]="true"
+            />
+
+            <button appMenuItem tone="danger" (click)="askDelete(plan)">
+              <app-icon name="trash" [size]="15" />
+              Delete
+            </button>
+          </app-row-actions>
+
           <button appButton variant="outline" size="sm" (click)="openEdit(plan)">
             <app-icon name="pencil" [size]="14" />
             Edit
-          </button>
-          <button appButton variant="ghost" size="sm" (click)="duplicate(plan)">
-            <app-icon name="duplicate" [size]="14" />
-            Duplicate
-          </button>
-
-          @if (plan.status === 'active') {
-            <button appButton variant="ghost" size="sm" (click)="setStatus(plan, 'inactive')">
-              Deactivate
-            </button>
-          } @else if (plan.status === 'inactive') {
-            <button appButton variant="ghost" size="sm" (click)="setStatus(plan, 'active')">
-              Activate
-            </button>
-          }
-
-          @if (plan.status !== 'archived') {
-            <button appButton variant="ghost" size="sm" (click)="setStatus(plan, 'archived')">
-              <app-icon name="archive" [size]="14" />
-              Archive
-            </button>
-          } @else {
-            <button appButton variant="ghost" size="sm" (click)="setStatus(plan, 'inactive')">
-              Restore
-            </button>
-          }
-
-          <button
-            appButton
-            variant="ghost"
-            size="sm"
-            class="ml-auto text-danger"
-            (click)="askDelete(plan)"
-          >
-            <app-icon name="trash" [size]="14" />
-            Delete
           </button>
         </div>
 

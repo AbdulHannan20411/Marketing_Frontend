@@ -16,6 +16,8 @@ import { TimeAgoPipe } from '@shared/pipes/time-ago.pipe';
 import { ButtonDirective } from '@shared/ui/button/button.directive';
 import { HistoryButtonComponent } from '@shared/audit/history-button.component';
 import { IconComponent } from '@shared/ui/icon/icon.component';
+import { MenuItemDirective } from '@shared/ui/menu/menu-item.directive';
+import { RowActionsComponent } from '@shared/ui/menu/row-actions.component';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
 import { WhatsAppHealthComponent } from '@shared/ui/whatsapp-health/whatsapp-health.component';
 
@@ -34,7 +36,17 @@ type Confirming = { readonly kind: 'disconnect' | 'remove'; readonly account: Wh
 @Component({
   selector: 'app-whatsapp-accounts-panel',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [HistoryButtonComponent, RouterLink, TimeAgoPipe, ButtonDirective, IconComponent, ModalComponent, WhatsAppHealthComponent],
+  imports: [
+    HistoryButtonComponent,
+    RouterLink,
+    TimeAgoPipe,
+    ButtonDirective,
+    IconComponent,
+    RowActionsComponent,
+    MenuItemDirective,
+    ModalComponent,
+    WhatsAppHealthComponent,
+  ],
   templateUrl: './whatsapp-accounts-panel.component.html',
 })
 export class WhatsAppAccountsPanelComponent {

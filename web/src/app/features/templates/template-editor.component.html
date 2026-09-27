@@ -13,7 +13,7 @@
     <div class="space-y-5">
       <div class="grid gap-4 sm:grid-cols-2">
         <div>
-          <label for="tpl-name" class="block text-sm font-medium text-ink-soft">Template name</label>
+          <label for="tpl-name" class="block text-sm font-medium text-ink-soft">Template name<span class="text-danger" aria-hidden="true">*</span><span class="sr-only">(required)</span></label>
           <input
             id="tpl-name"
             type="text"
@@ -23,6 +23,7 @@
             placeholder="order_shipped_update"
             class="mt-1.5 h-9.5 w-full rounded-lg border-0 bg-surface-sunken px-3 font-mono text-sm text-ink ring-1 ring-line ring-inset transition-all placeholder:text-ink-muted focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none disabled:cursor-not-allowed disabled:text-ink-muted"
             [class.ring-red-400]="nameProblem() !== null && name() !== ''"
+      maxlength="120"
           />
           @if (nameProblem() !== null && name() !== '') {
             <p class="mt-1 text-xs text-danger">{{ nameProblem() }}</p>
@@ -129,6 +130,7 @@
                 (input)="headerExample.set($any($event.target).value)"
                 placeholder="e.g. Ayesha"
                 class="mt-1 h-8.5 w-full rounded-lg border-0 bg-surface-sunken px-3 text-sm text-ink ring-1 ring-line ring-inset placeholder:text-ink-muted focus:bg-surface focus:ring-2 focus:ring-brand-500 focus:outline-none"
+      maxlength="60"
               />
             }
             @for (problem of problemsIn('header'); track problem.id) {
@@ -148,7 +150,7 @@
 
       <!-- Body -->
       <div>
-        <label for="tpl-body" class="block text-sm font-medium text-ink-soft">Body</label>
+        <label for="tpl-body" class="block text-sm font-medium text-ink-soft">Body<span class="text-danger" aria-hidden="true">*</span><span class="sr-only">(required)</span></label>
 
         <!-- WhatsApp formatting is four markers, not rich text: these wrap the
              selection in them, and the preview shows the result. -->

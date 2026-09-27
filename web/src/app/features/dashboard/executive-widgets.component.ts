@@ -110,8 +110,6 @@ export class ExecutiveWidgetsComponent {
       { key: 'campaigns', label: 'Campaign credits', icon: 'megaphone', action: 'Buy credits', route: '/pricing' },
       { key: 'contacts', label: 'Contact limit', icon: 'users', action: 'Upgrade plan', route: '/pricing' },
       { key: 'employees', label: 'Employee seats', icon: 'userGroup', action: 'Add seats', route: '/pricing' },
-      { key: 'apiCalls', label: 'API requests', icon: 'command', action: 'Raise limit', route: '/pricing' },
-      { key: 'storage', label: 'Storage', icon: 'database', action: 'Add storage', route: '/pricing' },
     ];
 
     return specs.flatMap((spec) => {
